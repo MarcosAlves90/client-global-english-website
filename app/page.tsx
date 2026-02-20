@@ -9,11 +9,11 @@ import {
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#ffffff,#f5f4f0_45%,#ece9e2_100%)]">
+    <div className="min-h-screen bg-background">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-12">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-sm font-semibold">
-            <span className="flex size-10 items-center justify-center rounded-2xl bg-foreground text-background">
+            <span className="flex size-10 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
               GE
             </span>
             Global English
@@ -23,7 +23,7 @@ export default function Home() {
               Entrar
             </Link>
             <Link
-              className="inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-background"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-primary-foreground"
               href="/signup"
             >
               Criar conta <ArrowRight className="size-4" />
@@ -34,7 +34,7 @@ export default function Home() {
         <main className="flex flex-1 flex-col justify-center gap-16 py-16">
           <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="space-y-6">
-              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              <p className="text-xs uppercase tracking-[0.3em] text-primary">
                 Global English Platform
               </p>
               <h1 className="text-4xl font-semibold tracking-tight text-foreground lg:text-5xl">
@@ -48,7 +48,7 @@ export default function Home() {
               </p>
               <div className="flex flex-wrap items-center gap-4">
                 <Link
-                  className="inline-flex items-center gap-2 rounded-full bg-foreground px-6 py-3 text-background"
+                  className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-primary-foreground"
                   href="/signup"
                 >
                   Começar agora <ArrowRight className="size-4" />
@@ -62,7 +62,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="rounded-3xl border bg-white/70 p-8 shadow-sm">
+            <div className="rounded-3xl border bg-card/70 p-8 shadow-sm">
               <div className="space-y-5">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>Visão semanal</span>
@@ -95,29 +95,29 @@ export default function Home() {
           </section>
 
           <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-3xl border bg-white/70 p-6">
-              <GraduationCap className="size-5 text-muted-foreground" />
+            <div className="rounded-3xl border bg-card/70 p-6">
+              <GraduationCap className="size-5 text-primary" />
               <h3 className="mt-4 text-base font-semibold">Cursos conectados</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 Estruture módulos, níveis e objetivos para cada turma.
               </p>
             </div>
-            <div className="rounded-3xl border bg-white/70 p-6">
-              <Layers className="size-5 text-muted-foreground" />
+            <div className="rounded-3xl border bg-card/70 p-6">
+              <Layers className="size-5 text-primary" />
               <h3 className="mt-4 text-base font-semibold">Trilhas claras</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 Organize atividades por etapas, com prioridades e prazos.
               </p>
             </div>
-            <div className="rounded-3xl border bg-white/70 p-6">
-              <BookOpen className="size-5 text-muted-foreground" />
+            <div className="rounded-3xl border bg-card/70 p-6">
+              <BookOpen className="size-5 text-primary" />
               <h3 className="mt-4 text-base font-semibold">Biblioteca viva</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 Centralize materiais em PDF, vídeo, áudio e links.
               </p>
             </div>
-            <div className="rounded-3xl border bg-white/70 p-6">
-              <ShieldCheck className="size-5 text-muted-foreground" />
+            <div className="rounded-3xl border bg-card/70 p-6">
+              <ShieldCheck className="size-5 text-primary" />
               <h3 className="mt-4 text-base font-semibold">Controle administrativo</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 Defina permissões e acompanhe o desempenho dos alunos.
