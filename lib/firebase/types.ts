@@ -6,6 +6,7 @@ export type UserProfile = {
   email: string
   role: UserRole
   team?: string | null
+  disabled?: boolean
   createdAt: Date | null
   updatedAt: Date | null
 }

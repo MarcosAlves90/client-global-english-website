@@ -12,6 +12,7 @@ interface RequestBody {
   email?: string
   role?: "user" | "admin"
   team?: string | null
+  disabled?: boolean
 }
 
 // helpers
@@ -50,24 +51,26 @@ export async function GET(req: NextRequest) {
   try {
     // fetch a page of auth users (max 1000 for simplicity)
     const authList = await adminAuth.listUsers(1000)
-    const users: AdminUserSummary[] = []
+    const users = await Promise.all(
+      authList.users.map(async (u): Promise<AdminUserSummary> => {
+        const docSnap = await adminDb
+          .collection(COLLECTIONS.users)
+          .doc(u.uid)
+          .get()
+        const data = docSnap.data()
 
-    for (const u of authList.users) {
-      const docSnap = await adminDb
-        .collection(COLLECTIONS.users)
-        .doc(u.uid)
-        .get()
-      const data = docSnap.data()
-      users.push({
-        uid: u.uid,
-        name: u.displayName ?? "",
-        email: u.email ?? "",
-        role: (data?.role as UserRole) ?? "user",
-        team: (data?.team as string) ?? null,
-        createdAt: data?.createdAt?.toDate?.() ?? null,
-        updatedAt: data?.updatedAt?.toDate?.() ?? null,
+        return {
+          uid: u.uid,
+          name: u.displayName ?? "",
+          email: u.email ?? "",
+          role: (data?.role as UserRole) ?? "user",
+          team: (data?.team as string) ?? null,
+          disabled: u.disabled ?? false,
+          createdAt: data?.createdAt?.toDate?.() ?? null,
+          updatedAt: data?.updatedAt?.toDate?.() ?? null,
+        }
       })
-    }
+    )
 
     users.sort((a, b) => a.name.localeCompare(b.name))
     return NextResponse.json(users)
@@ -128,6 +131,7 @@ export async function POST(req: NextRequest) {
       email: body.email,
       role,
       team: body.team ?? null,
+      disabled: false,
       createdAt: null,
       updatedAt: null,
     }
@@ -161,12 +165,13 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "uid is required" }, { status: 400 })
   }
 
-  const { uid, name, email, role: roleStr, team } = body
+  const { uid, name, email, role: roleStr, team, disabled } = body
 
   try {
     const authUpdates: Record<string, unknown> = {}
     if (name) authUpdates.displayName = name
     if (email) authUpdates.email = email
+    if (disabled !== undefined) authUpdates.disabled = disabled
     if (Object.keys(authUpdates).length) {
       await adminAuth.updateUser(uid, authUpdates)
     }
@@ -181,6 +186,9 @@ export async function PATCH(req: NextRequest) {
       })
     }
     if (team !== undefined) firestoreUpdates.team = team
+    if (disabled !== undefined) {
+      firestoreUpdates.disabled = disabled
+    }
     firestoreUpdates.updatedAt = admin.firestore.FieldValue.serverTimestamp()
 
     await adminDb.collection(COLLECTIONS.users).doc(uid).set(firestoreUpdates, { merge: true })
@@ -189,5 +197,33 @@ export async function PATCH(req: NextRequest) {
   } catch (err) {
     console.error("failed to patch user", err)
     return NextResponse.json({ error: "update failed" }, { status: 500 })
+  }
+}
+
+// delete a user account and associated firestore doc
+export async function DELETE(req: NextRequest) {
+  const authCheck = await assertIsAdmin(req)
+  if (!authCheck.ok) {
+    return NextResponse.json({ error: authCheck.message }, { status: authCheck.status })
+  }
+
+  let body: { uid?: string }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  if (!body.uid) {
+    return NextResponse.json({ error: "uid is required" }, { status: 400 })
+  }
+
+  try {
+    await adminAuth.deleteUser(body.uid)
+    await adminDb.collection(COLLECTIONS.users).doc(body.uid).delete()
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error("failed to delete user", err)
+    return NextResponse.json({ error: "delete failed" }, { status: 500 })
   }
 }

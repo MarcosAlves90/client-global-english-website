@@ -4,7 +4,11 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { signInWithEmail } from "@/lib/firebase/auth"
+import {
+  requestPasswordReset,
+  signInWithEmail,
+  toFriendlyAuthError,
+} from "@/lib/firebase/auth"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,11 +35,14 @@ export function LoginForm({
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = React.useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [isResettingPassword, setIsResettingPassword] = React.useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    setSuccessMessage(null)
 
     if (!isFirebaseReady) {
       router.push("/dashboard")
@@ -47,10 +54,42 @@ export function LoginForm({
     try {
       await signInWithEmail({ email, password })
       router.push("/dashboard")
-    } catch {
-      setError("Email ou senha inválidos. Tente novamente.")
+    } catch (err) {
+      setError(
+        toFriendlyAuthError(err, "Email ou senha inválidos. Tente novamente.")
+      )
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handlePasswordReset() {
+    setError(null)
+    setSuccessMessage(null)
+
+    if (!email.trim()) {
+      setError("Informe seu email para recuperar a senha.")
+      return
+    }
+
+    if (!isFirebaseReady) {
+      setError("Recuperação indisponível enquanto o Firebase não estiver configurado.")
+      return
+    }
+
+    setIsResettingPassword(true)
+    try {
+      await requestPasswordReset(email)
+      setSuccessMessage("Enviamos um email com instruções para redefinir sua senha.")
+    } catch (err) {
+      setError(
+        toFriendlyAuthError(
+          err,
+          "Não foi possível enviar o email de recuperação. Tente novamente."
+        )
+      )
+    } finally {
+      setIsResettingPassword(false)
     }
   }
 
@@ -80,9 +119,14 @@ export function LoginForm({
               <Field>
                 <div className="flex items-center">
                   <FieldLabel htmlFor="password">Senha</FieldLabel>
-                  <span className="ml-auto text-sm text-muted-foreground">
-                    Precisa de ajuda?
-                  </span>
+                  <button
+                    type="button"
+                    className="ml-auto text-sm text-muted-foreground underline-offset-4 hover:underline disabled:opacity-60"
+                    onClick={handlePasswordReset}
+                    disabled={isResettingPassword || isSubmitting}
+                  >
+                    {isResettingPassword ? "Enviando..." : "Esqueci minha senha"}
+                  </button>
                 </div>
                 <Input
                   id="password"
@@ -102,6 +146,11 @@ export function LoginForm({
                 {error ? (
                   <FieldDescription className="text-center text-destructive">
                     {error}
+                  </FieldDescription>
+                ) : null}
+                {successMessage ? (
+                  <FieldDescription className="text-center text-green-600">
+                    {successMessage}
                   </FieldDescription>
                 ) : null}
               </Field>

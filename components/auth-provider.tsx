@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { onAuthStateChanged, type User } from "firebase/auth"
+import { signOutUser } from "@/lib/firebase/auth"
 import { auth, hasFirebaseConfig } from "@/lib/firebase/client"
 import { fetchUserProfile } from "@/lib/firebase/firestore"
 import type { UserProfile, UserRole } from "@/lib/firebase/types"
@@ -32,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (!isFirebaseReady || !auth) {
       setUser(null)
-      setRole("admin")
+      setRole(null)
       setProfile(null)
       setLoading(false)
       return
@@ -48,10 +49,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      const profile = await fetchUserProfile(firebaseUser.uid)
-      setRole(profile?.role ?? "user")
-      setProfile(profile)
-      setLoading(false)
+      try {
+        const profile = await fetchUserProfile(firebaseUser.uid)
+
+        // Extra hardening: if admin froze this account at the profile level,
+        // force sign out on the client as soon as we detect it.
+        if (profile?.disabled) {
+          await signOutUser()
+          setRole(null)
+          setProfile(null)
+          setLoading(false)
+          return
+        }
+
+        setRole(profile?.role ?? "user")
+        setProfile(profile)
+      } catch {
+        setRole("user")
+        setProfile(null)
+      } finally {
+        setLoading(false)
+      }
     })
 
     return () => unsubscribe()

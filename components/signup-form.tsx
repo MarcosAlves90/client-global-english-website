@@ -4,7 +4,12 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { signUpWithEmail } from "@/lib/firebase/auth"
+import { signUpWithEmail, toFriendlyAuthError } from "@/lib/firebase/auth"
+import {
+  validateEmail,
+  validateName,
+  validatePassword,
+} from "@/lib/auth/validators"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import {
@@ -45,8 +50,21 @@ export function SignupForm({
       return
     }
 
-    if (password.length < 8) {
-      setError("A senha precisa ter pelo menos 8 caracteres.")
+    const nameError = validateName(name)
+    if (nameError) {
+      setError(nameError)
+      return
+    }
+
+    const emailError = validateEmail(email)
+    if (emailError) {
+      setError(emailError)
+      return
+    }
+
+    const passwordError = validatePassword(password)
+    if (passwordError) {
+      setError(passwordError)
       return
     }
 
@@ -65,8 +83,10 @@ export function SignupForm({
     try {
       await signUpWithEmail({ name, email, password })
       router.push("/dashboard")
-    } catch {
-      setError("Não foi possível criar sua conta. Tente novamente.")
+    } catch (err) {
+      setError(
+        toFriendlyAuthError(err, "Não foi possível criar sua conta. Tente novamente.")
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -136,7 +156,7 @@ export function SignupForm({
                   </Field>
                 </Field>
                 <FieldDescription>
-                  A senha precisa ter pelo menos 8 caracteres.
+                  Use ao menos 8 caracteres, com maiúscula, minúscula e número.
                 </FieldDescription>
               </Field>
               <Field>

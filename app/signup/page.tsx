@@ -3,6 +3,9 @@ import { GraduationCap } from "lucide-react"
 
 import { SignupForm } from "@/components/signup-form"
 
+const isSignupDisabled =
+  process.env.NEXT_PUBLIC_SIGNUP_ENABLED === "false"
+
 export default function SignupPage() {
   return (
     <div className="min-h-svh bg-background">
@@ -35,7 +38,7 @@ export default function SignupPage() {
         </div>
         <div className="flex items-center justify-center">
           <div className="w-full max-w-md">
-            <SignupForm isDisabled />
+            <SignupForm isDisabled={isSignupDisabled} />
           </div>
         </div>
       </div>

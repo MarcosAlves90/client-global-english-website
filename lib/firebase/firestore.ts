@@ -67,7 +67,7 @@ export async function ensureUserProfile(params: {
   )
 }
 
-export async function fetchUserProfile(uid: string) {
+export async function fetchUserProfile(uid: string): Promise<UserProfile | null> {
   const firestore = getDbOrThrow()
 
   const userRef = doc(firestore, COLLECTIONS.users, uid)
@@ -85,6 +85,7 @@ export async function fetchUserProfile(uid: string) {
     email: data.email ?? "",
     role: (data.role ?? "user") as UserRole,
     team: data.team ?? null,
+    disabled: data.disabled ?? false,
     createdAt: data.createdAt?.toDate?.() ?? null,
     updatedAt: data.updatedAt?.toDate?.() ?? null,
   } satisfies UserProfile

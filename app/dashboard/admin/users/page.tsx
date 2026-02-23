@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import * as React from "react"
-import { Mail, UserCheck, Users2 } from "lucide-react"
+import { Mail, UserCheck, Users2, Eye, Edit, Snowflake, Flame, Trash2 } from "lucide-react"
 
 import { DashboardHeader } from "@/components/dashboard-header"
 import { useAuth } from "@/hooks/use-auth"
@@ -22,6 +22,7 @@ type EditableUser = {
   email: string
   role: "admin" | "user"
   team: string
+  disabled?: boolean
 }
 
 const selectClassName =
@@ -41,6 +42,7 @@ export default function Page() {
     email: "",
     role: "user",
     team: "",
+    disabled: false,
   })
   const [saving, setSaving] = React.useState(false)
   const [formError, setFormError] = React.useState<string | null>(null)
@@ -56,7 +58,12 @@ export default function Page() {
       try {
         setLoading(true)
         setError(null)
-        const resp = await fetch("/api/admin/users")
+        const idToken = user ? await user.getIdToken() : null
+        const resp = await fetch("/api/admin/users", {
+          headers: {
+            ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+          },
+        })
         if (!resp.ok) throw new Error("failed to load")
         const data: AdminUserSummary[] = await resp.json()
         if (isMounted) {
@@ -78,14 +85,21 @@ export default function Page() {
     return () => {
       isMounted = false
     }
-  }, [isFirebaseReady, role])
+  }, [isFirebaseReady, role, user])
 
   React.useEffect(() => {
     if (selectedUser) {
       setForm({ ...selectedUser })
       setFormError(null)
     } else {
-      setForm({ uid: "", name: "", email: "", role: "user", team: "" })
+      setForm({
+        uid: "",
+        name: "",
+        email: "",
+        role: "user",
+        team: "",
+        disabled: false,
+      })
       setFormError(null)
     }
   }, [selectedUser])
@@ -123,11 +137,60 @@ export default function Page() {
       email: user.email,
       role: user.role,
       team: user.team ?? "",
+      disabled: user.disabled,
     })
   }
 
   const handleCancelEdit = () => {
     setSelectedUser(null)
+  }
+
+  const handleFreeze = async (target: AdminUserSummary) => {
+    const idToken = user ? await user.getIdToken() : null
+    try {
+      const resp = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
+        body: JSON.stringify({ uid: target.uid, disabled: !target.disabled }),
+      })
+      if (!resp.ok) throw new Error("freeze failed")
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.uid === target.uid ? { ...u, disabled: !target.disabled } : u
+        )
+      )
+      if (selectedUser?.uid === target.uid) {
+        setSelectedUser((prev) =>
+          prev ? { ...prev, disabled: !target.disabled } : prev
+        )
+      }
+    } catch {
+      setError("Não foi possível alterar o estado do usuário.")
+    }
+  }
+
+  const handleDelete = async (target: AdminUserSummary) => {
+    if (!confirm(`Excluir usuário ${target.name}?`)) {
+      return
+    }
+    const idToken = user ? await user.getIdToken() : null
+    try {
+      const resp = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
+        body: JSON.stringify({ uid: target.uid }),
+      })
+      if (!resp.ok) throw new Error("delete failed")
+      setUsers((prev) => prev.filter((u) => u.uid !== target.uid))
+    } catch {
+      setError("Não foi possível excluir o usuário.")
+    }
   }
 
   const handleSave = async () => {
@@ -142,14 +205,23 @@ export default function Page() {
 
     try {
       if (selectedUser) {
-        // editing existing user
-        await updateAdminUser({
-          uid: selectedUser.uid,
-          name: form.name.trim(),
-          email: form.email.trim(),
-          role: form.role,
-          team: form.team.trim() || null,
+        // editing existing user through API so auth profile updates as well
+        const idToken = user ? await user.getIdToken() : null
+        const resp = await fetch("/api/admin/users", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+          },
+          body: JSON.stringify({
+            uid: selectedUser.uid,
+            name: form.name.trim(),
+            email: form.email.trim(),
+            role: form.role,
+            team: form.team.trim() || null,
+          }),
         })
+        if (!resp.ok) throw new Error("failed to update")
 
         setUsers((prev) =>
           prev.map((user) =>
@@ -164,11 +236,9 @@ export default function Page() {
               : user
           )
         )
-
         setSelectedUser(null)
       } else {
-        // create via server-side endpoint so that an auth user is created too
-        // attach ID token so server can verify admin status
+        // creating new user
         const idToken = user ? await user.getIdToken() : null
         const resp = await fetch("/api/admin/users", {
           method: "POST",
@@ -183,14 +253,19 @@ export default function Page() {
             team: form.team.trim() || null,
           }),
         })
-        if (!resp.ok) {
-          throw new Error((await resp.json()).error || "Failed to create")
-        }
+        if (!resp.ok) throw new Error("Failed to create")
         const newUser = (await resp.json()) as AdminUserSummary
         setUsers((prev) =>
           [...prev, newUser].sort((a, b) => a.name.localeCompare(b.name))
         )
-        setForm({ uid: "", name: "", email: "", role: "user", team: "" })
+        setForm({
+          uid: "",
+          name: "",
+          email: "",
+          role: "user",
+          team: "",
+          disabled: false,
+        })
       }
     } catch {
       setFormError(
@@ -266,14 +341,40 @@ export default function Page() {
                     <span className="rounded-full bg-muted px-3 py-1">
                       {ROLE_LABELS[user.role]}
                     </span>
-                    <span className="rounded-full bg-muted px-3 py-1">Ativo</span>
+                    <span className="rounded-full bg-muted px-3 py-1">
+                      {user.disabled ? "Congelado" : "Ativo"}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline">
-                      Ver perfil
+                    <Button size="sm" variant="outline" onClick={() => {/* TODO profile view */}}>
+                      <Eye className="size-4" />
+                      <span className="sr-only">Ver perfil</span>
                     </Button>
                     <Button size="sm" onClick={() => handleEditUser(user)}>
-                      Editar
+                      <Edit className="size-4" />
+                      <span className="sr-only">Editar</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleFreeze(user)}
+                    >
+                      {user.disabled ? (
+                        <Flame className="size-4" />
+                      ) : (
+                        <Snowflake className="size-4" />
+                      )}
+                      <span className="sr-only">
+                        {user.disabled ? "Descongelar" : "Congelar"}
+                      </span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleDelete(user)}
+                    >
+                      <Trash2 className="size-4" />
+                      <span className="sr-only">Excluir</span>
                     </Button>
                   </div>
                 </div>
