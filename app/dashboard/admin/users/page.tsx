@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import * as React from "react"
-import { Mail, UserCheck, Users2, Eye, Edit, Snowflake, Flame, Trash2, ShieldCheck, User } from "lucide-react"
+import { Mail, UserCheck, Users2 } from "lucide-react"
 
 import { DashboardHeader } from "@/components/dashboard-header"
 import { useAuth } from "@/hooks/use-auth"
@@ -9,13 +9,18 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { cn } from "@/lib/utils"
 import type { AdminUserSummary } from "@/lib/firebase/types"
+import {
+  AdminUserCard,
+  deleteAdminUser,
+  fetchAdminUsersPage,
+  toggleAdminUserDisabled,
+  upsertAdminUser,
+  type AdminUsersPageResponse,
+} from "@/modules/users"
 
-const ROLE_LABELS = {
-  admin: "Admin",
-  user: "Aluno",
-}
+const USERS_PAGE_SIZE = 12
+const ROOT_CURSOR = "__root__"
 
 type EditableUser = {
   uid: string
@@ -48,46 +53,43 @@ export default function Page() {
   const [saving, setSaving] = React.useState(false)
   const [formError, setFormError] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [nextCursor, setNextCursor] = React.useState<string | null>(null)
+  const [currentCursor, setCurrentCursor] = React.useState<string | null>(null)
+  const [cursorHistory, setCursorHistory] = React.useState<string[]>([])
+  const [page, setPage] = React.useState(1)
+
+  const loadUsersPage = React.useCallback(
+    async (cursor: string | null) => {
+      try {
+        setLoading(true)
+        setError(null)
+        const idToken = user ? await user.getIdToken() : null
+        const data = (await fetchAdminUsersPage({
+          idToken,
+          pageSize: USERS_PAGE_SIZE,
+          cursor,
+        })) as AdminUsersPageResponse
+        setUsers(data.items)
+        setNextCursor(data.nextCursor)
+      } catch {
+        setError("Não foi possível carregar os usuários.")
+      } finally {
+        setLoading(false)
+      }
+    },
+    [user]
+  )
 
   React.useEffect(() => {
     if (!isFirebaseReady || role !== "admin") {
       return
     }
 
-    let isMounted = true
-
-    const loadUsers = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const idToken = user ? await user.getIdToken() : null
-        const resp = await fetch("/api/admin/users", {
-          headers: {
-            ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-          },
-        })
-        if (!resp.ok) throw new Error("failed to load")
-        const data: AdminUserSummary[] = await resp.json()
-        if (isMounted) {
-          setUsers(data)
-        }
-      } catch {
-        if (isMounted) {
-          setError("Não foi possível carregar os usuários.")
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
-      }
-    }
-
-    loadUsers()
-
-    return () => {
-      isMounted = false
-    }
-  }, [isFirebaseReady, role, user])
+    setCurrentCursor(null)
+    setCursorHistory([])
+    setPage(1)
+    void loadUsersPage(null)
+  }, [isFirebaseReady, role, loadUsersPage])
 
   React.useEffect(() => {
     if (selectedUser) {
@@ -106,6 +108,19 @@ export default function Page() {
     }
   }, [selectedUser])
 
+  const totalUsers = users.length
+  const adminUsers = users.filter((user) => user.role === "admin").length
+
+  const filteredUsers = React.useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return users
+    return users.filter(
+      (u) =>
+        u.name.toLowerCase().includes(query) ||
+        u.email.toLowerCase().includes(query)
+    )
+  }, [users, searchQuery])
+
   if (role !== "admin") {
     return (
       <div className="p-6">
@@ -121,18 +136,33 @@ export default function Page() {
     )
   }
 
-  const totalUsers = users.length
-  const adminUsers = users.filter((user) => user.role === "admin").length
+  const hasPreviousPage = cursorHistory.length > 0
+  const hasNextPage = Boolean(nextCursor)
 
-  const filteredUsers = React.useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    if (!query) return users
-    return users.filter(
-      (u) =>
-        u.name.toLowerCase().includes(query) ||
-        u.email.toLowerCase().includes(query)
-    )
-  }, [users, searchQuery])
+  const handleNextPage = async () => {
+    if (!nextCursor || loading) {
+      return
+    }
+
+    setCursorHistory((prev) => [...prev, currentCursor ?? ROOT_CURSOR])
+    setCurrentCursor(nextCursor)
+    setPage((prev) => prev + 1)
+    await loadUsersPage(nextCursor)
+  }
+
+  const handlePreviousPage = async () => {
+    if (!cursorHistory.length || loading) {
+      return
+    }
+
+    const previousCursorRaw = cursorHistory[cursorHistory.length - 1]
+    const previousCursor = previousCursorRaw === ROOT_CURSOR ? null : previousCursorRaw
+
+    setCursorHistory((prev) => prev.slice(0, -1))
+    setCurrentCursor(previousCursor)
+    setPage((prev) => Math.max(1, prev - 1))
+    await loadUsersPage(previousCursor)
+  }
 
   const teamOptions = Array.from(
     new Set(
@@ -161,15 +191,10 @@ export default function Page() {
   const handleFreeze = async (target: AdminUserSummary) => {
     const idToken = user ? await user.getIdToken() : null
     try {
-      const resp = await fetch("/api/admin/users", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-        },
-        body: JSON.stringify({ uid: target.uid, disabled: !target.disabled }),
+      await toggleAdminUserDisabled(idToken, {
+        uid: target.uid,
+        disabled: !target.disabled,
       })
-      if (!resp.ok) throw new Error("freeze failed")
       setUsers((prev) =>
         prev.map((u) =>
           u.uid === target.uid ? { ...u, disabled: !target.disabled } : u
@@ -191,16 +216,8 @@ export default function Page() {
     }
     const idToken = user ? await user.getIdToken() : null
     try {
-      const resp = await fetch("/api/admin/users", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-        },
-        body: JSON.stringify({ uid: target.uid }),
-      })
-      if (!resp.ok) throw new Error("delete failed")
-      setUsers((prev) => prev.filter((u) => u.uid !== target.uid))
+      await deleteAdminUser(idToken, { uid: target.uid })
+      await loadUsersPage(currentCursor)
     } catch {
       setError("Não foi possível excluir o usuário.")
     }
@@ -218,23 +235,14 @@ export default function Page() {
 
     try {
       if (selectedUser) {
-        // editing existing user through API so auth profile updates as well
         const idToken = user ? await user.getIdToken() : null
-        const resp = await fetch("/api/admin/users", {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-          },
-          body: JSON.stringify({
-            uid: selectedUser.uid,
-            name: form.name.trim(),
-            email: form.email.trim(),
-            role: form.role,
-            team: form.team.trim() || null,
-          }),
+        await upsertAdminUser(idToken, {
+          uid: selectedUser.uid,
+          name: form.name.trim(),
+          email: form.email.trim(),
+          role: form.role,
+          team: form.team.trim() || null,
         })
-        if (!resp.ok) throw new Error("failed to update")
 
         setUsers((prev) =>
           prev.map((user) =>
@@ -251,26 +259,18 @@ export default function Page() {
         )
         setSelectedUser(null)
       } else {
-        // creating new user
         const idToken = user ? await user.getIdToken() : null
-        const resp = await fetch("/api/admin/users", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-          },
-          body: JSON.stringify({
-            name: form.name.trim(),
-            email: form.email.trim(),
-            role: form.role,
-            team: form.team.trim() || null,
-          }),
+        await upsertAdminUser(idToken, {
+          name: form.name.trim(),
+          email: form.email.trim(),
+          role: form.role,
+          team: form.team.trim() || null,
         })
-        if (!resp.ok) throw new Error("Failed to create")
-        const newUser = (await resp.json()) as AdminUserSummary
-        setUsers((prev) =>
-          [...prev, newUser].sort((a, b) => a.name.localeCompare(b.name))
-        )
+
+        setCurrentCursor(null)
+        setCursorHistory([])
+        setPage(1)
+        await loadUsersPage(null)
         setForm({
           uid: "",
           name: "",
@@ -294,7 +294,7 @@ export default function Page() {
   return (
     <div>
       <DashboardHeader
-        title="Usuários"
+        title="Gerenciar usuários"
         description="Gerencie alunos, instrutores e permissões da plataforma."
         action={
           <Button size="sm" onClick={() => setSelectedUser(null)}>
@@ -338,9 +338,28 @@ export default function Page() {
               >
                 Limpar
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handlePreviousPage}
+                disabled={!hasPreviousPage || loading}
+              >
+                Anterior
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleNextPage}
+                disabled={!hasNextPage || loading}
+              >
+                Próxima
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
+            <div className="mb-3 text-xs text-muted-foreground">
+              Página {page}
+            </div>
             {loading ? (
               <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
                 Carregando usuários...
@@ -353,112 +372,19 @@ export default function Page() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredUsers.map((item) => {
                   const isSelected = selectedUser?.uid === item.uid
-                  const isAdmin = item.role === "admin"
-                  const isDisabled = item.disabled
-
                   return (
-                    <div
+                    <AdminUserCard
                       key={item.uid}
-                      className={cn(
-                        "relative flex flex-col group rounded-xl border bg-card p-3 transition-all duration-300",
-                        "hover:shadow-md hover:border-accent-foreground/30",
-                        isSelected 
-                          ? "ring-2 ring-primary border-primary bg-primary/5 shadow-sm" 
-                          : "border-border",
-                        isDisabled && "grayscale-[0.8] opacity-80"
-                      )}
-                    >
-                      <div className="flex items-start gap-3 mb-2">
-                        <div className={cn(
-                          "flex size-8 shrink-0 items-center justify-center rounded-full transition-colors duration-500",
-                          isAdmin ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
-                          isSelected && "bg-primary text-primary-foreground"
-                        )}>
-                          {isAdmin ? <ShieldCheck className="size-4" /> : <User className="size-4" />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <p className={cn(
-                              "truncate text-sm font-bold tracking-tight",
-                              isSelected ? "text-primary" : "text-foreground"
-                            )}>
-                              {item.name}
-                            </p>
-                            {isAdmin && (
-                              <ShieldCheck className="size-3 text-primary shrink-0" title="Admin" />
-                            )}
-                          </div>
-                          <p className="truncate text-[11px] text-muted-foreground">
-                            {item.email}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={cn(
-                          "inline-flex items-center rounded-md px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider",
-                          isAdmin 
-                            ? "bg-primary/20 text-primary border border-primary/20" 
-                            : "bg-secondary text-secondary-foreground"
-                        )}>
-                          {ROLE_LABELS[item.role]}
-                        </span>
-                        
-                        {isDisabled && (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                            <Snowflake className="size-2" />
-                            OFF
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="mt-auto flex items-center justify-between gap-1 border-t border-dashed pt-2 group-hover:border-accent-foreground/10">
-                        <div className="flex items-center gap-1">
-                          <Button 
-                            size="icon-xs" 
-                            variant="ghost" 
-                            className="size-7 rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
-                            onClick={() => {/* TODO profile view */}}
-                          >
-                            <Eye className="size-3.5" />
-                          </Button>
-                          <Button 
-                            size="icon-xs" 
-                            variant="ghost"
-                            className={cn(
-                              "size-7 rounded-full transition-colors",
-                              isSelected ? "bg-primary/10 text-primary" : "hover:bg-primary/10 hover:text-primary"
-                            )}
-                            onClick={() => handleEditUser(item)}
-                          >
-                            <Edit className="size-3.5" />
-                          </Button>
-                        </div>
-                        
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="icon-xs"
-                            className={cn(
-                              "size-7 rounded-full shadow-none border-none transition-transform active:scale-90",
-                              isDisabled
-                                ? "bg-yellow-400 hover:bg-yellow-500 text-amber-950"
-                                : "bg-blue-500 hover:bg-blue-600 text-white"
-                            )}
-                            onClick={() => handleFreeze(item)}
-                          >
-                            {isDisabled ? <Flame className="size-3.5" /> : <Snowflake className="size-3.5" />}
-                          </Button>
-                          <Button
-                            size="icon-xs"
-                            variant="destructive"
-                            className="size-7 rounded-full hover:rotate-12 transition-transform active:scale-90"
-                            onClick={() => handleDelete(item)}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
+                      item={item}
+                      isSelected={isSelected}
+                      onEdit={handleEditUser}
+                      onFreeze={(target) => {
+                        void handleFreeze(target)
+                      }}
+                      onDelete={(target) => {
+                        void handleDelete(target)
+                      }}
+                    />
                   )
                 })}
               </div>
@@ -569,17 +495,6 @@ export default function Page() {
             </Card>
           ))}
         </div>
-
-        <Card>
-          <CardHeader className="py-4">
-            <CardTitle className="text-base">Ações rápidas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">
-              Ações automáticas serão exibidas quando houver dados.
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   )

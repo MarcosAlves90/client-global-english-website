@@ -15,6 +15,11 @@ interface RequestBody {
   disabled?: boolean
 }
 
+interface PaginatedUsersResponse {
+  items: AdminUserSummary[]
+  nextCursor: string | null
+}
+
 // helpers
 async function assertIsAdmin(req: NextRequest) {
   const authHeader = req.headers.get("authorization")
@@ -49,31 +54,61 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // fetch a page of auth users (max 1000 for simplicity)
-    const authList = await adminAuth.listUsers(1000)
-    const users = await Promise.all(
-      authList.users.map(async (u): Promise<AdminUserSummary> => {
-        const docSnap = await adminDb
-          .collection(COLLECTIONS.users)
-          .doc(u.uid)
-          .get()
-        const data = docSnap.data()
+    const { searchParams } = new URL(req.url)
+    const pageSizeRaw = Number(searchParams.get("pageSize") ?? "12")
+    const pageSize = Number.isFinite(pageSizeRaw)
+      ? Math.min(Math.max(Math.floor(pageSizeRaw), 1), 50)
+      : 12
+    const cursor = searchParams.get("cursor")
 
-        return {
-          uid: u.uid,
-          name: u.displayName ?? "",
-          email: u.email ?? "",
-          role: (data?.role as UserRole) ?? "user",
-          team: (data?.team as string) ?? null,
-          disabled: u.disabled ?? false,
-          createdAt: data?.createdAt?.toDate?.() ?? null,
-          updatedAt: data?.updatedAt?.toDate?.() ?? null,
-        }
-      })
+    let usersQuery = adminDb
+      .collection(COLLECTIONS.users)
+      .where("uid", "!=", authCheck.uid)
+      .orderBy("uid")
+      .limit(pageSize + 1)
+
+    if (cursor) {
+      usersQuery = usersQuery.startAfter(cursor)
+    }
+
+    const usersSnapshot = await usersQuery.get()
+    const userDocs = usersSnapshot.docs.slice(0, pageSize)
+    const hasMore = usersSnapshot.docs.length > pageSize
+
+    const authUsersResult = await adminAuth.getUsers(
+      userDocs.map((docSnap) => ({ uid: docSnap.id }))
     )
 
-    users.sort((a, b) => a.name.localeCompare(b.name))
-    return NextResponse.json(users)
+    const authUsersByUid = new Map(
+      authUsersResult.users.map((u) => [u.uid, u])
+    )
+
+    const items: AdminUserSummary[] = userDocs.map((docSnap) => {
+      const data = docSnap.data()
+      const authUser = authUsersByUid.get(docSnap.id)
+
+      return {
+        uid: docSnap.id,
+        name: authUser?.displayName ?? (data?.name as string) ?? "",
+        email: authUser?.email ?? (data?.email as string) ?? "",
+        role: (data?.role as UserRole) ?? "user",
+        team: (data?.team as string) ?? null,
+        disabled: authUser?.disabled ?? Boolean(data?.disabled),
+        createdAt: data?.createdAt?.toDate?.() ?? null,
+        updatedAt: data?.updatedAt?.toDate?.() ?? null,
+      }
+    })
+
+    const nextCursor = hasMore
+      ? ((userDocs[userDocs.length - 1]?.id ?? null) as string | null)
+      : null
+
+    const payload: PaginatedUsersResponse = {
+      items,
+      nextCursor,
+    }
+
+    return NextResponse.json(payload)
   } catch (err) {
     console.error("list users failed", err)
     return NextResponse.json({ error: "Could not list users" }, { status: 500 })

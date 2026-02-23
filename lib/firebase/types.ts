@@ -65,9 +65,14 @@ export type AdminUserSummary = UserProfile
 export type AdminCourseSummary = {
   id: string
   title: string
+  description: string
+  level: "Beginner" | "Intermediate" | "Advanced"
+  durationWeeks: number
+  coverUrl: string | null
   status: string
   modulesCount: number
   studentsCount: number
+  activitiesCount: number
 }
 
 export type AdminOverview = {

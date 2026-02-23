@@ -1,0 +1,260 @@
+import type { NextRequest } from "next/server"
+import { NextResponse } from "next/server"
+
+import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
+import { COLLECTIONS } from "@/lib/firebase/collections"
+import type { AdminCourseSummary } from "@/lib/firebase/types"
+
+const COURSE_STATUS_OPTIONS = [
+  "Inscrições abertas",
+  "Em andamento",
+  "Finalizado",
+  "Pausado",
+  "Arquivado",
+] as const
+
+type CourseStatus = (typeof COURSE_STATUS_OPTIONS)[number]
+
+type CreateCourseBody = {
+  id?: string
+  title?: string
+  description?: string
+  level?: "Beginner" | "Intermediate" | "Advanced"
+  durationWeeks?: number
+  coverUrl?: string | null
+  status?: string
+}
+
+function resolveCourseStatus(status?: string): CourseStatus {
+  const inputStatus = status?.trim()
+  if (inputStatus && COURSE_STATUS_OPTIONS.includes(inputStatus as CourseStatus)) {
+    return inputStatus as CourseStatus
+  }
+  return "Inscrições abertas"
+}
+
+async function assertIsAdmin(req: NextRequest) {
+  const authHeader = req.headers.get("authorization")
+  const token = authHeader?.split(" ")[1]
+  if (!token) {
+    return { ok: false, status: 401, message: "Missing auth token" }
+  }
+
+  try {
+    const decoded = await adminAuth.verifyIdToken(token)
+    const doc = await adminDb.collection(COLLECTIONS.users).doc(decoded.uid).get()
+    const data = doc.data()
+
+    if (data?.role === "admin") {
+      return { ok: true, uid: decoded.uid }
+    }
+
+    return { ok: false, status: 403, message: "Admin access required" }
+  } catch (err) {
+    console.error("token verification failed", err)
+    return { ok: false, status: 401, message: "Invalid auth token" }
+  }
+}
+
+export async function GET(req: NextRequest) {
+  const authCheck = await assertIsAdmin(req)
+  if (!authCheck.ok) {
+    return NextResponse.json(
+      { error: authCheck.message },
+      { status: authCheck.status }
+    )
+  }
+
+  try {
+    const coursesSnapshot = await adminDb.collection(COLLECTIONS.courses).get()
+
+    const courses = await Promise.all(
+      coursesSnapshot.docs.map(async (docSnap): Promise<AdminCourseSummary> => {
+        const data = docSnap.data()
+
+        const [tracksSnapshot, enrollmentsSnapshot, activitiesSnapshot] = await Promise.all([
+          adminDb
+            .collection(COLLECTIONS.tracks)
+            .where("courseId", "==", docSnap.id)
+            .get(),
+          adminDb
+            .collection(COLLECTIONS.enrollments)
+            .where("courseId", "==", docSnap.id)
+            .get(),
+          adminDb
+            .collection(COLLECTIONS.activities)
+            .where("courseId", "==", docSnap.id)
+            .get(),
+        ])
+
+        return {
+          id: docSnap.id,
+          title: (data.title as string) ?? "",
+          description: (data.description as string) ?? "",
+          level:
+            ((data.level as "Beginner" | "Intermediate" | "Advanced") ??
+              "Beginner"),
+          durationWeeks: Number(data.durationWeeks ?? 0),
+          coverUrl: (data.coverUrl as string | null) ?? null,
+          status: (data.status as string) ?? "Inscrições abertas",
+          modulesCount: tracksSnapshot.size,
+          studentsCount: enrollmentsSnapshot.size,
+          activitiesCount: activitiesSnapshot.size,
+        }
+      })
+    )
+
+    courses.sort((a, b) => a.title.localeCompare(b.title))
+    return NextResponse.json(courses)
+  } catch (err) {
+    console.error("list courses failed", err)
+    return NextResponse.json({ error: "Could not list courses" }, { status: 500 })
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const authCheck = await assertIsAdmin(req)
+  if (!authCheck.ok) {
+    return NextResponse.json(
+      { error: authCheck.message },
+      { status: authCheck.status }
+    )
+  }
+
+  let body: CreateCourseBody
+
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  const title = body.title?.trim() ?? ""
+  const description = body.description?.trim() ?? ""
+  const level = body.level ?? "Beginner"
+  const durationWeeks = Number(body.durationWeeks)
+  const status = resolveCourseStatus(body.status)
+
+  if (!title || !description || !Number.isFinite(durationWeeks) || durationWeeks <= 0) {
+    return NextResponse.json(
+      { error: "Title, description and positive durationWeeks are required" },
+      { status: 400 }
+    )
+  }
+
+  const now = admin.firestore.FieldValue.serverTimestamp()
+
+  try {
+    const ref = adminDb.collection(COLLECTIONS.courses).doc()
+
+    await ref.set({
+      title,
+      description,
+      level,
+      durationWeeks,
+      coverUrl: body.coverUrl?.trim() || null,
+      status,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: authCheck.uid,
+    })
+
+    const result: AdminCourseSummary = {
+      id: ref.id,
+      title,
+      description,
+      level,
+      durationWeeks,
+      coverUrl: body.coverUrl?.trim() || null,
+      status,
+      modulesCount: 0,
+      studentsCount: 0,
+      activitiesCount: 0,
+    }
+
+    return NextResponse.json(result, { status: 201 })
+  } catch (err) {
+    console.error("create course failed", err)
+    return NextResponse.json({ error: "Could not create course" }, { status: 500 })
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  const authCheck = await assertIsAdmin(req)
+  if (!authCheck.ok) {
+    return NextResponse.json(
+      { error: authCheck.message },
+      { status: authCheck.status }
+    )
+  }
+
+  let body: CreateCourseBody
+
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  const id = body.id?.trim()
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 })
+  }
+
+  const updates: Record<string, unknown> = {
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }
+
+  if (body.title !== undefined) {
+    const title = body.title.trim()
+    if (!title) {
+      return NextResponse.json({ error: "title cannot be empty" }, { status: 400 })
+    }
+    updates.title = title
+  }
+
+  if (body.description !== undefined) {
+    const description = body.description.trim()
+    if (!description) {
+      return NextResponse.json(
+        { error: "description cannot be empty" },
+        { status: 400 }
+      )
+    }
+    updates.description = description
+  }
+
+  if (body.level !== undefined) {
+    updates.level = body.level
+  }
+
+  if (body.durationWeeks !== undefined) {
+    const durationWeeks = Number(body.durationWeeks)
+    if (!Number.isFinite(durationWeeks) || durationWeeks <= 0) {
+      return NextResponse.json(
+        { error: "durationWeeks must be greater than zero" },
+        { status: 400 }
+      )
+    }
+    updates.durationWeeks = durationWeeks
+  }
+
+  if (body.coverUrl !== undefined) {
+    updates.coverUrl = body.coverUrl?.trim() || null
+  }
+
+  if (body.status !== undefined) {
+    updates.status = resolveCourseStatus(body.status)
+  }
+
+  try {
+    await adminDb.collection(COLLECTIONS.courses).doc(id).set(updates, {
+      merge: true,
+    })
+
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error("update course failed", err)
+    return NextResponse.json({ error: "Could not update course" }, { status: 500 })
+  }
+}

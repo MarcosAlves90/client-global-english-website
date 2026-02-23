@@ -250,31 +250,49 @@ export async function fetchAdminCourses(): Promise<AdminCourseSummary[]> {
     return {
       id: docSnap.id,
       title: data.title ?? "",
-      status: data.status ?? "Ativo",
+      description: data.description ?? "",
+      level: (data.level ?? "Beginner") as "Beginner" | "Intermediate" | "Advanced",
+      durationWeeks: data.durationWeeks ?? 0,
+      coverUrl: data.coverUrl ?? null,
+      status: data.status ?? "Inscrições abertas",
     }
   })
 
   const courses = await Promise.all(
     courseBase.map(async (course) => {
-      const tracksSnapshot = await getDocs(
-        query(
-          collection(firestore, COLLECTIONS.tracks),
-          where("courseId", "==", course.id)
-        )
-      )
-      const enrollmentsSnapshot = await getDocs(
-        query(
-          collection(firestore, COLLECTIONS.enrollments),
-          where("courseId", "==", course.id)
-        )
-      )
+      const [tracksSnapshot, enrollmentsSnapshot, activitiesSnapshot] =
+        await Promise.all([
+          getDocs(
+            query(
+              collection(firestore, COLLECTIONS.tracks),
+              where("courseId", "==", course.id)
+            )
+          ),
+          getDocs(
+            query(
+              collection(firestore, COLLECTIONS.enrollments),
+              where("courseId", "==", course.id)
+            )
+          ),
+          getDocs(
+            query(
+              collection(firestore, COLLECTIONS.activities),
+              where("courseId", "==", course.id)
+            )
+          ),
+        ])
 
       return {
         id: course.id,
         title: course.title,
+        description: course.description,
+        level: course.level,
+        durationWeeks: course.durationWeeks,
+        coverUrl: course.coverUrl,
         status: course.status,
         modulesCount: tracksSnapshot.size,
         studentsCount: enrollmentsSnapshot.size,
+        activitiesCount: activitiesSnapshot.size,
       } satisfies AdminCourseSummary
     })
   )
