@@ -5,13 +5,11 @@ import {
   BookOpen,
   ClipboardCheck,
   Command,
-  FolderKanban,
   GraduationCap,
   LifeBuoy,
   ListChecks,
   Settings,
   ShieldCheck,
-  Users,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -54,15 +52,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ],
     },
     {
-      title: "Trilhas",
-      url: "/dashboard/tracks",
-      icon: FolderKanban,
-      items: [
-        { title: "Trilhas ativas", url: "/dashboard/tracks" },
-        { title: "Trilhas concluídas", url: "/dashboard/tracks" },
-      ],
-    },
-    {
       title: "Atividades",
       url: "/dashboard/activities",
       icon: ClipboardCheck,
@@ -89,7 +78,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const projects = [
     { name: "Agenda de estudos", url: "/dashboard/activities", icon: ListChecks },
-    { name: "Grupos de prática", url: "/dashboard/tracks", icon: Users },
+    { name: "Grupos de prática", url: "/dashboard/activities", icon: ListChecks },
   ]
 
   if (isAdmin) {
