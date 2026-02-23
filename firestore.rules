@@ -12,7 +12,11 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      // A regular user can read/write their own document, but an admin
+      // should be able to manage any user record.
+      allow read, write: if isSignedIn() && (
+        request.auth.uid == userId || isAdmin()
+      );
     }
 
     match /{document=**} {

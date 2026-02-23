@@ -9,10 +9,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  fetchAdminUsers,
-  updateAdminUser,
-} from "@/lib/firebase/firestore"
 import type { AdminUserSummary } from "@/lib/firebase/types"
 
 const ROLE_LABELS = {
@@ -32,7 +28,7 @@ const selectClassName =
   "bg-card text-foreground border-input h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
 
 export default function Page() {
-  const { role, isFirebaseReady } = useAuth()
+  const { role, isFirebaseReady, user } = useAuth()
   const [users, setUsers] = React.useState<AdminUserSummary[]>([])
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -60,7 +56,9 @@ export default function Page() {
       try {
         setLoading(true)
         setError(null)
-        const data = await fetchAdminUsers()
+        const resp = await fetch("/api/admin/users")
+        if (!resp.ok) throw new Error("failed to load")
+        const data: AdminUserSummary[] = await resp.json()
         if (isMounted) {
           setUsers(data)
         }
@@ -133,11 +131,7 @@ export default function Page() {
   }
 
   const handleSave = async () => {
-    if (!selectedUser) {
-      setFormError("Selecione um usuário para editar.")
-      return
-    }
-
+    // validation
     if (!form.name.trim() || !form.email.trim()) {
       setFormError("Nome e email são obrigatórios.")
       return
@@ -147,31 +141,63 @@ export default function Page() {
     setFormError(null)
 
     try {
-      await updateAdminUser({
-        uid: selectedUser.uid,
-        name: form.name.trim(),
-        email: form.email.trim(),
-        role: form.role,
-        team: form.team.trim() || null,
-      })
+      if (selectedUser) {
+        // editing existing user
+        await updateAdminUser({
+          uid: selectedUser.uid,
+          name: form.name.trim(),
+          email: form.email.trim(),
+          role: form.role,
+          team: form.team.trim() || null,
+        })
 
-      setUsers((prev) =>
-        prev.map((user) =>
-          user.uid === selectedUser.uid
-            ? {
-                ...user,
-                name: form.name.trim(),
-                email: form.email.trim(),
-                role: form.role,
-                team: form.team.trim() || null,
-              }
-            : user
+        setUsers((prev) =>
+          prev.map((user) =>
+            user.uid === selectedUser.uid
+              ? {
+                  ...user,
+                  name: form.name.trim(),
+                  email: form.email.trim(),
+                  role: form.role,
+                  team: form.team.trim() || null,
+                }
+              : user
+          )
         )
-      )
 
-      setSelectedUser(null)
+        setSelectedUser(null)
+      } else {
+        // create via server-side endpoint so that an auth user is created too
+        // attach ID token so server can verify admin status
+        const idToken = user ? await user.getIdToken() : null
+        const resp = await fetch("/api/admin/users", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+          },
+          body: JSON.stringify({
+            name: form.name.trim(),
+            email: form.email.trim(),
+            role: form.role,
+            team: form.team.trim() || null,
+          }),
+        })
+        if (!resp.ok) {
+          throw new Error((await resp.json()).error || "Failed to create")
+        }
+        const newUser = (await resp.json()) as AdminUserSummary
+        setUsers((prev) =>
+          [...prev, newUser].sort((a, b) => a.name.localeCompare(b.name))
+        )
+        setForm({ uid: "", name: "", email: "", role: "user", team: "" })
+      }
     } catch {
-      setFormError("Não foi possível salvar as alterações.")
+      setFormError(
+        selectedUser
+          ? "Não foi possível salvar as alterações."
+          : "Não foi possível criar o usuário."
+      )
     } finally {
       setSaving(false)
     }
@@ -182,7 +208,11 @@ export default function Page() {
       <DashboardHeader
         title="Usuários"
         description="Gerencie alunos, instrutores e permissões da plataforma."
-        action={<Button size="sm">Convidar usuário</Button>}
+        action={
+          <Button size="sm" onClick={() => setSelectedUser(null)}>
+            Convidar usuário
+          </Button>
+        }
       />
 
       <div className="flex flex-col gap-6 p-6">
@@ -322,8 +352,14 @@ export default function Page() {
               </div>
             ) : null}
             <div className="md:col-span-2 flex items-center gap-2">
-              <Button onClick={handleSave} disabled={!selectedUser || saving}>
-                {saving ? "Salvando..." : "Salvar usuário"}
+              <Button onClick={handleSave} disabled={saving}>
+                {saving
+                  ? selectedUser
+                    ? "Salvando..."
+                    : "Criando..."
+                  : selectedUser
+                  ? "Salvar usuário"
+                  : "Criar usuário"}
               </Button>
               <Button variant="outline" onClick={handleCancelEdit}>
                 Cancelar

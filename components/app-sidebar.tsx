@@ -39,7 +39,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const navMain = [
     {
-      title: "VisÃ£o geral",
+      title: "Visão geral",
       url: "/dashboard",
       icon: Command,
       isActive: true,
@@ -50,7 +50,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       icon: GraduationCap,
       items: [
         { title: "Meus cursos", url: "/dashboard/courses" },
-        { title: "CatÃ¡logo", url: "/dashboard/courses" },
+        { title: "Catálogo", url: "/dashboard/courses" },
       ],
     },
     {
@@ -59,7 +59,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       icon: FolderKanban,
       items: [
         { title: "Trilhas ativas", url: "/dashboard/tracks" },
-        { title: "Trilhas concluÃ­das", url: "/dashboard/tracks" },
+        { title: "Trilhas concluídas", url: "/dashboard/tracks" },
       ],
     },
     {
@@ -67,8 +67,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: "/dashboard/activities",
       icon: ClipboardCheck,
       items: [
-        { title: "PendÃªncias", url: "/dashboard/activities" },
-        { title: "ConcluÃ­das", url: "/dashboard/activities" },
+        { title: "Pendências", url: "/dashboard/activities" },
+        { title: "Concluídas", url: "/dashboard/activities" },
       ],
     },
     {
@@ -84,12 +84,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const navSecondary = [
     { title: "Suporte", url: "#", icon: LifeBuoy },
-    { title: "ConfiguraÃ§Ãµes", url: "/dashboard/settings", icon: Settings },
+    { title: "Configurações", url: "/dashboard/settings", icon: Settings },
   ]
 
   const projects = [
     { name: "Agenda de estudos", url: "/dashboard/activities", icon: ListChecks },
-    { name: "Grupos de prÃ¡tica", url: "/dashboard/tracks", icon: Users },
+    { name: "Grupos de prática", url: "/dashboard/tracks", icon: Users },
   ]
 
   if (isAdmin) {
@@ -98,7 +98,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: "/dashboard/admin",
       icon: ShieldCheck,
       items: [
-        { title: "UsuÃ¡rios", url: "/dashboard/admin/users" },
+        { title: "Usuários", url: "/dashboard/admin/users" },
         { title: "Cursos", url: "/dashboard/admin/courses" },
       ],
     })
