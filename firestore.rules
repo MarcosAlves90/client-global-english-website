@@ -11,12 +11,53 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
+    function isEmptyOrContainsUser(ids) {
+      return !(ids is list) || ids.size() == 0 || ids.hasAny([request.auth.uid]);
+    }
+
+    function isVisibleToUser(resourceData) {
+      return resourceData.visibility != "private"
+        && (
+          resourceData.visibility != "users"
+          || (resourceData.userIds is list && resourceData.userIds.hasAny([request.auth.uid]))
+        );
+    }
+
     match /users/{userId} {
       // A regular user can read/write their own document, but an admin
       // should be able to manage any user record.
       allow read, write: if isSignedIn() && (
         request.auth.uid == userId || isAdmin()
       );
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /courses/{courseId} {
+      allow read: if isAdmin() || isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /tracks/{trackId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && isEmptyOrContainsUser(resource.data.userIds));
+      allow write: if isAdmin();
+    }
+
+    match /activities/{activityId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && isVisibleToUser(resource.data));
+      allow write: if isAdmin();
+    }
+
+    match /materials/{materialId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && isVisibleToUser(resource.data));
+      allow write: if isAdmin();
     }
 
     match /{document=**} {
