@@ -4,6 +4,7 @@
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
   updateProfile,
 } from "firebase/auth"
 import { getAuthErrorMessage } from "@/lib/auth/errors"
@@ -14,7 +15,7 @@ import {
   validatePassword,
 } from "@/lib/auth/validators"
 import { auth, hasFirebaseConfig } from "@/lib/firebase/client"
-import { ensureUserProfile } from "@/lib/firebase/firestore"
+import { ensureUserProfile, setUserMustChangePassword } from "@/lib/firebase/firestore"
 import { resolveUserRole } from "@/lib/firebase/roles"
 
 function getAuthOrThrow() {
@@ -119,6 +120,24 @@ export async function requestPasswordReset(email: string) {
 
   const firebaseAuth = getAuthOrThrow()
   await sendPasswordResetEmail(firebaseAuth, normalizedEmail)
+}
+
+export async function updateCurrentUserPassword(params: { password: string }) {
+  const passwordError = validatePassword(params.password)
+  if (passwordError) {
+    throw new Error(passwordError)
+  }
+
+  const firebaseAuth = getAuthOrThrow()
+  if (!firebaseAuth.currentUser) {
+    throw new Error("Usuário não autenticado.")
+  }
+
+  await updatePassword(firebaseAuth.currentUser, params.password)
+  await setUserMustChangePassword({
+    uid: firebaseAuth.currentUser.uid,
+    value: false,
+  })
 }
 
 export async function signOutUser() {

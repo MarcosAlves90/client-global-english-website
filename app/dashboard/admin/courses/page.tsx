@@ -20,6 +20,7 @@ import type { AdminCourseSummary } from "@/lib/firebase/types"
 import {
   AdminCourseCard,
   COURSE_STATUS_OPTIONS,
+  deleteAdminCourse,
   fetchAdminCourses,
   saveAdminCourse,
   type CourseStatus,
@@ -46,6 +47,10 @@ export default function Page() {
   const [editingCourseId, setEditingCourseId] = React.useState<string | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [createError, setCreateError] = React.useState<string | null>(null)
+  const [deleteError, setDeleteError] = React.useState<string | null>(null)
+  const [deletingCourseId, setDeletingCourseId] = React.useState<string | null>(
+    null
+  )
   const [searchQuery, setSearchQuery] = React.useState("")
   const [form, setForm] = React.useState<CreateCourseForm>({
     title: "",
@@ -152,6 +157,31 @@ export default function Page() {
     setShowCreate(true)
   }
 
+  const handleDeleteCourse = async (course: AdminCourseSummary) => {
+    const confirmed = window.confirm(
+      `Tem certeza que deseja excluir o curso "${course.title}"? Esta ação removerá módulos, materiais e atividades relacionadas.`
+    )
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setDeletingCourseId(course.id)
+      setDeleteError(null)
+      const idToken = user ? await user.getIdToken() : null
+      await deleteAdminCourse(idToken, course.id)
+      if (editingCourseId === course.id) {
+        resetForm()
+        setShowCreate(false)
+      }
+      await loadCourses(true)
+    } catch {
+      setDeleteError("Não foi possível excluir o curso.")
+    } finally {
+      setDeletingCourseId(null)
+    }
+  }
+
   const filteredCourses = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     if (!query) return courses
@@ -224,6 +254,11 @@ export default function Page() {
         {error ? (
           <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
+          </div>
+        ) : null}
+        {deleteError ? (
+          <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+            {deleteError}
           </div>
         ) : null}
 
@@ -455,6 +490,8 @@ export default function Page() {
                     key={course.id}
                     course={course}
                     onEdit={handleEditCourse}
+                    onDelete={handleDeleteCourse}
+                    deleting={deletingCourseId === course.id}
                   />
                 ))
               )}

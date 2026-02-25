@@ -33,6 +33,26 @@ function resolveCourseStatus(status?: string): CourseStatus {
   return "Inscrições abertas"
 }
 
+async function deleteDocsInBatches(
+  docs: FirebaseFirestore.QueryDocumentSnapshot[]
+) {
+  if (!docs.length) return
+  let batch = adminDb.batch()
+  let count = 0
+  for (const doc of docs) {
+    batch.delete(doc.ref)
+    count += 1
+    if (count >= 450) {
+      await batch.commit()
+      batch = adminDb.batch()
+      count = 0
+    }
+  }
+  if (count > 0) {
+    await batch.commit()
+  }
+}
+
 async function assertIsAdmin(req: NextRequest) {
   const authHeader = req.headers.get("authorization")
   const token = authHeader?.split(" ")[1]
@@ -281,5 +301,68 @@ export async function PATCH(req: NextRequest) {
   } catch (err) {
     console.error("update course failed", err)
     return NextResponse.json({ error: "Could not update course" }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const authCheck = await assertIsAdmin(req)
+  if (!authCheck.ok) {
+    return NextResponse.json(
+      { error: authCheck.message },
+      { status: authCheck.status }
+    )
+  }
+
+  let body: { id?: string }
+
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  const id = body.id?.trim()
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 })
+  }
+
+  try {
+    const courseRef = adminDb.collection(COLLECTIONS.courses).doc(id)
+    const courseSnap = await courseRef.get()
+    if (!courseSnap.exists) {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 })
+    }
+
+    const [
+      tracksSnapshot,
+      activitiesSnapshot,
+      materialsSnapshot,
+      enrollmentsSnapshot,
+    ] = await Promise.all([
+      adminDb.collection(COLLECTIONS.tracks).where("courseId", "==", id).get(),
+      adminDb
+        .collection(COLLECTIONS.activities)
+        .where("courseId", "==", id)
+        .get(),
+      adminDb
+        .collection(COLLECTIONS.materials)
+        .where("courseId", "==", id)
+        .get(),
+      adminDb
+        .collection(COLLECTIONS.enrollments)
+        .where("courseId", "==", id)
+        .get(),
+    ])
+
+    await deleteDocsInBatches(tracksSnapshot.docs)
+    await deleteDocsInBatches(activitiesSnapshot.docs)
+    await deleteDocsInBatches(materialsSnapshot.docs)
+    await deleteDocsInBatches(enrollmentsSnapshot.docs)
+    await courseRef.delete()
+
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error("delete course failed", err)
+    return NextResponse.json({ error: "Could not delete course" }, { status: 500 })
   }
 }

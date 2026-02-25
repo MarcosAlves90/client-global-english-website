@@ -35,15 +35,18 @@ import type {
 import { fetchAdminCourses } from "@/modules/courses"
 import {
   createAdminCourseTrack,
+  deleteAdminCourseTrack,
   fetchAdminCourseTracks,
   updateAdminCourseTrack,
 } from "@/modules/tracks"
 import {
   createAdminMaterial,
+  deleteAdminMaterial,
   fetchAdminCourseMaterials,
 } from "@/modules/materials"
 import {
   createAdminActivity,
+  deleteAdminActivity,
   fetchAdminCourseActivities,
 } from "@/modules/activities"
 import { fetchAdminUsersPage } from "@/modules/users"
@@ -150,6 +153,15 @@ export default function Page() {
   const [creating, setCreating] = React.useState(false)
   const [creatingMaterial, setCreatingMaterial] = React.useState(false)
   const [creatingActivity, setCreatingActivity] = React.useState(false)
+  const [deletingTrackId, setDeletingTrackId] = React.useState<string | null>(
+    null
+  )
+  const [deletingMaterialId, setDeletingMaterialId] = React.useState<
+    string | null
+  >(null)
+  const [deletingActivityId, setDeletingActivityId] = React.useState<
+    string | null
+  >(null)
   const [editingTrackId, setEditingTrackId] = React.useState<string | null>(
     null
   )
@@ -588,6 +600,87 @@ export default function Page() {
       setActivityError("Não foi possível criar a atividade.")
     } finally {
       setCreatingActivity(false)
+    }
+  }
+
+  const handleDeleteTrack = async (track: Track) => {
+    const confirmed = window.confirm(
+      `Deseja excluir o módulo "${track.title}"? Materiais e atividades vinculados serão removidos.`
+    )
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setDeletingTrackId(track.id)
+      setTrackError(null)
+      const idToken = user ? await user.getIdToken() : null
+      await deleteAdminCourseTrack(idToken, track.id)
+
+      if (editingTrackId === track.id) {
+        resetForm()
+      }
+
+      setMaterialForm((prev) => ({
+        ...prev,
+        trackId: prev.trackId === track.id ? "" : prev.trackId,
+      }))
+      setActivityForm((prev) => ({
+        ...prev,
+        trackId: prev.trackId === track.id ? "" : prev.trackId,
+      }))
+
+      await Promise.all([
+        loadTracks(true),
+        loadMaterials(true),
+        loadActivities(true),
+      ])
+    } catch {
+      setTrackError("Não foi possível excluir o módulo.")
+    } finally {
+      setDeletingTrackId(null)
+    }
+  }
+
+  const handleDeleteMaterial = async (material: Material) => {
+    const confirmed = window.confirm(
+      `Deseja excluir o material "${material.title}"?`
+    )
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setDeletingMaterialId(material.id)
+      setMaterialError(null)
+      const idToken = user ? await user.getIdToken() : null
+      await deleteAdminMaterial(idToken, material.id)
+      await loadMaterials(true)
+    } catch {
+      setMaterialError("Não foi possível excluir o material.")
+    } finally {
+      setDeletingMaterialId(null)
+    }
+  }
+
+  const handleDeleteActivity = async (activity: Activity) => {
+    const confirmed = window.confirm(
+      `Deseja excluir a atividade "${activity.title}"?`
+    )
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setDeletingActivityId(activity.id)
+      setActivityError(null)
+      const idToken = user ? await user.getIdToken() : null
+      await deleteAdminActivity(idToken, activity.id)
+      await loadActivities(true)
+    } catch {
+      setActivityError("Não foi possível excluir a atividade.")
+    } finally {
+      setDeletingActivityId(null)
     }
   }
 
@@ -1084,6 +1177,16 @@ export default function Page() {
                               >
                                 Editar
                               </Button>
+                              <Button
+                                size="xs"
+                                variant="destructive"
+                                disabled={deletingTrackId === track.id}
+                                onClick={() => void handleDeleteTrack(track)}
+                              >
+                                {deletingTrackId === track.id
+                                  ? "Excluindo..."
+                                  : "Excluir"}
+                              </Button>
                             </div>
                           </CardHeader>
                           <CardContent className="space-y-3 text-sm text-muted-foreground">
@@ -1570,14 +1673,26 @@ export default function Page() {
                                     </p>
                                   </div>
                                 </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {material.visibility === "users"
-                                    ? `${material.userIds?.length ?? 0} usuários`
-                                    : material.visibility === "module"
-                                    ? "Módulo inteiro"
-                                    : "Privado"}{" "}
-                                  • {material.attachments?.length ?? 0} anexos
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">
+                                    {material.visibility === "users"
+                                      ? `${material.userIds?.length ?? 0} usuários`
+                                      : material.visibility === "module"
+                                      ? "Módulo inteiro"
+                                      : "Privado"}{" "}
+                                    • {material.attachments?.length ?? 0} anexos
+                                  </span>
+                                  <Button
+                                    size="xs"
+                                    variant="destructive"
+                                    disabled={deletingMaterialId === material.id}
+                                    onClick={() => void handleDeleteMaterial(material)}
+                                  >
+                                    {deletingMaterialId === material.id
+                                      ? "Excluindo..."
+                                      : "Excluir"}
+                                  </Button>
+                                </div>
                               </div>
                             )
                           })}
@@ -2387,15 +2502,27 @@ export default function Page() {
                                     </p>
                                   </div>
                                 </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {activity.visibility === "users"
-                                    ? `${activity.userIds?.length ?? 0} usuários`
-                                    : activity.visibility === "module"
-                                    ? "Módulo inteiro"
-                                    : "Privado"}{" "}
-                                  • {activity.attachments?.length ?? 0} anexos •{" "}
-                                  {activity.questions?.length ?? 0} questões
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">
+                                    {activity.visibility === "users"
+                                      ? `${activity.userIds?.length ?? 0} usuários`
+                                      : activity.visibility === "module"
+                                      ? "Módulo inteiro"
+                                      : "Privado"}{" "}
+                                    • {activity.attachments?.length ?? 0} anexos •{" "}
+                                    {activity.questions?.length ?? 0} questões
+                                  </span>
+                                  <Button
+                                    size="xs"
+                                    variant="destructive"
+                                    disabled={deletingActivityId === activity.id}
+                                    onClick={() => void handleDeleteActivity(activity)}
+                                  >
+                                    {deletingActivityId === activity.id
+                                      ? "Excluindo..."
+                                      : "Excluir"}
+                                  </Button>
+                                </div>
                               </div>
                             )
                           })}

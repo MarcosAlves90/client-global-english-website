@@ -46,7 +46,7 @@ describe("admin users client", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ id: "new" }),
+        json: async () => ({ uid: "new", initialPassword: "Secret123!" }),
       } as Response)
 
     const result = await upsertAdminUser("token", {
@@ -60,7 +60,7 @@ describe("admin users client", () => {
       "/api/admin/users",
       expect.objectContaining({ method: "POST" })
     )
-    expect(result).toEqual({ id: "new" })
+    expect(result).toEqual({ uid: "new", initialPassword: "Secret123!" })
   })
 
   it("uses PATCH for updates", async () => {

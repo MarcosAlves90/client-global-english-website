@@ -92,3 +92,26 @@ export async function updateAdminCourseTrack(
 
   tracksCache.clear()
 }
+
+export async function deleteAdminCourseTrack(
+  idToken: string | null,
+  id: string
+) {
+  const resp = await fetch("/api/admin/tracks", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+    },
+    body: JSON.stringify({ id }),
+  })
+
+  if (!resp.ok) {
+    if (resp.status === 409) {
+      throw new Error("USER_CONFLICT")
+    }
+    throw new Error("delete failed")
+  }
+
+  tracksCache.clear()
+}

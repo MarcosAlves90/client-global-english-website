@@ -51,4 +51,21 @@ describe("admin materials client", () => {
       fetchAdminCourseMaterials("token", "course-1")
     ).rejects.toThrow("failed to load materials")
   })
+
+  it("uses DELETE for removal", async () => {
+    const { deleteAdminMaterial } = await import(
+      "@/modules/materials/api/admin-materials.client"
+    )
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({ ok: true } as Response)
+
+    await deleteAdminMaterial("token", "material-1")
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/admin/materials",
+      expect.objectContaining({ method: "DELETE" })
+    )
+  })
 })

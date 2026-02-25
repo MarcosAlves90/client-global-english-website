@@ -233,3 +233,43 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  const authCheck = await assertIsAdmin(req)
+  if (!authCheck.ok) {
+    return NextResponse.json(
+      { error: authCheck.message },
+      { status: authCheck.status }
+    )
+  }
+
+  let body: { id?: string }
+
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  const id = body.id?.trim()
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 })
+  }
+
+  try {
+    const ref = adminDb.collection(COLLECTIONS.materials).doc(id)
+    const snap = await ref.get()
+    if (!snap.exists) {
+      return NextResponse.json({ error: "Material not found" }, { status: 404 })
+    }
+
+    await ref.delete()
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error("delete material failed", err)
+    return NextResponse.json(
+      { error: "Could not delete material" },
+      { status: 500 }
+    )
+  }
+}

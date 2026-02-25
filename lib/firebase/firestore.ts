@@ -59,6 +59,10 @@ export async function ensureUserProfile(params: {
       name: params.name,
       email: params.email,
       role: resolvedRole,
+      mustChangePassword:
+        snapshot.exists() && "mustChangePassword" in snapshot.data()
+          ? Boolean(snapshot.data().mustChangePassword)
+          : false,
       createdAt: snapshot.exists()
         ? snapshot.data().createdAt ?? serverTimestamp()
         : serverTimestamp(),
@@ -87,9 +91,26 @@ export async function fetchUserProfile(uid: string): Promise<UserProfile | null>
     role: (data.role ?? "user") as UserRole,
     team: data.team ?? null,
     disabled: data.disabled ?? false,
+    mustChangePassword: data.mustChangePassword ?? false,
     createdAt: data.createdAt?.toDate?.() ?? null,
     updatedAt: data.updatedAt?.toDate?.() ?? null,
   } satisfies UserProfile
+}
+
+export async function setUserMustChangePassword(params: {
+  uid: string
+  value: boolean
+}) {
+  const firestore = getDbOrThrow()
+  const userRef = doc(firestore, COLLECTIONS.users, params.uid)
+  await setDoc(
+    userRef,
+    {
+      mustChangePassword: params.value,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  )
 }
 
 export async function fetchUserDashboard(uid: string): Promise<DashboardCourse[]> {

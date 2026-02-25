@@ -11,15 +11,20 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const { user, loading } = useAuth()
+  const { user, loading, profile } = useAuth()
 
   React.useEffect(() => {
     if (!loading && !user) {
       router.push("/login")
+      return
     }
-  }, [loading, user, router])
 
-  if (loading || !user) {
+    if (!loading && user && profile?.mustChangePassword) {
+      router.push("/update-password")
+    }
+  }, [loading, user, profile?.mustChangePassword, router])
+
+  if (loading || !user || profile?.mustChangePassword) {
     return null
   }
 

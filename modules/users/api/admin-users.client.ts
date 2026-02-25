@@ -55,6 +55,10 @@ export async function fetchAdminUsersPage(params: {
   return data
 }
 
+export type CreateAdminUserResponse = AdminUserSummary & {
+  initialPassword?: string
+}
+
 export async function upsertAdminUser(
   idToken: string | null,
   payload: UpsertUserPayload

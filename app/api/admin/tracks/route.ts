@@ -121,6 +121,26 @@ async function resolveNextOrder(courseId: string) {
   return maxOrder + 1
 }
 
+async function deleteDocsInBatches(
+  docs: FirebaseFirestore.QueryDocumentSnapshot[]
+) {
+  if (!docs.length) return
+  let batch = adminDb.batch()
+  let count = 0
+  for (const doc of docs) {
+    batch.delete(doc.ref)
+    count += 1
+    if (count >= 450) {
+      await batch.commit()
+      batch = adminDb.batch()
+      count = 0
+    }
+  }
+  if (count > 0) {
+    await batch.commit()
+  }
+}
+
 export async function GET(req: NextRequest) {
   const authCheck = await assertIsAdmin(req)
   if (!authCheck.ok) {
@@ -342,5 +362,53 @@ export async function PATCH(req: NextRequest) {
   } catch (err) {
     console.error("update track failed", err)
     return NextResponse.json({ error: "Could not update track" }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const authCheck = await assertIsAdmin(req)
+  if (!authCheck.ok) {
+    return NextResponse.json(
+      { error: authCheck.message },
+      { status: authCheck.status }
+    )
+  }
+
+  let body: { id?: string }
+
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  const id = body.id?.trim()
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 })
+  }
+
+  try {
+    const trackRef = adminDb.collection(COLLECTIONS.tracks).doc(id)
+    const trackSnap = await trackRef.get()
+    if (!trackSnap.exists) {
+      return NextResponse.json({ error: "Track not found" }, { status: 404 })
+    }
+
+    const [materialsSnapshot, activitiesSnapshot] = await Promise.all([
+      adminDb.collection(COLLECTIONS.materials).where("trackId", "==", id).get(),
+      adminDb
+        .collection(COLLECTIONS.activities)
+        .where("trackId", "==", id)
+        .get(),
+    ])
+
+    await deleteDocsInBatches(materialsSnapshot.docs)
+    await deleteDocsInBatches(activitiesSnapshot.docs)
+    await trackRef.delete()
+
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error("delete track failed", err)
+    return NextResponse.json({ error: "Could not delete track" }, { status: 500 })
   }
 }

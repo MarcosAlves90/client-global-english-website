@@ -23,9 +23,16 @@ import {
 type AdminCourseCardProps = {
     course: AdminCourseSummary;
     onEdit: (course: AdminCourseSummary) => void;
+    onDelete: (course: AdminCourseSummary) => void;
+    deleting?: boolean;
 };
 
-export function AdminCourseCard({ course, onEdit }: AdminCourseCardProps) {
+export function AdminCourseCard({
+    course,
+    onEdit,
+    onDelete,
+    deleting = false,
+}: AdminCourseCardProps) {
     const [imageError, setImageError] = React.useState(false);
 
     React.useEffect(() => {
@@ -117,6 +124,15 @@ export function AdminCourseCard({ course, onEdit }: AdminCourseCardProps) {
                             onClick={() => onEdit(course)}
                         >
                             Editar
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-8 px-3 text-xs font-semibold"
+                            onClick={() => onDelete(course)}
+                            disabled={deleting}
+                        >
+                            {deleting ? "Excluindo..." : "Excluir"}
                         </Button>
                         <Button
                             size="sm"

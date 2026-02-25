@@ -20,6 +20,33 @@ interface PaginatedUsersResponse {
   nextCursor: string | null
 }
 
+function generateInitialPassword() {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+  const lower = "abcdefghijkmnopqrstuvwxyz"
+  const numbers = "23456789"
+  const symbols = "!@#$%^&*"
+  const all = `${upper}${lower}${numbers}${symbols}`
+  const length = 12
+
+  const picks = [
+    upper[Math.floor(Math.random() * upper.length)],
+    lower[Math.floor(Math.random() * lower.length)],
+    numbers[Math.floor(Math.random() * numbers.length)],
+    symbols[Math.floor(Math.random() * symbols.length)],
+  ]
+
+  while (picks.length < length) {
+    picks.push(all[Math.floor(Math.random() * all.length)])
+  }
+
+  for (let i = picks.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[picks[i], picks[j]] = [picks[j], picks[i]]
+  }
+
+  return picks.join("")
+}
+
 // helpers
 async function assertIsAdmin(req: NextRequest) {
   const authHeader = req.headers.get("authorization")
@@ -134,9 +161,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const initialPassword = generateInitialPassword()
     const userRecord = await adminAuth.createUser({
       displayName: body.name,
       email: body.email,
+      password: initialPassword,
     })
 
     const role = resolveUserRole({
@@ -150,6 +179,7 @@ export async function POST(req: NextRequest) {
       email: body.email,
       role,
       team: body.team ?? null,
+      mustChangePassword: true,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }
@@ -171,7 +201,10 @@ export async function POST(req: NextRequest) {
       updatedAt: null,
     }
 
-    return NextResponse.json(result, { status: 201 })
+    return NextResponse.json(
+      { ...result, initialPassword },
+      { status: 201 }
+    )
   } catch (err: unknown) {
     console.error("failed to create user", err)
     const message =

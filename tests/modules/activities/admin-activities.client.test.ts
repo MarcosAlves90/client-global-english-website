@@ -60,4 +60,21 @@ describe("admin activities client", () => {
       })
     ).rejects.toThrow("create failed")
   })
+
+  it("uses DELETE for removal", async () => {
+    const { deleteAdminActivity } = await import(
+      "@/modules/activities/api/admin-activities.client"
+    )
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({ ok: true } as Response)
+
+    await deleteAdminActivity("token", "activity-1")
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/admin/activities",
+      expect.objectContaining({ method: "DELETE" })
+    )
+  })
 })

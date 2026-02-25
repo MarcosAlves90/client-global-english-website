@@ -16,6 +16,7 @@ import {
   fetchAdminUsersPage,
   toggleAdminUserDisabled,
   upsertAdminUser,
+  type CreateAdminUserResponse,
   type AdminUsersPageResponse,
 } from "@/modules/users"
 
@@ -52,6 +53,9 @@ export default function Page() {
   })
   const [saving, setSaving] = React.useState(false)
   const [formError, setFormError] = React.useState<string | null>(null)
+  const [generatedPassword, setGeneratedPassword] = React.useState<string | null>(
+    null
+  )
   const [searchQuery, setSearchQuery] = React.useState("")
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [currentCursor, setCurrentCursor] = React.useState<string | null>(null)
@@ -95,6 +99,7 @@ export default function Page() {
     if (selectedUser) {
       setForm({ ...selectedUser })
       setFormError(null)
+      setGeneratedPassword(null)
     } else {
       setForm({
         uid: "",
@@ -105,6 +110,7 @@ export default function Page() {
         disabled: false,
       })
       setFormError(null)
+      setGeneratedPassword(null)
     }
   }, [selectedUser])
 
@@ -260,12 +266,16 @@ export default function Page() {
         setSelectedUser(null)
       } else {
         const idToken = user ? await user.getIdToken() : null
-        await upsertAdminUser(idToken, {
+        const created = (await upsertAdminUser(idToken, {
           name: form.name.trim(),
           email: form.email.trim(),
           role: form.role,
           team: form.team.trim() || null,
-        })
+        })) as CreateAdminUserResponse | undefined
+
+        if (created?.initialPassword) {
+          setGeneratedPassword(created.initialPassword)
+        }
 
         setCurrentCursor(null)
         setCursorHistory([])
@@ -461,6 +471,31 @@ export default function Page() {
                 {formError}
               </div>
             ) : null}
+            {generatedPassword ? (
+              <div className="md:col-span-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+                <p className="font-medium text-foreground">
+                  Senha inicial gerada
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Compartilhe esta senha com o usuário. Ela será usada no primeiro
+                  acesso.
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <code className="rounded bg-muted px-2 py-1 text-sm">
+                    {generatedPassword}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(generatedPassword)
+                    }}
+                  >
+                    Copiar senha
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <div className="md:col-span-2 flex items-center gap-2">
               <Button onClick={handleSave} disabled={saving}>
                 {saving
@@ -499,5 +534,4 @@ export default function Page() {
     </div>
   )
 }
-
 

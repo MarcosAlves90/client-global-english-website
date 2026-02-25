@@ -57,3 +57,20 @@ export async function saveAdminCourse(
 
   coursesCache = null
 }
+
+export async function deleteAdminCourse(idToken: string | null, id: string) {
+  const resp = await fetch("/api/admin/courses", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+    },
+    body: JSON.stringify({ id }),
+  })
+
+  if (!resp.ok) {
+    throw new Error("delete failed")
+  }
+
+  coursesCache = null
+}

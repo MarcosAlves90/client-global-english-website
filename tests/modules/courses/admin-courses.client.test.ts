@@ -93,4 +93,21 @@ describe("admin courses client", () => {
       expect.objectContaining({ method: "PATCH" })
     )
   })
+
+  it("uses DELETE for removal", async () => {
+    const { deleteAdminCourse } = await import(
+      "@/modules/courses/api/admin-courses.client"
+    )
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({ ok: true } as Response)
+
+    await deleteAdminCourse("token", "course-1")
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/admin/courses",
+      expect.objectContaining({ method: "DELETE" })
+    )
+  })
 })

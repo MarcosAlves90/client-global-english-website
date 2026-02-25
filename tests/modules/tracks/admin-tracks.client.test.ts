@@ -51,4 +51,21 @@ describe("admin tracks client", () => {
       })
     ).rejects.toThrow("USER_CONFLICT")
   })
+
+  it("uses DELETE for removal", async () => {
+    const { deleteAdminCourseTrack } = await import(
+      "@/modules/tracks/api/admin-tracks.client"
+    )
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({ ok: true } as Response)
+
+    await deleteAdminCourseTrack("token", "track-1")
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/admin/tracks",
+      expect.objectContaining({ method: "DELETE" })
+    )
+  })
 })

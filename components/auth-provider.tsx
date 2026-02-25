@@ -13,6 +13,7 @@ type AuthContextValue = {
   profile: UserProfile | null
   loading: boolean
   isFirebaseReady: boolean
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = React.createContext<AuthContextValue>({
@@ -21,6 +22,7 @@ const AuthContext = React.createContext<AuthContextValue>({
   profile: null,
   loading: true,
   isFirebaseReady: false,
+  refreshProfile: async () => {},
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -29,6 +31,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = React.useState<UserProfile | null>(null)
   const [loading, setLoading] = React.useState(true)
   const isFirebaseReady = hasFirebaseConfig && Boolean(auth)
+
+  const loadProfile = React.useCallback(async (firebaseUser: User) => {
+    try {
+      const profile = await fetchUserProfile(firebaseUser.uid)
+
+      if (profile?.disabled) {
+        await signOutUser()
+        setRole(null)
+        setProfile(null)
+        return
+      }
+
+      setRole(profile?.role ?? "user")
+      setProfile(profile)
+    } catch {
+      setRole("user")
+      setProfile(null)
+    }
+  }, [])
 
   React.useEffect(() => {
     if (!isFirebaseReady || !auth) {
@@ -50,20 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const profile = await fetchUserProfile(firebaseUser.uid)
-
-        // Extra hardening: if admin froze this account at the profile level,
-        // force sign out on the client as soon as we detect it.
-        if (profile?.disabled) {
-          await signOutUser()
-          setRole(null)
-          setProfile(null)
-          setLoading(false)
-          return
-        }
-
-        setRole(profile?.role ?? "user")
-        setProfile(profile)
+        await loadProfile(firebaseUser)
       } catch {
         setRole("user")
         setProfile(null)
@@ -73,11 +81,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     return () => unsubscribe()
-  }, [isFirebaseReady])
+  }, [isFirebaseReady, loadProfile])
+
+  const refreshProfile = React.useCallback(async () => {
+    if (!auth?.currentUser) {
+      return
+    }
+    await loadProfile(auth.currentUser)
+  }, [loadProfile])
 
   return (
     <AuthContext.Provider
-      value={{ user, role, profile, loading, isFirebaseReady }}
+      value={{ user, role, profile, loading, isFirebaseReady, refreshProfile }}
     >
       {children}
     </AuthContext.Provider>

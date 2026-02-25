@@ -67,3 +67,20 @@ export async function createAdminMaterial(
   return (await resp.json()) as Material
 }
 
+export async function deleteAdminMaterial(idToken: string | null, id: string) {
+  const resp = await fetch("/api/admin/materials", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+    },
+    body: JSON.stringify({ id }),
+  })
+
+  if (!resp.ok) {
+    throw new Error("delete failed")
+  }
+
+  materialsCache.clear()
+}
+
