@@ -9,13 +9,13 @@ type CreateMaterialBody = {
   courseId?: string
   trackId?: string
   title?: string
-  type?: "pdf" | "video" | "link" | "audio"
+  type?: "pdf" | "video" | "link" | "audio" | "markdown"
   url?: string
   visibility?: "module" | "users" | "private"
   userIds?: string[]
   releaseAt?: string | null
   markdown?: string
-  attachments?: { name?: string; url?: string }[]
+  attachments?: { name?: string; url?: string; type?: string }[]
 }
 
 async function assertIsAdmin(req: NextRequest) {
@@ -64,6 +64,9 @@ function resolveReleaseAt(input?: string | null) {
   return admin.firestore.Timestamp.fromDate(parsed)
 }
 
+const ATTACHMENT_TYPES = new Set(["pdf", "video", "link", "audio"])
+const MATERIAL_TYPES = new Set(["pdf", "video", "link", "audio", "markdown"])
+
 function normalizeAttachments(input?: unknown) {
   if (!Array.isArray(input)) {
     return []
@@ -72,6 +75,10 @@ function normalizeAttachments(input?: unknown) {
     .map((item) => ({
       name: typeof item?.name === "string" ? item.name.trim() : "",
       url: typeof item?.url === "string" ? item.url.trim() : "",
+      type:
+        typeof item?.type === "string" && ATTACHMENT_TYPES.has(item.type)
+          ? item.type
+          : "link",
     }))
     .filter((item) => item.url)
 }
@@ -153,6 +160,11 @@ export async function POST(req: NextRequest) {
   const visibility = body.visibility ?? "private"
   const markdown = typeof body.markdown === "string" ? body.markdown : ""
   const attachments = normalizeAttachments(body.attachments)
+  const resolvedType = MATERIAL_TYPES.has(String(type))
+    ? (type as CreateMaterialBody["type"])
+    : markdown.trim()
+    ? "markdown"
+    : attachments[0]?.type ?? undefined
 
   if (!courseId || !trackId || !title || !type) {
     return NextResponse.json(
@@ -186,8 +198,8 @@ export async function POST(req: NextRequest) {
       courseId,
       trackId,
       title,
-      type,
-      url,
+      type: resolvedType ?? null,
+      url: url || null,
       visibility,
       userIds: visibility === "users" ? userIds : [],
       releaseAt,
@@ -203,8 +215,8 @@ export async function POST(req: NextRequest) {
       courseId,
       trackId,
       title,
-      type,
-      url,
+      type: resolvedType ?? undefined,
+      url: url || undefined,
       visibility,
       userIds: visibility === "users" ? userIds : [],
       releaseAt: releaseAt ? releaseAt.toDate() : null,

@@ -60,14 +60,12 @@ type TrackForm = {
 type MaterialForm = {
   trackId: string
   title: string
-  type: "pdf" | "video" | "link" | "audio"
-  url: string
   visibility: "module" | "users" | "private"
   userIds: string[]
   scheduleMode: "now" | "scheduled"
   releaseAt: string
   markdown: string
-  attachments: { name: string; url: string }[]
+  attachments: { name: string; url: string; type: "pdf" | "video" | "link" | "audio" }[]
 }
 
 type ActivityForm = {
@@ -80,9 +78,19 @@ type ActivityForm = {
   userIds: string[]
   scheduleMode: "now" | "scheduled"
   releaseAt: string
+  attachments: { name: string; url: string; type: "pdf" | "video" | "link" | "audio" }[]
+  questions: {
+    id: string
+    type: "essay" | "single_choice" | "multiple_choice" | "true_false" | "short_answer"
+    prompt: string
+    options: string[]
+    correctAnswers: string[]
+    points: string
+    required: boolean
+  }[]
 }
 
-const MATERIAL_TYPE_LABELS: Record<MaterialForm["type"], string> = {
+const MATERIAL_TYPE_LABELS: Record<"pdf" | "video" | "link" | "audio", string> = {
   pdf: "PDF",
   video: "Vídeo",
   link: "Link",
@@ -90,7 +98,7 @@ const MATERIAL_TYPE_LABELS: Record<MaterialForm["type"], string> = {
 }
 
 const MATERIAL_TYPE_ICONS: Record<
-  MaterialForm["type"],
+  "pdf" | "video" | "link" | "audio",
   React.ComponentType<{ className?: string }>
 > = {
   pdf: FileText,
@@ -160,8 +168,6 @@ export default function Page() {
   const [materialForm, setMaterialForm] = React.useState<MaterialForm>({
     trackId: "",
     title: "",
-    type: "pdf",
-    url: "",
     visibility: "module",
     userIds: [],
     scheduleMode: "now",
@@ -181,6 +187,8 @@ export default function Page() {
     userIds: [],
     scheduleMode: "now",
     releaseAt: "",
+    attachments: [],
+    questions: [],
   })
   const [activeSection, setActiveSection] = React.useState<
     "overview" | "modules" | "materials" | "activities"
@@ -333,8 +341,6 @@ export default function Page() {
     setMaterialForm({
       trackId: "",
       title: "",
-      type: "pdf",
-      url: "",
       visibility: "module",
       userIds: [],
       scheduleMode: "now",
@@ -357,6 +363,8 @@ export default function Page() {
       userIds: [],
       scheduleMode: "now",
       releaseAt: "",
+      attachments: [],
+      questions: [],
     })
     setActivityUserSearch("")
     setActivityError(null)
@@ -442,11 +450,10 @@ export default function Page() {
     }
 
     const hasContent =
-      Boolean(materialForm.url.trim()) ||
       Boolean(materialForm.markdown.trim()) ||
       materialForm.attachments.some((item) => item.url.trim())
     if (!hasContent) {
-      setMaterialError("Adicione uma URL, um texto markdown ou anexos.")
+      setMaterialError("Adicione um texto markdown ou anexos.")
       return
     }
 
@@ -477,8 +484,6 @@ export default function Page() {
         courseId,
         trackId: materialForm.trackId,
         title: materialForm.title.trim(),
-        type: materialForm.type,
-        url: materialForm.url.trim(),
         visibility: materialForm.visibility,
         userIds:
           materialForm.visibility === "users" ? materialForm.userIds : undefined,
@@ -563,6 +568,18 @@ export default function Page() {
         userIds:
           activityForm.visibility === "users" ? activityForm.userIds : undefined,
         releaseAt,
+        attachments: activityForm.attachments.filter((item) => item.url.trim()),
+        questions: activityForm.questions
+          .filter((item) => item.prompt.trim())
+          .map((item) => ({
+            id: item.id,
+            type: item.type,
+            prompt: item.prompt.trim(),
+            options: item.options.filter((opt) => opt.trim()),
+            correctAnswers: item.correctAnswers.filter((opt) => opt.trim()),
+            points: Number(item.points) || 0,
+            required: item.required,
+          })),
       })
 
       resetActivityForm()
@@ -1147,77 +1164,39 @@ export default function Page() {
                     }
                   />
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="material-type">Tipo</Label>
-                    <select
-                      id="material-type"
-                      className="bg-card text-foreground border-input h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                      value={materialForm.type}
-                      onChange={(event) =>
-                        setMaterialForm((prev) => ({
-                          ...prev,
-                          type: event.target.value as MaterialForm["type"],
-                        }))
-                      }
-                    >
-                      {Object.entries(MATERIAL_TYPE_LABELS).map(([key, label]) => (
-                        <option key={key} value={key}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                  <Label htmlFor="material-url">URL (opcional)</Label>
-                    <Input
-                      id="material-url"
-                      placeholder="https://..."
-                      value={materialForm.url}
-                      onChange={(event) =>
-                        setMaterialForm((prev) => ({
-                          ...prev,
-                          url: event.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Texto (Markdown)</Label>
-                  <div className="rounded-md border bg-card p-2">
-                    <MarkdownEditor
-                      value={materialForm.markdown}
-                      onChange={(value) =>
-                        setMaterialForm((prev) => ({
-                          ...prev,
-                          markdown: value ?? "",
-                        }))
-                      }
-                      height={240}
-                      preview="live"
-                      visibleDragbar={false}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Suporta títulos, listas, links, tabelas e blocos de código.
-                  </p>
-                </div>
-
                 <div className="space-y-2">
                   <Label>Anexos</Label>
                   <div className="space-y-3">
                     {materialForm.attachments.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        Nenhum anexo adicionado. Adicione links de arquivos (PDF, imagens, etc.).
+                        Nenhum anexo adicionado. Adicione links de arquivos, vídeos ou links externos.
                       </p>
                     ) : (
                       materialForm.attachments.map((attachment, index) => (
                         <div
                           key={`${attachment.url}-${index}`}
-                          className="grid gap-2 rounded-lg border p-3 md:grid-cols-[1fr,1.2fr,auto]"
+                          className="grid gap-2 rounded-lg border p-3 md:grid-cols-[160px,1fr,1.2fr,auto]"
                         >
+                          <select
+                            className="bg-card text-foreground border-input h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                            value={attachment.type}
+                            onChange={(event) =>
+                              setMaterialForm((prev) => {
+                                const next = [...prev.attachments]
+                                next[index] = {
+                                  ...next[index],
+                                  type: event.target.value as MaterialForm["attachments"][number]["type"],
+                                }
+                                return { ...prev, attachments: next }
+                              })
+                            }
+                          >
+                            {Object.entries(MATERIAL_TYPE_LABELS).map(([key, label]) => (
+                              <option key={key} value={key}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
                           <Input
                             placeholder="Nome do anexo"
                             value={attachment.name}
@@ -1269,7 +1248,7 @@ export default function Page() {
                           ...prev,
                           attachments: [
                             ...prev.attachments,
-                            { name: "", url: "" },
+                            { name: "", url: "", type: "pdf" },
                           ],
                         }))
                       }
@@ -1278,6 +1257,28 @@ export default function Page() {
                     </Button>
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Texto (Markdown)</Label>
+                  <div className="rounded-md border bg-card p-2">
+                    <MarkdownEditor
+                      value={materialForm.markdown}
+                      onChange={(value) =>
+                        setMaterialForm((prev) => ({
+                          ...prev,
+                          markdown: value ?? "",
+                        }))
+                      }
+                      height={240}
+                      preview="live"
+                      visibleDragbar={false}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Suporta títulos, listas, links, tabelas e blocos de código.
+                  </p>
+                </div>
+
 
                 <div className="space-y-2">
                   <Label>Disponibilidade</Label>
@@ -1529,8 +1530,21 @@ export default function Page() {
                         </CardHeader>
                         <CardContent className="space-y-3">
                           {trackMaterials.map((material) => {
-                            const Icon =
-                              MATERIAL_TYPE_ICONS[material.type ?? "pdf"]
+                            const hasMarkdown = Boolean(material.markdown?.trim())
+                            const legacyType =
+                              material.type && material.type !== "markdown"
+                                ? material.type
+                                : undefined
+                            const primaryAttachmentType =
+                              material.attachments?.[0]?.type ??
+                              (legacyType as keyof typeof MATERIAL_TYPE_LABELS) ??
+                              "link"
+                            const typeLabel = hasMarkdown
+                              ? "Markdown"
+                              : MATERIAL_TYPE_LABELS[primaryAttachmentType]
+                            const Icon = hasMarkdown
+                              ? FileText
+                              : MATERIAL_TYPE_ICONS[primaryAttachmentType]
                             const releaseLabel =
                               material.visibility === "private"
                                 ? "Privado"
@@ -1552,21 +1566,18 @@ export default function Page() {
                                       {material.title}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      {MATERIAL_TYPE_LABELS[
-                                        material.type ?? "pdf"
-                                      ]}{" "}
-                                      • {releaseLabel}
+                                      {typeLabel} • {releaseLabel}
                                     </p>
                                   </div>
                                 </div>
-                              <span className="text-xs text-muted-foreground">
-                                {material.visibility === "users"
-                                  ? `${material.userIds?.length ?? 0} usuários`
-                                  : material.visibility === "module"
-                                  ? "Módulo inteiro"
-                                  : "Privado"}{" "}
-                                • {material.attachments?.length ?? 0} anexos
-                              </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {material.visibility === "users"
+                                    ? `${material.userIds?.length ?? 0} usuários`
+                                    : material.visibility === "module"
+                                    ? "Módulo inteiro"
+                                    : "Privado"}{" "}
+                                  • {material.attachments?.length ?? 0} anexos
+                                </span>
                               </div>
                             )
                           })}
@@ -1891,6 +1902,411 @@ export default function Page() {
                   </div>
                 )}
 
+                <div className="space-y-2">
+                  <Label>Anexos</Label>
+                  <div className="space-y-3">
+                    {activityForm.attachments.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Nenhum anexo adicionado. Adicione arquivos ou links de apoio.
+                      </p>
+                    ) : (
+                      activityForm.attachments.map((attachment, index) => (
+                        <div
+                          key={`${attachment.url}-${index}`}
+                          className="grid gap-2 rounded-lg border p-3 md:grid-cols-[160px,1fr,1.2fr,auto]"
+                        >
+                          <select
+                            className="bg-card text-foreground border-input h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                            value={attachment.type}
+                            onChange={(event) =>
+                              setActivityForm((prev) => {
+                                const next = [...prev.attachments]
+                                next[index] = {
+                                  ...next[index],
+                                  type: event.target.value as ActivityForm["attachments"][number]["type"],
+                                }
+                                return { ...prev, attachments: next }
+                              })
+                            }
+                          >
+                            {Object.entries(MATERIAL_TYPE_LABELS).map(([key, label]) => (
+                              <option key={key} value={key}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                          <Input
+                            placeholder="Nome do anexo"
+                            value={attachment.name}
+                            onChange={(event) =>
+                              setActivityForm((prev) => {
+                                const next = [...prev.attachments]
+                                next[index] = {
+                                  ...next[index],
+                                  name: event.target.value,
+                                }
+                                return { ...prev, attachments: next }
+                              })
+                            }
+                          />
+                          <Input
+                            placeholder="https://arquivo..."
+                            value={attachment.url}
+                            onChange={(event) =>
+                              setActivityForm((prev) => {
+                                const next = [...prev.attachments]
+                                next[index] = {
+                                  ...next[index],
+                                  url: event.target.value,
+                                }
+                                return { ...prev, attachments: next }
+                              })
+                            }
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              setActivityForm((prev) => ({
+                                ...prev,
+                                attachments: prev.attachments.filter(
+                                  (_, itemIndex) => itemIndex !== index
+                                ),
+                              }))
+                            }
+                          >
+                            Remover
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        setActivityForm((prev) => ({
+                          ...prev,
+                          attachments: [
+                            ...prev.attachments,
+                            { name: "", url: "", type: "pdf" },
+                          ],
+                        }))
+                      }
+                    >
+                      Adicionar anexo
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Questões</Label>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        setActivityForm((prev) => ({
+                          ...prev,
+                          questions: [
+                            ...prev.questions,
+                            {
+                              id: `q-${prev.questions.length + 1}`,
+                              type: "essay",
+                              prompt: "",
+                              options: [],
+                              correctAnswers: [],
+                              points: "",
+                              required: false,
+                            },
+                          ],
+                        }))
+                      }
+                    >
+                      Adicionar questão
+                    </Button>
+                  </div>
+
+                  {activityForm.questions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhuma questão adicionada.
+                    </p>
+                  ) : (
+                    activityForm.questions.map((question, index) => (
+                      <div
+                        key={question.id}
+                        className="space-y-3 rounded-lg border p-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-sm font-medium">
+                            Questão {index + 1}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              setActivityForm((prev) => ({
+                                ...prev,
+                                questions: prev.questions.filter(
+                                  (_, itemIndex) => itemIndex !== index
+                                ),
+                              }))
+                            }
+                          >
+                            Remover
+                          </Button>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Tipo</Label>
+                            <select
+                              className="bg-card text-foreground border-input h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                              value={question.type}
+                              onChange={(event) =>
+                                setActivityForm((prev) => {
+                                  const next = [...prev.questions]
+                                  next[index] = {
+                                    ...next[index],
+                                    type: event.target.value as ActivityForm["questions"][number]["type"],
+                                    options:
+                                      event.target.value === "essay" ||
+                                      event.target.value === "short_answer" ||
+                                      event.target.value === "true_false"
+                                        ? []
+                                        : next[index].options,
+                                    correctAnswers:
+                                      event.target.value === "essay"
+                                        ? []
+                                        : next[index].correctAnswers,
+                                  }
+                                  return { ...prev, questions: next }
+                                })
+                              }
+                            >
+                              <option value="essay">Dissertativa</option>
+                              <option value="short_answer">Resposta curta</option>
+                              <option value="single_choice">Escolha única</option>
+                              <option value="multiple_choice">Múltipla escolha</option>
+                              <option value="true_false">Verdadeiro/Falso</option>
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Pontuação</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              placeholder="Ex.: 10"
+                              value={question.points}
+                              onChange={(event) =>
+                                setActivityForm((prev) => {
+                                  const next = [...prev.questions]
+                                  next[index] = {
+                                    ...next[index],
+                                    points: event.target.value,
+                                  }
+                                  return { ...prev, questions: next }
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Enunciado</Label>
+                          <textarea
+                            className="bg-card text-foreground border-input min-h-24 w-full rounded-md border p-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                            placeholder="Descreva a pergunta"
+                            value={question.prompt}
+                            onChange={(event) =>
+                              setActivityForm((prev) => {
+                                const next = [...prev.questions]
+                                next[index] = {
+                                  ...next[index],
+                                  prompt: event.target.value,
+                                }
+                                return { ...prev, questions: next }
+                              })
+                            }
+                          />
+                        </div>
+
+                        {(question.type === "single_choice" ||
+                          question.type === "multiple_choice") && (
+                          <div className="space-y-2">
+                            <Label>Opções</Label>
+                            <div className="space-y-2">
+                              {(question.options.length ? question.options : [""]).map(
+                                (option, optionIndex) => (
+                                  <div
+                                    key={`${question.id}-opt-${optionIndex}`}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <Input
+                                      placeholder={`Opção ${optionIndex + 1}`}
+                                      value={option}
+                                      onChange={(event) =>
+                                        setActivityForm((prev) => {
+                                          const next = [...prev.questions]
+                                          const options = [...next[index].options]
+                                          options[optionIndex] = event.target.value
+                                          next[index] = {
+                                            ...next[index],
+                                            options,
+                                          }
+                                          return { ...prev, questions: next }
+                                        })
+                                      }
+                                    />
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        setActivityForm((prev) => {
+                                          const next = [...prev.questions]
+                                          const options = next[index].options.filter(
+                                            (_, idx) => idx !== optionIndex
+                                          )
+                                          next[index] = {
+                                            ...next[index],
+                                            options,
+                                          }
+                                          return { ...prev, questions: next }
+                                        })
+                                      }
+                                    >
+                                      Remover
+                                    </Button>
+                                  </div>
+                                )
+                              )}
+                              <Button
+                                variant="outline"
+                                onClick={() =>
+                                  setActivityForm((prev) => {
+                                    const next = [...prev.questions]
+                                    next[index] = {
+                                      ...next[index],
+                                      options: [...next[index].options, ""],
+                                    }
+                                    return { ...prev, questions: next }
+                                  })
+                                }
+                              >
+                                Adicionar opção
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {question.type === "true_false" && (
+                          <div className="space-y-2">
+                            <Label>Resposta correta</Label>
+                            <select
+                              className="bg-card text-foreground border-input h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                              value={question.correctAnswers[0] ?? ""}
+                              onChange={(event) =>
+                                setActivityForm((prev) => {
+                                  const next = [...prev.questions]
+                                  next[index] = {
+                                    ...next[index],
+                                    correctAnswers: event.target.value
+                                      ? [event.target.value]
+                                      : [],
+                                  }
+                                  return { ...prev, questions: next }
+                                })
+                              }
+                            >
+                              <option value="">Selecione</option>
+                              <option value="true">Verdadeiro</option>
+                              <option value="false">Falso</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {question.type === "single_choice" && (
+                          <div className="space-y-2">
+                            <Label>Resposta correta</Label>
+                            <select
+                              className="bg-card text-foreground border-input h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                              value={question.correctAnswers[0] ?? ""}
+                              onChange={(event) =>
+                                setActivityForm((prev) => {
+                                  const next = [...prev.questions]
+                                  next[index] = {
+                                    ...next[index],
+                                    correctAnswers: event.target.value
+                                      ? [event.target.value]
+                                      : [],
+                                  }
+                                  return { ...prev, questions: next }
+                                })
+                              }
+                            >
+                              <option value="">Selecione</option>
+                              {question.options.map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {question.type === "multiple_choice" && (
+                          <div className="space-y-2">
+                            <Label>Respostas corretas</Label>
+                            <div className="space-y-2">
+                              {question.options.map((option) => {
+                                const checked = question.correctAnswers.includes(option)
+                                return (
+                                  <label
+                                    key={option}
+                                    className="flex items-center gap-2 text-sm"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() =>
+                                        setActivityForm((prev) => {
+                                          const next = [...prev.questions]
+                                          const current = next[index].correctAnswers
+                                          const nextAnswers = checked
+                                            ? current.filter((item) => item !== option)
+                                            : [...current, option]
+                                          next[index] = {
+                                            ...next[index],
+                                            correctAnswers: nextAnswers,
+                                          }
+                                          return { ...prev, questions: next }
+                                        })
+                                      }
+                                    />
+                                    {option}
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={question.required}
+                            onChange={(event) =>
+                              setActivityForm((prev) => {
+                                const next = [...prev.questions]
+                                next[index] = {
+                                  ...next[index],
+                                  required: event.target.checked,
+                                }
+                                return { ...prev, questions: next }
+                              })
+                            }
+                          />
+                          Resposta obrigatória
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
                 {activityError ? (
                   <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
                     {activityError}
@@ -1976,7 +2392,9 @@ export default function Page() {
                                     ? `${activity.userIds?.length ?? 0} usuários`
                                     : activity.visibility === "module"
                                     ? "Módulo inteiro"
-                                    : "Privado"}
+                                    : "Privado"}{" "}
+                                  • {activity.attachments?.length ?? 0} anexos •{" "}
+                                  {activity.questions?.length ?? 0} questões
                                 </span>
                               </div>
                             )

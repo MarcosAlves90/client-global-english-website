@@ -40,6 +40,16 @@ export type Activity = {
   visibility?: "module" | "users" | "private"
   userIds?: string[]
   releaseAt?: Date | string | null
+  attachments?: { name: string; url: string; type?: "pdf" | "video" | "link" | "audio" }[]
+  questions?: {
+    id: string
+    type: "essay" | "single_choice" | "multiple_choice" | "true_false" | "short_answer"
+    prompt: string
+    options?: string[]
+    correctAnswers?: string[]
+    points?: number
+    required?: boolean
+  }[]
 }
 
 export type Material = {

@@ -15,6 +15,16 @@ type CreateActivityBody = {
   visibility?: "module" | "users" | "private"
   userIds?: string[]
   releaseAt?: string | null
+  attachments?: { name?: string; url?: string; type?: string }[]
+  questions?: {
+    id?: string
+    type?: "essay" | "single_choice" | "multiple_choice" | "true_false" | "short_answer"
+    prompt?: string
+    options?: string[]
+    correctAnswers?: string[]
+    points?: number
+    required?: boolean
+  }[]
 }
 
 async function assertIsAdmin(req: NextRequest) {
@@ -61,6 +71,70 @@ function resolveReleaseAt(input?: string | null) {
     return null
   }
   return admin.firestore.Timestamp.fromDate(parsed)
+}
+
+const ATTACHMENT_TYPES = new Set(["pdf", "video", "link", "audio"])
+
+function normalizeAttachments(input?: unknown) {
+  if (!Array.isArray(input)) {
+    return []
+  }
+  return input
+    .map((item) => ({
+      name: typeof item?.name === "string" ? item.name.trim() : "",
+      url: typeof item?.url === "string" ? item.url.trim() : "",
+      type:
+        typeof item?.type === "string" && ATTACHMENT_TYPES.has(item.type)
+          ? item.type
+          : "link",
+    }))
+    .filter((item) => item.url)
+}
+
+function normalizeQuestions(input?: unknown) {
+  if (!Array.isArray(input)) {
+    return []
+  }
+  return input
+    .map((item, index) => {
+      const type =
+        item?.type === "essay" ||
+        item?.type === "single_choice" ||
+        item?.type === "multiple_choice" ||
+        item?.type === "true_false" ||
+        item?.type === "short_answer"
+          ? item.type
+          : "essay"
+      const prompt = typeof item?.prompt === "string" ? item.prompt.trim() : ""
+      const options = Array.isArray(item?.options)
+        ? item.options.map((opt: unknown) =>
+            typeof opt === "string" ? opt.trim() : ""
+          ).filter(Boolean)
+        : []
+      const correctAnswers = Array.isArray(item?.correctAnswers)
+        ? item.correctAnswers.map((opt: unknown) =>
+            typeof opt === "string" ? opt.trim() : ""
+          ).filter(Boolean)
+        : []
+      const pointsRaw = Number(item?.points ?? 0)
+      const points = Number.isFinite(pointsRaw) && pointsRaw > 0 ? pointsRaw : 0
+      const required = Boolean(item?.required)
+      const id =
+        typeof item?.id === "string" && item.id.trim()
+          ? item.id.trim()
+          : `q-${index + 1}`
+
+      return {
+        id,
+        type,
+        prompt,
+        options,
+        correctAnswers,
+        points,
+        required,
+      }
+    })
+    .filter((item) => item.prompt)
 }
 
 function parseOrder(input?: number) {
@@ -132,6 +206,8 @@ export async function GET(req: NextRequest) {
         visibility: data.visibility ?? "private",
         userIds: Array.isArray(data.userIds) ? data.userIds : [],
         releaseAt: data.releaseAt?.toDate?.() ?? null,
+        attachments: Array.isArray(data.attachments) ? data.attachments : [],
+        questions: Array.isArray(data.questions) ? data.questions : [],
       }
     })
 
@@ -170,6 +246,8 @@ export async function POST(req: NextRequest) {
   const type = body.type
   const estimatedMinutes = Number(body.estimatedMinutes ?? 0)
   const visibility = body.visibility ?? "private"
+  const attachments = normalizeAttachments(body.attachments)
+  const questions = normalizeQuestions(body.questions)
 
   if (!courseId || !trackId || !title || !type || estimatedMinutes <= 0) {
     return NextResponse.json(
@@ -207,6 +285,8 @@ export async function POST(req: NextRequest) {
       visibility,
       userIds: visibility === "users" ? userIds : [],
       releaseAt,
+      attachments,
+      questions,
       createdAt: now,
       updatedAt: now,
       createdBy: authCheck.uid,
@@ -223,6 +303,8 @@ export async function POST(req: NextRequest) {
       visibility,
       userIds: visibility === "users" ? userIds : [],
       releaseAt: releaseAt ? releaseAt.toDate() : null,
+      attachments,
+      questions,
     }
 
     return NextResponse.json(result, { status: 201 })
