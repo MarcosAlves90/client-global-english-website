@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Lock } from "lucide-react"
+import { Eye, EyeOff, Lock } from "lucide-react"
 
 import { useAuth } from "@/hooks/use-auth"
 import { updateCurrentUserPassword } from "@/lib/firebase/auth"
@@ -22,6 +22,8 @@ export default function UpdatePasswordPage() {
   const { user, loading, profile, isFirebaseReady, refreshProfile } = useAuth()
   const [password, setPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
+  const [showPassword, setShowPassword] = React.useState(false)
+  const [showConfirm, setShowConfirm] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState<string | null>(null)
   const [submitting, setSubmitting] = React.useState(false)
@@ -91,23 +93,53 @@ export default function UpdatePasswordPage() {
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="new-password">Nova senha</FieldLabel>
-                  <Input
-                    id="new-password"
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="new-password"
+                      type={showPassword ? "text" : "password"}
+                      className="pr-10"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="size-4" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
+                    </button>
+                  </div>
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="confirm-password">Confirmar senha</FieldLabel>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="confirm-password"
+                      type={showConfirm ? "text" : "password"}
+                      className="pr-10"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
+                      onClick={() => setShowConfirm((prev) => !prev)}
+                      aria-label={showConfirm ? "Ocultar senha" : "Mostrar senha"}
+                    >
+                      {showConfirm ? (
+                        <EyeOff className="size-4" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
+                    </button>
+                  </div>
                 </Field>
                 <Field>
                   <Button type="submit" disabled={submitting}>

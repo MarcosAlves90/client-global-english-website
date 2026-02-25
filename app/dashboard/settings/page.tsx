@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import * as React from "react"
-import { Bell, Moon, ShieldCheck, Sun, User } from "lucide-react"
+import { Bell, Eye, EyeOff, Moon, ShieldCheck, Sun, User } from "lucide-react"
 
 import { DashboardHeader } from "@/components/dashboard-header"
 import { useAuth } from "@/hooks/use-auth"
@@ -15,6 +15,8 @@ import { Switch } from "@/components/ui/switch"
 export default function Page() {
   const { user, profile, isFirebaseReady } = useAuth()
   const [isDark, setIsDark] = React.useState(false)
+  const [showPassword, setShowPassword] = React.useState(false)
+  const [showConfirm, setShowConfirm] = React.useState(false)
 
   React.useEffect(() => {
     const root = document.documentElement
@@ -167,11 +169,49 @@ export default function Page() {
             <CardContent className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="password">Nova senha</Label>
-                <Input id="password" type="password" placeholder="********" />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="********"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm">Confirmar senha</Label>
-                <Input id="confirm" type="password" placeholder="********" />
+                <div className="relative">
+                  <Input
+                    id="confirm"
+                    type={showConfirm ? "text" : "password"}
+                    placeholder="********"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
+                    onClick={() => setShowConfirm((prev) => !prev)}
+                    aria-label={showConfirm ? "Ocultar senha" : "Mostrar senha"}
+                  >
+                    {showConfirm ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
               </div>
               <div className="md:col-span-2">
                 <Button variant="outline">Atualizar senha</Button>

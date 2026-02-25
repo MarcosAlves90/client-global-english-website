@@ -3,6 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   requestPasswordReset,
@@ -38,6 +39,7 @@ export function LoginForm({
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [isResettingPassword, setIsResettingPassword] = React.useState(false)
+  const [showPassword, setShowPassword] = React.useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -128,13 +130,28 @@ export function LoginForm({
                     {isResettingPassword ? "Enviando..." : "Esqueci minha senha"}
                   </button>
                 </div>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    className="pr-10"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
               </Field>
               <Field>
                 <Button type="submit" disabled={isSubmitting}>
