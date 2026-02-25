@@ -53,33 +53,45 @@ export default function Page() {
     void loadDashboard()
   }, [user, isFirebaseReady])
 
-  const stats = {
-    courses: courses.length,
-    tracks: courses.reduce((total, course) => total + course.tracks.length, 0),
-    activities: courses.reduce(
-      (total, course) => total + course.activities.length,
-      0
-    ),
-    progress: courses.length
-      ? Math.round(
-          courses.reduce((sum, course) => sum + course.enrollment.progress, 0) /
-            courses.length
-        )
-      : 0,
-  }
+  const stats = React.useMemo(
+    () => ({
+      courses: courses.length,
+      tracks: courses.reduce(
+        (total, course) => total + course.tracks.length,
+        0
+      ),
+      activities: courses.reduce(
+        (total, course) => total + course.activities.length,
+        0
+      ),
+      progress: courses.length
+        ? Math.round(
+            courses.reduce(
+              (sum, course) => sum + course.enrollment.progress,
+              0
+            ) / courses.length
+          )
+        : 0,
+    }),
+    [courses]
+  )
 
-  const upcomingActivities = courses
-    .flatMap((course) =>
-      course.activities.map((activity) => ({
-        ...activity,
-        courseTitle: course.title,
-        trackTitle:
-          course.tracks.find((track) => track.id === activity.trackId)?.title ??
-          "",
-      }))
-    )
-    .sort((a, b) => a.order - b.order)
-    .slice(0, 4)
+  const upcomingActivities = React.useMemo(
+    () =>
+      courses
+        .flatMap((course) =>
+          course.activities.map((activity) => ({
+            ...activity,
+            courseTitle: course.title,
+            trackTitle:
+              course.tracks.find((track) => track.id === activity.trackId)
+                ?.title ?? "",
+          }))
+        )
+        .sort((a, b) => a.order - b.order)
+        .slice(0, 4),
+    [courses]
+  )
 
   return (
     <div>

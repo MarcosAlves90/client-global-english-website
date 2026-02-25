@@ -29,62 +29,72 @@ import {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user, role, profile } = useAuth()
   const isAdmin = role === "admin"
-  const displayName = profile?.name || user?.displayName || "Usuário"
-  const email = user?.email || "Sem email"
-  const avatar = user?.photoURL || ""
+  const displayName = React.useMemo(
+    () => profile?.name || user?.displayName || "Usuário",
+    [profile?.name, user?.displayName]
+  )
+  const email = React.useMemo(() => user?.email || "Sem email", [user?.email])
+  const avatar = React.useMemo(() => user?.photoURL || "", [user?.photoURL])
 
-  const navMain = [
-    {
-      title: "Visão geral",
-      url: "/dashboard",
-      icon: Command,
-      isActive: true,
-    },
-    {
-      title: "Cursos",
-      url: "/dashboard/courses",
-      icon: GraduationCap,
-      items: [
-        { title: "Meus cursos", url: "/dashboard/courses" },
-        { title: "Catálogo", url: "/dashboard/courses" },
-      ],
-    },
-    {
-      title: "Atividades",
-      url: "/dashboard/activities",
-      icon: ClipboardCheck,
-      items: [
-        { title: "Pendências", url: "/dashboard/activities" },
-        { title: "Concluídas", url: "/dashboard/activities" },
-      ],
-    },
-    {
-      title: "Materiais",
-      url: "/dashboard/materials",
-      icon: BookOpen,
-      items: [
-        { title: "Biblioteca", url: "/dashboard/materials" },
-        { title: "Favoritos", url: "/dashboard/materials" },
-      ],
-    },
-  ]
+  const navMain = React.useMemo(() => {
+    const items = [
+      {
+        title: "Visão geral",
+        url: "/dashboard",
+        icon: Command,
+        isActive: true,
+      },
+      {
+        title: "Cursos",
+        url: "/dashboard/courses",
+        icon: GraduationCap,
+        items: [
+          { title: "Meus cursos", url: "/dashboard/courses" },
+          { title: "Catálogo", url: "/dashboard/courses" },
+        ],
+      },
+      {
+        title: "Atividades",
+        url: "/dashboard/activities",
+        icon: ClipboardCheck,
+        items: [
+          { title: "Pendências", url: "/dashboard/activities" },
+          { title: "Concluídas", url: "/dashboard/activities" },
+        ],
+      },
+      {
+        title: "Materiais",
+        url: "/dashboard/materials",
+        icon: BookOpen,
+        items: [
+          { title: "Biblioteca", url: "/dashboard/materials" },
+          { title: "Favoritos", url: "/dashboard/materials" },
+        ],
+      },
+    ]
 
-  const navSecondary = [
-    { title: "Suporte", url: "#", icon: LifeBuoy },
-    { title: "Configurações", url: "/dashboard/settings", icon: Settings },
-  ]
+    if (isAdmin) {
+      items.push({
+        title: "Admin",
+        url: "/dashboard/admin",
+        icon: ShieldCheck,
+        items: [
+          { title: "Usuários", url: "/dashboard/admin/users" },
+          { title: "Cursos", url: "/dashboard/admin/courses" },
+        ],
+      })
+    }
 
-  if (isAdmin) {
-    navMain.push({
-      title: "Admin",
-      url: "/dashboard/admin",
-      icon: ShieldCheck,
-      items: [
-        { title: "Usuários", url: "/dashboard/admin/users" },
-        { title: "Cursos", url: "/dashboard/admin/courses" },
-      ],
-    })
-  }
+    return items
+  }, [isAdmin])
+
+  const navSecondary = React.useMemo(
+    () => [
+      { title: "Suporte", url: "#", icon: LifeBuoy },
+      { title: "Configurações", url: "/dashboard/settings", icon: Settings },
+    ],
+    []
+  )
 
   return (
     <Sidebar variant="inset" {...props}>
@@ -110,7 +120,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={{ name: displayName, email, avatar }} role={role} />
+        <NavUser
+          user={{ name: displayName, email, avatar }}
+          role={role}
+        />
       </SidebarFooter>
     </Sidebar>
   )

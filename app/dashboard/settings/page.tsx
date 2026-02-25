@@ -25,7 +25,7 @@ export default function Page() {
     root.classList.toggle("dark", shouldUseDark)
   }, [])
 
-  function handleThemeToggle(nextValue: boolean) {
+  const handleThemeToggle = React.useCallback((nextValue: boolean) => {
     setIsDark(nextValue)
     const root = document.documentElement
     root.classList.toggle("dark", nextValue)
@@ -36,10 +36,13 @@ export default function Page() {
         newValue: nextValue ? "dark" : "light",
       })
     )
-  }
+  }, [])
 
-  const displayName = profile?.name ?? user?.displayName ?? "Usuário"
-  const email = user?.email ?? ""
+  const displayName = React.useMemo(
+    () => profile?.name ?? user?.displayName ?? "Usuário",
+    [profile?.name, user?.displayName]
+  )
+  const email = React.useMemo(() => user?.email ?? "", [user?.email])
 
   return (
     <div>

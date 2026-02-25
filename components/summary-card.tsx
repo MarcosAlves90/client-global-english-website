@@ -14,7 +14,7 @@ type SummaryCardProps = {
   className?: string
 }
 
-export function SummaryCard({
+export const SummaryCard = React.memo(function SummaryCard({
   label,
   value,
   description,
@@ -39,4 +39,4 @@ export function SummaryCard({
       </CardContent>
     </Card>
   )
-}
+})

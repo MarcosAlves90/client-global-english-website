@@ -89,13 +89,18 @@ export default function Page() {
     void loadMaterials()
   }, [user, isFirebaseReady])
 
-  const totalAttachments = materials.reduce(
-    (acc, material) => acc + (material.attachments?.length ?? 0),
-    0
+  const totalAttachments = React.useMemo(
+    () =>
+      materials.reduce(
+        (acc, material) => acc + (material.attachments?.length ?? 0),
+        0
+      ),
+    [materials]
   )
-  const markdownCount = materials.filter((material) =>
-    material.markdown?.trim()
-  ).length
+  const markdownCount = React.useMemo(
+    () => materials.filter((material) => material.markdown?.trim()).length,
+    [materials]
+  )
 
   return (
     <div>

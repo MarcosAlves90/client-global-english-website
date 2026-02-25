@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import {
   BadgeCheck,
   ChevronsUpDown,
@@ -31,7 +32,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useRouter } from "next/navigation"
 
-export function NavUser({
+export const NavUser = React.memo(function NavUser({
   user,
   role,
 }: {
@@ -44,17 +45,21 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
-  const initials = user.name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase()
+  const initials = React.useMemo(
+    () =>
+      user.name
+        .split(" ")
+        .map((part) => part[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase(),
+    [user.name]
+  )
 
-  async function handleSignOut() {
+  const handleSignOut = React.useCallback(async () => {
     await signOutUser()
     router.push("/login")
-  }
+  }, [router])
 
   return (
     <SidebarMenu>
@@ -124,4 +129,4 @@ export function NavUser({
       </SidebarMenuItem>
     </SidebarMenu>
   )
-}
+})

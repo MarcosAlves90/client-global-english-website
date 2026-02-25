@@ -71,14 +71,22 @@ export default function Page() {
     void loadActivities()
   }, [user, isFirebaseReady])
 
-  const totalMinutes = activities.reduce(
-    (acc, activity) => acc + (activity.estimatedMinutes || 0),
-    0
+  const totalMinutes = React.useMemo(
+    () =>
+      activities.reduce(
+        (acc, activity) => acc + (activity.estimatedMinutes || 0),
+        0
+      ),
+    [activities]
   )
-  const typeCounts = activities.reduce<Record<string, number>>((acc, activity) => {
-    acc[activity.type] = (acc[activity.type] ?? 0) + 1
-    return acc
-  }, {})
+  const typeCounts = React.useMemo(
+    () =>
+      activities.reduce<Record<string, number>>((acc, activity) => {
+        acc[activity.type] = (acc[activity.type] ?? 0) + 1
+        return acc
+      }, {}),
+    [activities]
+  )
 
   return (
     <div>

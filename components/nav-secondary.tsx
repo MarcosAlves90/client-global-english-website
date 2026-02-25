@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/sidebar"
 import Link from "next/link"
 
-export function NavSecondary({
+export const NavSecondary = React.memo(function NavSecondary({
   items,
   ...props
 }: {
@@ -38,4 +38,4 @@ export function NavSecondary({
       </SidebarGroupContent>
     </SidebarGroup>
   )
-}
+})

@@ -67,22 +67,25 @@ export default function Page() {
     void loadCourses()
   }, [isFirebaseReady, user, loadCourses])
 
-  const stats = {
-    courses: courses.length,
-    tracks: courses.reduce((acc, course) => acc + course.tracks.length, 0),
-    activities: courses.reduce(
-      (acc, course) => acc + course.activities.length,
-      0
-    ),
-    avgProgress: courses.length
-      ? Math.round(
-          courses.reduce(
-            (acc, course) => acc + (course.enrollment.progress ?? 0),
-            0
-          ) / courses.length
-        )
-      : 0,
-  }
+  const stats = React.useMemo(
+    () => ({
+      courses: courses.length,
+      tracks: courses.reduce((acc, course) => acc + course.tracks.length, 0),
+      activities: courses.reduce(
+        (acc, course) => acc + course.activities.length,
+        0
+      ),
+      avgProgress: courses.length
+        ? Math.round(
+            courses.reduce(
+              (acc, course) => acc + (course.enrollment.progress ?? 0),
+              0
+            ) / courses.length
+          )
+        : 0,
+    }),
+    [courses]
+  )
 
   return (
     <div>
