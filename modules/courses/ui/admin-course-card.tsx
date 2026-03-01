@@ -8,6 +8,7 @@ import {
     Layers3,
     Calendar,
     Users2,
+    X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -40,8 +41,8 @@ export function AdminCourseCard({
     }, [course.coverUrl]);
 
     return (
-        <Card className="group py-0 flex h-full flex-col rounded-t-none overflow-hidden border-neutral-200 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg dark:border-neutral-800">
-            <div className="relative aspect-video w-full overflow-hidden border-b border-neutral-100 bg-muted/30 dark:border-neutral-800">
+        <Card className="group flex h-full flex-col overflow-hidden border-primary/10 bg-card/40 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1.5 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5">
+            <div className="relative aspect-16/10 w-full overflow-hidden border-b border-primary/10 bg-muted/30">
                 {course.coverUrl && !imageError ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -59,7 +60,7 @@ export function AdminCourseCard({
                 <div className="absolute left-3 top-3 flex flex-wrap gap-2">
                     <span
                         className={cn(
-                            "inline-flex items-center px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm backdrop-blur-sm",
+                            "inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider shadow-lg backdrop-blur-md border border-white/5",
                             STATUS_STYLES[
                             (course.status as CourseStatus) ??
                             "Inscrições abertas"
@@ -70,73 +71,76 @@ export function AdminCourseCard({
                     </span>
                 </div>
 
-                <div className="absolute right-3 top-3 flex flex-wrap">
-                    <span className="bg-black/60 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
+                <div className="absolute right-3 top-3">
+                    <span className="rounded-full bg-black/40 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-lg backdrop-blur-md border border-white/5">
                         {course.level}
                     </span>
                 </div>
             </div>
 
-            <CardContent className="flex flex-1 flex-col px-4 pb-4">
-                <div>
-                    <h3 className="line-clamp-1 text-lg leading-tight font-bold text-neutral-900 dark:text-neutral-100">
+            <CardContent className="flex flex-1 flex-col px-4 pb-4 pt-4">
+                <div className="mb-4">
+                    <h3 className="line-clamp-1 text-base font-bold text-foreground">
                         {course.title}
                     </h3>
-                    <p className="mt-1.5 line-clamp-2 min-h-10 text-sm text-neutral-500 dark:text-neutral-400">
+                    <p className="mt-1.5 line-clamp-2 min-h-8 text-xs text-muted-foreground leading-relaxed">
                         {course.description ||
                             "Sem descrição disponível para este treinamento."}
                     </p>
                 </div>
 
-                <div className="mt-auto grid grid-cols-3 gap-2 border-y border-neutral-100 py-2 dark:border-neutral-800">
-                    <div className="flex items-center text-center justify-center gap-2">
-                        <Users2 className="size-4 text-neutral-400" />
-                        <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                <div className="mt-auto grid grid-cols-3 gap-2 border-y border-primary/5 py-3">
+                    <div className="flex flex-col items-center justify-center gap-1 border-r border-primary/5">
+                        <Users2 className="size-3.5 text-primary/60" />
+                        <span className="text-xs font-bold text-foreground">
                             {course.studentsCount}
                         </span>
+                        <span className="text-[9px] uppercase tracking-tighter text-muted-foreground font-medium">Alunos</span>
                     </div>
-                    <div className="flex items-center gap-2 justify-center border-x border-neutral-100 text-center dark:border-neutral-800">
-                        <Layers3 className="size-4 text-neutral-400" />
-                        <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                    <div className="flex flex-col items-center justify-center gap-1 border-r border-primary/5">
+                        <Layers3 className="size-3.5 text-primary/60" />
+                        <span className="text-xs font-bold text-foreground">
                             {course.modulesCount}
                         </span>
+                        <span className="text-[9px] uppercase tracking-tighter text-muted-foreground font-medium">Módulos</span>
                     </div>
-                    <div className="flex items-center gap-2 text-center justify-center">
-                        <ClipboardList className="size-4 text-neutral-400" />
-                        <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                    <div className="flex flex-col items-center justify-center gap-1">
+                        <ClipboardList className="size-3.5 text-primary/60" />
+                        <span className="text-xs font-bold text-foreground">
                             {course.activitiesCount}
                         </span>
+                        <span className="text-[9px] uppercase tracking-tighter text-muted-foreground font-medium">Ativs.</span>
                     </div>
                 </div>
 
                 <div className="mt-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-1.5 text-neutral-500">
+                    <div className="flex items-center gap-1.5 text-muted-foreground/60">
                         <Calendar className="size-3.5" />
-                        <span className="text-xs font-medium">
-                            {course.durationWeeks}
+                        <span className="text-[10px] font-bold">
+                            {course.durationWeeks} Sems.
                         </span>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 px-3 text-xs font-semibold"
+                            size="icon"
+                            variant="ghost"
+                            className="size-8 text-muted-foreground hover:bg-primary/10 hover:text-primary rounded-full transition-all"
                             onClick={() => onEdit(course)}
                         >
-                            Editar
+                            <Calendar className="size-4" />
                         </Button>
                         <Button
-                            size="sm"
-                            variant="destructive"
-                            className="h-8 px-3 text-xs font-semibold"
+                            size="icon"
+                            variant="ghost"
+                            className="size-8 text-destructive hover:bg-destructive/10 rounded-full transition-all"
                             onClick={() => onDelete(course)}
                             disabled={deleting}
                         >
-                            {deleting ? "Excluindo..." : "Excluir"}
+                            <X className="size-4" />
                         </Button>
                         <Button
                             size="sm"
-                            className="h-8 px-4 text-xs font-semibold shadow-sm"
+                            className="h-8 px-4 text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg shadow-primary/10 hover:shadow-primary/20 transition-all active:scale-95"
                             asChild
                         >
                             <Link href={`/dashboard/admin/courses/${course.id}`}>

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { fetchAdminOverview } from "@/lib/firebase/firestore"
 import { AdminNavCard } from "@/components/admin/admin-nav-card"
+import { AdminStatCard } from "@/components/admin/admin-stat-card"
+import { AdminSectionHeader } from "@/components/admin/admin-section-header"
 import type { AdminOverview } from "@/lib/firebase/types"
 
 export default function Page() {
@@ -87,37 +89,27 @@ export default function Page() {
         ) : null}
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Card className="border-primary/5 bg-primary/1">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium">Usuários ativos</CardTitle>
-              <Users2 className="size-4 text-primary/60" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold tracking-tight">
-                {loading ? "..." : overview?.usersCount ?? "-"}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Total cadastrado na plataforma</p>
-            </CardContent>
-          </Card>
-          <Card className="border-primary/5 bg-primary/1">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium">Cursos ativos</CardTitle>
-              <GraduationCap className="size-4 text-primary/60" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold tracking-tight">
-                {loading ? "..." : overview?.coursesCount ?? "-"}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Total publicado e disponível</p>
-            </CardContent>
-          </Card>
+          <AdminStatCard
+            title="Usuários ativos"
+            value={overview?.usersCount ?? "-"}
+            icon={Users2}
+            description="Total cadastrado na plataforma"
+            loading={loading}
+          />
+          <AdminStatCard
+            title="Cursos ativos"
+            value={overview?.coursesCount ?? "-"}
+            icon={GraduationCap}
+            description="Total publicado e disponível"
+            loading={loading}
+          />
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center gap-2 px-1">
-            <LayoutDashboard className="size-5 text-primary" />
-            <h2 className="text-lg font-semibold tracking-tight">Gestão do Sistema</h2>
-          </div>
+          <AdminSectionHeader
+            title="Gestão do Sistema"
+            icon={LayoutDashboard}
+          />
 
           <div className="grid gap-4 md:grid-cols-2">
             <AdminNavCard

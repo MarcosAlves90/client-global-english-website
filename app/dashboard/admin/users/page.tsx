@@ -1,14 +1,17 @@
 ﻿"use client"
 
 import * as React from "react"
-import { Mail, UserCheck, Users2 } from "lucide-react"
+import { Mail, UserCheck, Users2, UserPlus, Search, AlertCircle, X } from "lucide-react"
 
 import { DashboardHeader } from "@/components/dashboard-header"
+import { AdminStatCard } from "@/components/admin/admin-stat-card"
+import { AdminSectionHeader } from "@/components/admin/admin-section-header"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 import type { AdminUserSummary } from "@/lib/firebase/types"
 import {
   AdminUserCard,
@@ -61,6 +64,7 @@ export default function Page() {
   const [currentCursor, setCurrentCursor] = React.useState<string | null>(null)
   const [cursorHistory, setCursorHistory] = React.useState<string[]>([])
   const [page, setPage] = React.useState(1)
+  const [showForm, setShowForm] = React.useState(false)
   const breadcrumbItems = React.useMemo(() => [{ label: "Admin", href: "/dashboard/admin" }, { label: "Usuários" }], [])
 
   const loadUsersPage = React.useCallback(
@@ -116,7 +120,7 @@ export default function Page() {
   }, [selectedUser])
 
   const totalUsers = users.length
-  const adminUsers = users.filter((user) => user.role === "admin").length
+  const adminUsers = users.filter((u) => u.role === "admin").length
 
   const filteredUsers = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -131,12 +135,15 @@ export default function Page() {
   if (role !== "admin") {
     return (
       <div className="p-6">
-        <Card>
+        <Card className="border-destructive/20 bg-destructive/5">
           <CardHeader>
-            <CardTitle className="text-base">Acesso restrito</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base text-destructive">
+              <AlertCircle className="size-5" />
+              Acesso restrito
+            </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Esta área é exclusiva para administradores.
+            Esta área é exclusiva para administradores da plataforma.
           </CardContent>
         </Card>
       </div>
@@ -174,25 +181,27 @@ export default function Page() {
   const teamOptions = Array.from(
     new Set(
       users
-        .map((user) => user.team)
+        .map((u) => u.team)
         .filter((team): team is string => Boolean(team && team.trim()))
         .map((team) => team.trim())
     )
   ).sort((a, b) => a.localeCompare(b))
 
-  const handleEditUser = (user: AdminUserSummary) => {
+  const handleEditUser = (u: AdminUserSummary) => {
     setSelectedUser({
-      uid: user.uid,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      team: user.team ?? "",
-      disabled: user.disabled,
+      uid: u.uid,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      team: u.team ?? "",
+      disabled: u.disabled,
     })
+    setShowForm(true)
   }
 
   const handleCancelEdit = () => {
     setSelectedUser(null)
+    setShowForm(false)
   }
 
   const handleFreeze = async (target: AdminUserSummary) => {
@@ -231,7 +240,6 @@ export default function Page() {
   }
 
   const handleSave = async () => {
-    // validation
     if (!form.name.trim() || !form.email.trim()) {
       setFormError("Nome e email são obrigatórios.")
       return
@@ -241,8 +249,8 @@ export default function Page() {
     setFormError(null)
 
     try {
+      const idToken = user ? await user.getIdToken() : null
       if (selectedUser) {
-        const idToken = user ? await user.getIdToken() : null
         await upsertAdminUser(idToken, {
           uid: selectedUser.uid,
           name: form.name.trim(),
@@ -252,21 +260,21 @@ export default function Page() {
         })
 
         setUsers((prev) =>
-          prev.map((user) =>
-            user.uid === selectedUser.uid
+          prev.map((u) =>
+            u.uid === selectedUser.uid
               ? {
-                ...user,
+                ...u,
                 name: form.name.trim(),
                 email: form.email.trim(),
                 role: form.role,
                 team: form.team.trim() || null,
               }
-              : user
+              : u
           )
         )
         setSelectedUser(null)
+        setShowForm(false)
       } else {
-        const idToken = user ? await user.getIdToken() : null
         const created = (await upsertAdminUser(idToken, {
           name: form.name.trim(),
           email: form.email.trim(),
@@ -276,6 +284,8 @@ export default function Page() {
 
         if (created?.initialPassword) {
           setGeneratedPassword(created.initialPassword)
+        } else {
+          setShowForm(false)
         }
 
         setCurrentCursor(null)
@@ -303,237 +313,279 @@ export default function Page() {
   }
 
   return (
-    <div>
+    <div className="flex-1">
       <DashboardHeader
         title="Gerenciar usuários"
         breadcrumbItems={breadcrumbItems}
         description="Gerencie alunos, instrutores e permissões da plataforma."
         action={
-          <Button size="sm" onClick={() => setSelectedUser(null)}>
-            Convidar usuário
+          <Button
+            size="sm"
+            onClick={() => {
+              if (showForm && !selectedUser) {
+                setShowForm(false)
+              } else {
+                setSelectedUser(null)
+                setShowForm(true)
+              }
+            }}
+            className="rounded-full shadow-lg shadow-primary/10"
+          >
+            {showForm && !selectedUser ? (
+              <>
+                <X className="mr-2 size-4" />
+                Fechar
+              </>
+            ) : (
+              <>
+                <UserPlus className="mr-2 size-4" />
+                Convidar usuário
+              </>
+            )}
           </Button>
         }
       />
 
-      <div className="flex flex-col gap-6 p-6">
-        {!isFirebaseReady ? (
-          <div className="rounded-2xl border border-dashed bg-accent/40 p-4 text-sm text-muted-foreground">
+      <div className="flex flex-col gap-8 p-6">
+        {/* Error States */}
+        {!isFirebaseReady && (
+          <div className="rounded-xl border border-dashed bg-accent/40 p-4 text-xs text-muted-foreground">
             Firebase não configurado. Conecte para visualizar usuários reais.
           </div>
-        ) : null}
-
-        {error ? (
-          <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+        )}
+        {error && (
+          <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-xs text-destructive">
             {error}
           </div>
-        ) : null}
+        )}
 
-        <Card>
-          <CardHeader className="flex items-center justify-between gap-3 sm:flex-row">
-            <div>
-              <CardTitle className="text-base">Base de usuários</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Acompanhe convites e status de acesso.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder="Buscar por nome ou email"
-                className="h-9"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setSearchQuery("")}
-              >
-                Limpar
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handlePreviousPage}
-                disabled={!hasPreviousPage || loading}
-              >
-                Anterior
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleNextPage}
-                disabled={!hasNextPage || loading}
-              >
-                Próxima
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-3 text-xs text-muted-foreground">
-              Página {page}
-            </div>
-            {loading ? (
-              <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                Carregando usuários...
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                {searchQuery ? "Nenhum usuário corresponde à busca." : "Nenhum usuário encontrado."}
-              </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredUsers.map((item) => {
-                  const isSelected = selectedUser?.uid === item.uid
-                  return (
-                    <AdminUserCard
-                      key={item.uid}
-                      item={item}
-                      isSelected={isSelected}
-                      onEdit={handleEditUser}
-                      onFreeze={(target) => {
-                        void handleFreeze(target)
-                      }}
-                      onDelete={(target) => {
-                        void handleDelete(target)
-                      }}
-                    />
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Stats Grid */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <AdminStatCard
+            title="Usuários ativos"
+            value={totalUsers}
+            icon={Users2}
+            description="Total na plataforma"
+            loading={loading}
+          />
+          <AdminStatCard
+            title="Convites pendentes"
+            value="-"
+            icon={Mail}
+            description="Aguardando ativação"
+            loading={loading}
+          />
+          <AdminStatCard
+            title="Administradores"
+            value={adminUsers}
+            icon={UserPlus}
+            description="Gestores do sistema"
+            loading={loading}
+          />
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {selectedUser ? "Editar usuário" : "Cadastrar novo usuário"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="new-user-name">Nome completo</Label>
-              <Input
-                id="new-user-name"
-                placeholder="Nome do usuário"
-                value={form.name}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, name: event.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-user-email">Email</Label>
-              <Input
-                id="new-user-email"
-                type="email"
-                placeholder="usuario@empresa.com"
-                value={form.email}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, email: event.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-user-role">Perfil</Label>
-              <select
-                id="new-user-role"
-                className={selectClassName}
-                value={form.role}
-                onChange={(event) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    role: event.target.value === "admin" ? "admin" : "user",
-                  }))
-                }
-              >
-                <option value="user">Aluno</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-user-team">Equipe</Label>
-              <Input
-                id="new-user-team"
-                placeholder="Turma ou time"
-                value={form.team}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, team: event.target.value }))
-                }
-                list="team-options"
-              />
-              <datalist id="team-options">
-                {teamOptions.map((team) => (
-                  <option key={team} value={team} />
-                ))}
-              </datalist>
-            </div>
-            {formError ? (
-              <div className="md:col-span-2 text-sm text-destructive">
-                {formError}
-              </div>
-            ) : null}
-            {generatedPassword ? (
-              <div className="md:col-span-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
-                <p className="font-medium text-foreground">
-                  Senha inicial gerada
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Compartilhe esta senha com o usuário. Ela será usada no primeiro
-                  acesso.
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <code className="rounded bg-muted px-2 py-1 text-sm">
-                    {generatedPassword}
-                  </code>
+        {/* List Section */}
+        <div className="space-y-4">
+          <AdminSectionHeader
+            title="Base de usuários"
+            description="Acompanhe convites e status de acesso dos integrantes da plataforma."
+            icon={Users2}
+            action={
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar usuários..."
+                    className="h-9 w-[200px] pl-9 lg:w-[300px] bg-card/40 backdrop-blur-sm border-primary/10 transition-all focus:border-primary/30"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full border-primary/10 hover:border-primary/30"
+                  onClick={() => setSearchQuery("")}
+                >
+                  Limpar
+                </Button>
+                <div className="flex items-center gap-1 border-l border-primary/10 ml-1 pl-2">
                   <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(generatedPassword)
-                    }}
+                    size="icon"
+                    variant="ghost"
+                    className="size-8 rounded-full"
+                    onClick={handlePreviousPage}
+                    disabled={!hasPreviousPage || loading}
                   >
-                    Copiar senha
+                    <Search className="size-4 rotate-180" />
+                  </Button>
+                  <span className="text-xs font-bold text-muted-foreground min-w-[3ch] text-center">
+                    {page}
+                  </span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-8 rounded-full"
+                    onClick={handleNextPage}
+                    disabled={!hasNextPage || loading}
+                  >
+                    <Search className="size-4" />
                   </Button>
                 </div>
               </div>
-            ) : null}
-            <div className="md:col-span-2 flex items-center gap-2">
-              <Button onClick={handleSave} disabled={saving}>
-                {saving
-                  ? selectedUser
-                    ? "Salvando..."
-                    : "Criando..."
-                  : selectedUser
-                    ? "Salvar usuário"
-                    : "Criar usuário"}
-              </Button>
-              <Button variant="outline" onClick={handleCancelEdit}>
-                Cancelar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            }
+          />
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            { label: "Usuários ativos", value: totalUsers, icon: Users2 },
-            { label: "Convites pendentes", value: "-", icon: Mail },
-            { label: "Admins", value: adminUsers, icon: UserCheck },
-          ].map((item) => (
-            <Card key={item.label}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-sm font-medium">{item.label}</CardTitle>
-                <item.icon className="size-4 text-muted-foreground" />
+          <div className="rounded-xl bg-card/30 backdrop-blur-sm border border-primary/5 p-1 transition-all">
+            {loading ? (
+              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground animate-pulse">
+                Sincronizando base de dados...
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground border border-dashed border-primary/10 rounded-lg m-2">
+                {searchQuery ? "Nenhum resultado para esta busca." : "Nenhum usuário cadastrado."}
+              </div>
+            ) : (
+              <div className="grid gap-4 p-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {filteredUsers.map((u) => (
+                  <AdminUserCard
+                    key={u.uid}
+                    item={u}
+                    isSelected={selectedUser?.uid === u.uid}
+                    onEdit={handleEditUser}
+                    onFreeze={(target) => void handleFreeze(target)}
+                    onDelete={(target) => void handleDelete(target)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Form Section */}
+        {showForm && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <AdminSectionHeader
+              title={selectedUser ? "Perfil do Usuário" : "Convite e Cadastro"}
+              description={selectedUser ? "Ajuste permissões, atualize dados cadastrais ou congele o acesso." : "Cadastre novos integrantes na plataforma Global English."}
+              icon={selectedUser ? UserCheck : UserPlus}
+            />
+
+            <Card className="border-primary/10 bg-card/40 backdrop-blur-sm overflow-hidden border-dashed">
+              <CardHeader className="border-b border-primary/5 bg-primary/1">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <div className="size-2 rounded-full bg-primary animate-pulse" />
+                  Informações Principais
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold">{item.value}</div>
+              <CardContent className="grid gap-6 md:grid-cols-2 pt-6">
+                <div className="space-y-2">
+                  <Label htmlFor="user-name">Nome completo</Label>
+                  <Input
+                    id="user-name"
+                    placeholder="Nome do usuário"
+                    className="bg-background/50"
+                    value={form.name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="user-email">Email</Label>
+                  <Input
+                    id="user-email"
+                    type="email"
+                    placeholder="usuario@empresa.com"
+                    className="bg-background/50"
+                    value={form.email}
+                    onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="user-role">Perfil</Label>
+                  <select
+                    id="user-role"
+                    className={cn(selectClassName, "bg-background/50")}
+                    value={form.role}
+                    onChange={(e) => setForm((prev) => ({
+                      ...prev,
+                      role: e.target.value === "admin" ? "admin" : "user",
+                    }))
+                    }
+                  >
+                    <option value="user">Aluno</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="user-team">Equipe</Label>
+                  <Input
+                    id="user-team"
+                    placeholder="Turma ou time"
+                    className="bg-background/50"
+                    value={form.team}
+                    onChange={(e) => setForm((prev) => ({ ...prev, team: e.target.value }))}
+                    list="team-options"
+                  />
+                  <datalist id="team-options">
+                    {teamOptions.map((opt) => (
+                      <option key={opt} value={opt} />
+                    ))}
+                  </datalist>
+                </div>
+
+                {formError && (
+                  <div className="md:col-span-2 text-sm text-destructive flex items-center gap-2">
+                    <AlertCircle className="size-4" />
+                    {formError}
+                  </div>
+                )}
+
+                {generatedPassword && (
+                  <div className="md:col-span-2 rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm animate-in fade-in slide-in-from-top-2">
+                    <p className="font-bold text-primary flex items-center gap-2">
+                      <UserPlus className="size-4" />
+                      Acesso criado com sucesso!
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Compartilhe a senha inicial gerada com o usuário para o primeiro acesso.
+                    </p>
+                    <div className="mt-3 flex items-center gap-2">
+                      <code className="rounded-md bg-muted px-3 py-1.5 text-sm font-bold tracking-wider">
+                        {generatedPassword}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-full"
+                        onClick={() => navigator.clipboard.writeText(generatedPassword)}
+                      >
+                        Copiar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="md:col-span-2 flex items-center gap-3 pt-6 border-t border-primary/5 mt-2">
+                  <Button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="rounded-full px-10 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                  >
+                    {saving ? "Sincronizando..." : selectedUser ? "Salvar alterações" : "Criar usuário"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={handleCancelEdit}
+                    className="rounded-full px-6"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
 }
-

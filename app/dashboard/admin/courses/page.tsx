@@ -8,9 +8,15 @@ import {
   Search,
   Sparkles,
   Users2,
+  Calendar,
+  X,
+  AlertCircle,
+  Plus,
 } from "lucide-react"
 
 import { DashboardHeader } from "@/components/dashboard-header"
+import { AdminStatCard } from "@/components/admin/admin-stat-card"
+import { AdminSectionHeader } from "@/components/admin/admin-section-header"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -244,248 +250,101 @@ export default function Page() {
         }
       />
 
-      <div className="flex flex-col gap-6 p-6">
-        {!isFirebaseReady ? (
-          <div className="rounded-2xl border border-dashed bg-accent/40 p-4 text-sm text-muted-foreground">
+      <div className="flex flex-col gap-8 p-6">
+        {/* Error States */}
+        {!isFirebaseReady && (
+          <div className="rounded-xl border border-dashed bg-accent/40 p-4 text-xs text-muted-foreground">
             Firebase não configurado. Conecte para visualizar cursos reais.
           </div>
-        ) : null}
-
-        {error ? (
-          <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-            {error}
+        )}
+        {(error || deleteError) && (
+          <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-xs text-destructive">
+            {error || deleteError}
           </div>
-        ) : null}
-        {deleteError ? (
-          <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-            {deleteError}
-          </div>
-        ) : null}
+        )}
 
+        {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            { label: "Cursos", value: courses.length, icon: Layers3 },
-            { label: "Alunos em cursos", value: totalStudents, icon: Users2 },
-            { label: "Módulos", value: totalModules, icon: ClipboardList },
-            { label: "Atividades", value: totalActivities, icon: BookOpenCheck },
-          ].map((item) => (
-            <Card key={item.label} className="transition-all hover:shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {item.label}
-                </CardTitle>
-                <item.icon className="size-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-semibold">{item.value}</p>
-              </CardContent>
-            </Card>
-          ))}
+          <AdminStatCard
+            title="Catálogo"
+            value={courses.length}
+            icon={Layers3}
+            description="Cursos cadastrados"
+            loading={loading}
+          />
+          <AdminStatCard
+            title="Alunos ativos"
+            value={totalStudents}
+            icon={Users2}
+            description="Total em cursos"
+            loading={loading}
+          />
+          <AdminStatCard
+            title="Estrutura"
+            value={totalModules}
+            icon={ClipboardList}
+            description="Módulos publicados"
+            loading={loading}
+          />
+          <AdminStatCard
+            title="Atividades"
+            value={totalActivities}
+            icon={BookOpenCheck}
+            description="Total interativo"
+            loading={loading}
+          />
         </div>
 
-        {showCreate ? (
-          <Card className="border-primary/20">
-            <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Sparkles className="size-4 text-primary" />
-                  {isEditing ? "Editar curso" : "Criar novo curso"}
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {isEditing
-                    ? "Ajuste os dados e salve para atualizar o catálogo."
-                    : "Preencha os dados principais para publicar no catálogo."}
-                </p>
-              </div>
-              <span className="rounded-full border bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                {isEditing ? "Modo edição" : "Setup inicial"}
-              </span>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="course-title">Título do curso</Label>
-                <Input
-                  id="course-title"
-                  placeholder="Ex.: Inglês para negociações internacionais"
-                  value={form.title}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, title: event.target.value }))
-                  }
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="course-description">Descrição</Label>
-                <textarea
-                  id="course-description"
-                  className="bg-card text-foreground border-input min-h-28 w-full rounded-md border p-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                  placeholder="Resumo do objetivo, público-alvo e entregáveis"
-                  value={form.description}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, description: event.target.value }))
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  {form.description.length} caracteres
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="course-level">Nível</Label>
-                <select
-                  id="course-level"
-                  className={selectClassName}
-                  value={form.level}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      level: event.target.value as CreateCourseForm["level"],
-                    }))
-                  }
-                >
-                  <option value="Beginner">Beginner</option>
-                  <option value="Intermediate">Intermediate</option>
-                  <option value="Advanced">Advanced</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="course-duration">Duração (semanas)</Label>
-                <Input
-                  id="course-duration"
-                  type="number"
-                  min={1}
-                  value={form.durationWeeks}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      durationWeeks: event.target.value,
-                    }))
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="course-status">Status operacional</Label>
-                <select
-                  id="course-status"
-                  className={selectClassName}
-                  value={form.status}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      status: event.target.value as CourseStatus,
-                    }))
-                  }
-                >
-                  {COURSE_STATUS_OPTIONS.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="course-cover">URL da capa (opcional)</Label>
-                <Input
-                  id="course-cover"
-                  placeholder="https://..."
-                  value={form.coverUrl}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, coverUrl: event.target.value }))
-                  }
-                />
-              </div>
-
-              <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground md:col-span-2">
-                Dica: prefira títulos curtos e objetivos. Isso melhora conversão na
-                vitrine e facilita busca interna.
-              </div>
-
-              {createError ? (
-                <div className="md:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-                  {createError}
+        {/* List Section */}
+        <div className="space-y-4">
+          <AdminSectionHeader
+            title="Catálogo de cursos"
+            description="Gerencie o que está visível para os alunos e acompanhe métricas de engajamento."
+            icon={BookOpenCheck}
+            action={
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar cursos..."
+                    className="h-9 w-[200px] pl-9 lg:w-[300px] bg-card/40 backdrop-blur-sm border-primary/10 transition-all focus:border-primary/30"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
                 </div>
-              ) : null}
-
-              <div className="md:col-span-2 flex flex-wrap items-center gap-2">
-                <Button onClick={handleSubmitCourse} disabled={creating}>
-                  {creating
-                    ? isEditing
-                      ? "Salvando curso..."
-                      : "Criando curso..."
-                    : isEditing
-                      ? "Salvar alterações"
-                      : "Publicar curso"}
-                </Button>
                 <Button
+                  size="sm"
                   variant="outline"
-                  disabled={creating}
-                  onClick={resetForm}
+                  className="rounded-full border-primary/10 hover:border-primary/30"
+                  onClick={() => setSearchQuery("")}
                 >
-                  {isEditing ? "Limpar edição" : "Limpar formulário"}
+                  Limpar
                 </Button>
                 <Button
+                  size="sm"
                   variant="ghost"
-                  onClick={() => {
-                    setShowCreate(false)
-                    resetForm()
-                  }}
-                  disabled={creating}
+                  className="rounded-full ml-1"
+                  onClick={() => void loadCourses(true)}
+                  disabled={loading}
                 >
-                  Fechar
+                  Atualizar
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        ) : null}
+            }
+          />
 
-        <Card>
-          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle className="text-base">Catálogo de cursos</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Visualize, pesquise e gerencie cursos publicados.
-              </p>
-            </div>
-            <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
-              <div className="relative min-w-60 flex-1 md:flex-initial">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="pl-9"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Buscar por título ou status"
-                />
+          <div className="rounded-xl bg-card/30 backdrop-blur-sm border border-primary/5 p-1 transition-all">
+            {loading ? (
+              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground animate-pulse">
+                Sincronizando catálogo...
               </div>
-              <Button
-                variant="outline"
-                onClick={() => void loadCourses(true)}
-                disabled={loading}
-              >
-                Atualizar lista
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {loading ? (
-                <Card className="md:col-span-2 2xl:col-span-3">
-                  <CardContent className="p-6 text-sm text-muted-foreground">
-                    Carregando cursos...
-                  </CardContent>
-                </Card>
-              ) : filteredCourses.length === 0 ? (
-                <Card className="md:col-span-2 2xl:col-span-3">
-                  <CardContent className="p-6 text-sm text-muted-foreground">
-                    {searchQuery
-                      ? "Nenhum curso encontrado para essa busca."
-                      : "Nenhum curso encontrado."}
-                  </CardContent>
-                </Card>
-              ) : (
-                filteredCourses.map((course) => (
+            ) : filteredCourses.length === 0 ? (
+              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground border border-dashed border-primary/10 rounded-lg m-2">
+                {searchQuery ? "Nenhum curso corresponde à busca." : "Nenhum curso cadastrado."}
+              </div>
+            ) : (
+              <div className="grid gap-4 p-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                {filteredCourses.map((course) => (
                   <AdminCourseCard
                     key={course.id}
                     course={course}
@@ -493,11 +352,166 @@ export default function Page() {
                     onDelete={handleDeleteCourse}
                     deleting={deletingCourseId === course.id}
                   />
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Form Section */}
+        {showCreate && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <AdminSectionHeader
+              title={isEditing ? "Editar curso" : "Novo treinamento"}
+              description={isEditing ? "Modifique título, descrição ou status operacional do curso." : "Defina os parâmetros iniciais para o seu novo treinamento na Global English."}
+              icon={isEditing ? Sparkles : Plus}
+            />
+
+            <Card className="border-primary/10 bg-card/40 backdrop-blur-sm overflow-hidden border-dashed">
+              <CardHeader className="border-b border-primary/5 bg-primary/1">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <div className="size-2 rounded-full bg-primary animate-pulse" />
+                  Propriedades Técnicas
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-6 md:grid-cols-2 pt-6">
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="course-title">Título do curso</Label>
+                  <Input
+                    id="course-title"
+                    placeholder="Ex.: Inglês para negociações internacionais"
+                    value={form.title}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, title: event.target.value }))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="course-description">Descrição</Label>
+                  <textarea
+                    id="course-description"
+                    className="bg-card text-foreground border-input min-h-28 w-full rounded-md border p-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                    placeholder="Resumo do objetivo, público-alvo e entregáveis"
+                    value={form.description}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, description: event.target.value }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {form.description.length} caracteres
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="course-level">Nível</Label>
+                  <select
+                    id="course-level"
+                    className={selectClassName}
+                    value={form.level}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        level: event.target.value as CreateCourseForm["level"],
+                      }))
+                    }
+                  >
+                    <option value="Beginner">Beginner</option>
+                    <option value="Intermediate">Intermediate</option>
+                    <option value="Advanced">Advanced</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="course-duration">Duração (semanas)</Label>
+                  <Input
+                    id="course-duration"
+                    type="number"
+                    min={1}
+                    value={form.durationWeeks}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        durationWeeks: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="course-status">Status operacional</Label>
+                  <select
+                    id="course-status"
+                    className={selectClassName}
+                    value={form.status}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        status: event.target.value as CourseStatus,
+                      }))
+                    }
+                  >
+                    {COURSE_STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="course-cover">URL da capa (opcional)</Label>
+                  <Input
+                    id="course-cover"
+                    placeholder="https://..."
+                    value={form.coverUrl}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, coverUrl: event.target.value }))
+                    }
+                  />
+                </div>
+
+                <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground md:col-span-2">
+                  Dica: prefira títulos curtos e objetivos. Isso melhora conversão na
+                  vitrine e facilita busca interna.
+                </div>
+
+                {createError && (
+                  <div className="md:col-span-2 text-sm text-destructive flex items-center gap-2">
+                    <AlertCircle className="size-4" />
+                    {createError}
+                  </div>
+                )}
+
+                <div className="md:col-span-2 flex items-center gap-3 pt-6 border-t border-primary/5 mt-2">
+                  <Button
+                    onClick={handleSubmitCourse}
+                    disabled={creating}
+                    className="rounded-full px-10 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                  >
+                    {creating ? "Sincronizando..." : isEditing ? "Salvar alterações" : "Publicar curso"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={resetForm}
+                    className="rounded-full px-6"
+                    disabled={creating}
+                  >
+                    Limpar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => { setShowCreate(false); resetForm(); }}
+                    className="rounded-full"
+                    disabled={creating}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   )

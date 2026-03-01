@@ -27,10 +27,10 @@ export function AdminUserCard({
     return (
         <div
             className={cn(
-                "group relative flex flex-col rounded-xl rounded-t-none border bg-card p-3 transition-all duration-300",
-                "hover:border-accent-foreground/30 hover:shadow-md",
-                isSelected ? "border-primary bg-primary/5 ring-2 ring-primary shadow-sm" : "border-border",
-                isDisabled && "grayscale-[0.8] opacity-80"
+                "group relative flex flex-col rounded-xl border bg-card/40 backdrop-blur-sm p-4 transition-all duration-300",
+                "hover:border-primary/30 hover:bg-primary/2 hover:shadow-xl hover:shadow-primary/5",
+                isSelected ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20 shadow-lg" : "border-primary/10",
+                isDisabled && "grayscale-[0.8] opacity-60"
             )}
         >
             <div className="mb-2 flex items-start gap-3">
@@ -59,60 +59,66 @@ export function AdminUserCard({
                 </div>
             </div>
 
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mt-2 flex items-center gap-2">
                 <span
                     className={cn(
-                        "inline-flex items-center rounded-md px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider",
-                        isAdmin ? "border border-primary/20 bg-primary/20 text-primary" : "bg-secondary text-secondary-foreground"
+                        "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                        isAdmin ? "bg-primary/10 text-primary border border-primary/20" : "bg-muted text-muted-foreground"
                     )}
                 >
                     {ROLE_LABELS[item.role]}
                 </span>
 
                 {isDisabled ? (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                        <Snowflake className="size-2" />
-                        OFF
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400 border border-blue-500/20">
+                        <Snowflake className="size-2.5" />
+                        Congelado
                     </span>
-                ) : null}
+                ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-500 border border-emerald-500/20">
+                        <div className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Ativo
+                    </span>
+                )}
             </div>
 
-            <div className="mt-auto flex items-center justify-between gap-1 border-t border-dashed pt-2 group-hover:border-accent-foreground/10">
-                <div className="flex items-center gap-1">
-                    <Button size="icon-xs" variant="ghost" className="size-7 rounded-full transition-colors hover:bg-primary/10 hover:text-primary" onClick={() => { }}>
-                        <Eye className="size-3.5" />
+            <div className="mt-4 flex items-center justify-between gap-1 border-t border-dashed border-primary/10 pt-4 group-hover:border-primary/20">
+                <div className="flex items-center gap-2">
+                    <Button size="icon" variant="ghost" className="size-8 rounded-full transition-all hover:bg-primary/10 hover:text-primary hover:scale-110" onClick={() => { }}>
+                        <Eye className="size-4" />
                     </Button>
                     <Button
-                        size="icon-xs"
+                        size="icon"
                         variant="ghost"
                         className={cn(
-                            "size-7 rounded-full transition-colors",
-                            isSelected ? "bg-primary/10 text-primary" : "hover:bg-primary/10 hover:text-primary"
+                            "size-8 rounded-full transition-all hover:scale-110",
+                            isSelected ? "bg-primary/20 text-primary" : "hover:bg-primary/10 hover:text-primary"
                         )}
                         onClick={() => onEdit(item)}
                     >
-                        <Edit className="size-3.5" />
+                        <Edit className="size-4" />
                     </Button>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
                     <Button
-                        size="icon-xs"
+                        size="icon"
+                        variant="ghost"
                         className={cn(
-                            "size-7 rounded-full border-none shadow-none transition-transform active:scale-90",
-                            isDisabled ? "bg-yellow-400 text-amber-950 hover:bg-yellow-500" : "bg-blue-500 text-white hover:bg-blue-600"
+                            "size-8 rounded-full transition-all border-none hover:scale-110",
+                            isDisabled ? "text-amber-500 hover:bg-amber-500/10" : "text-blue-400 hover:bg-blue-400/10"
                         )}
                         onClick={() => onFreeze(item)}
                     >
-                        {isDisabled ? <Flame className="size-3.5" /> : <Snowflake className="size-3.5" />}
+                        {isDisabled ? <Flame className="size-4" /> : <Snowflake className="size-4" />}
                     </Button>
                     <Button
-                        size="icon-xs"
-                        variant="destructive"
-                        className="size-7 rounded-full transition-transform hover:rotate-12 active:scale-90"
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 rounded-full transition-all text-destructive hover:bg-destructive/10 hover:scale-110 hover:rotate-6"
                         onClick={() => onDelete(item)}
                     >
-                        <Trash2 className="size-3.5" />
+                        <Trash2 className="size-4" />
                     </Button>
                 </div>
             </div>
