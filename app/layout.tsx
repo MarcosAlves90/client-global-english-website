@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import "@uiw/react-md-editor/markdown-editor.css"
 import "@uiw/react-markdown-preview/markdown.css"
-import { ThemeProvider } from "@/components/theme-provider"
+import "@uiw/react-markdown-preview/markdown.css"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AuthProvider } from "@/components/auth-provider"
 
@@ -28,15 +28,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" className="dark">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider>
-          <TooltipProvider>
-            <AuthProvider>{children}</AuthProvider>
-          </TooltipProvider>
-        </ThemeProvider>
+        <TooltipProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </TooltipProvider>
       </body>
     </html>
   )

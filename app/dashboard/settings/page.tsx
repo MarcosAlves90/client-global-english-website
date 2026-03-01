@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import * as React from "react"
-import { Bell, Eye, EyeOff, Moon, ShieldCheck, Sun, User } from "lucide-react"
+import { Bell, Eye, EyeOff, ShieldCheck, User } from "lucide-react"
 
 import { DashboardHeader } from "@/components/dashboard-header"
 import { useAuth } from "@/hooks/use-auth"
@@ -14,31 +14,8 @@ import { Switch } from "@/components/ui/switch"
 
 export default function Page() {
   const { user, profile, isFirebaseReady } = useAuth()
-  const [isDark, setIsDark] = React.useState(false)
   const [showPassword, setShowPassword] = React.useState(false)
   const [showConfirm, setShowConfirm] = React.useState(false)
-
-  React.useEffect(() => {
-    const root = document.documentElement
-    const saved = localStorage.getItem("ge-theme")
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
-    const shouldUseDark = saved ? saved === "dark" : prefersDark
-    setIsDark(shouldUseDark)
-    root.classList.toggle("dark", shouldUseDark)
-  }, [])
-
-  const handleThemeToggle = React.useCallback((nextValue: boolean) => {
-    setIsDark(nextValue)
-    const root = document.documentElement
-    root.classList.toggle("dark", nextValue)
-    localStorage.setItem("ge-theme", nextValue ? "dark" : "light")
-    window.dispatchEvent(
-      new StorageEvent("storage", {
-        key: "ge-theme",
-        newValue: nextValue ? "dark" : "light",
-      })
-    )
-  }, [])
 
   const displayName = React.useMemo(
     () => profile?.name ?? user?.displayName ?? "Usuário",
@@ -135,31 +112,6 @@ export default function Page() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <Card>
-            <CardHeader className="flex items-center gap-2">
-              {isDark ? (
-                <Moon className="size-5 text-muted-foreground" />
-              ) : (
-                <Sun className="size-5 text-muted-foreground" />
-              )}
-              <CardTitle className="text-base">Tema</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between rounded-2xl border p-4">
-                <div>
-                  <p className="text-sm font-medium">
-                    {isDark ? "Tema escuro" : "Tema claro"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {isDark
-                      ? "Reduz o brilho para ambientes com pouca luz."
-                      : "Prioriza contraste alto para leitura diurna."}
-                  </p>
-                </div>
-                <Switch checked={isDark} onCheckedChange={handleThemeToggle} />
-              </div>
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader className="flex items-center gap-2">
