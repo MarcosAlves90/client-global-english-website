@@ -36,12 +36,18 @@ export function AdminUserCard({
             <div className="mb-2 flex items-start gap-3">
                 <div
                     className={cn(
-                        "flex size-8 shrink-0 items-center justify-center rounded-full transition-colors duration-500",
+                        "flex size-8 shrink-0 items-center justify-center rounded-full overflow-hidden transition-colors duration-500",
                         isAdmin ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
                         isSelected && "bg-primary text-primary-foreground"
                     )}
                 >
-                    {isAdmin ? <ShieldCheck className="size-4" /> : <User className="size-4" />}
+                    {item.photoURL ? (
+                        <img src={item.photoURL} alt={item.name} className="size-full object-cover" />
+                    ) : isAdmin ? (
+                        <ShieldCheck className="size-4" />
+                    ) : (
+                        <User className="size-4" />
+                    )}
                 </div>
                 <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-1.5">

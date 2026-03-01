@@ -13,11 +13,49 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
+import { uploadImage } from "@/lib/cloudinary-actions"
+import { updateUserProfile } from "@/lib/firebase/firestore"
+import { updateProfile } from "firebase/auth"
+import { toast } from "sonner"
+import { Loader2 } from "lucide-react"
 
 export default function Page() {
-  const { user, profile, isFirebaseReady, signOut } = useAuth()
+  const { user, profile, isFirebaseReady, signOut, refreshProfile } = useAuth()
   const [showPassword, setShowPassword] = React.useState(false)
   const [showConfirm, setShowConfirm] = React.useState(false)
+  const [isUploading, setIsUploading] = React.useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !user) return
+
+    try {
+      setIsUploading(true)
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const result = await uploadImage(formData, "avatars")
+
+      // Update Firebase Auth
+      await updateProfile(user, {
+        photoURL: result.secure_url
+      })
+
+      // Update Firestore
+      await updateUserProfile(user.uid, {
+        photoURL: result.secure_url
+      })
+
+      await refreshProfile()
+      toast.success("Foto atualizada com sucesso!")
+    } catch (error) {
+      console.error("Upload failed:", error)
+      toast.error("Falha ao atualizar foto.")
+    } finally {
+      setIsUploading(false)
+    }
+  }
 
   const displayName = React.useMemo(
     () => profile?.name ?? user?.displayName ?? "Usuário",
@@ -65,8 +103,21 @@ export default function Page() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3 justify-center">
-                <Button variant="outline" className="rounded-full px-6 border-primary/10 hover:bg-primary/5 transition-all">
-                  Alterar Foto
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                />
+                <Button
+                  variant="outline"
+                  className="rounded-full px-6 border-primary/10 hover:bg-primary/5 transition-all"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                >
+                  {isUploading ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+                  {isUploading ? "Enviando..." : "Alterar Foto"}
                 </Button>
                 <Button
                   variant="ghost"

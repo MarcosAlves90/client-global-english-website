@@ -8,6 +8,7 @@ export type UserProfile = {
   team?: string | null
   disabled?: boolean
   mustChangePassword?: boolean
+  photoURL?: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }

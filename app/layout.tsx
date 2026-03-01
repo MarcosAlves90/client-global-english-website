@@ -6,6 +6,7 @@ import "@uiw/react-markdown-preview/markdown.css"
 import "@uiw/react-markdown-preview/markdown.css"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AuthProvider } from "@/components/auth-provider"
+import { Toaster } from "sonner"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +35,7 @@ export default function RootLayout({
       >
         <TooltipProvider>
           <AuthProvider>{children}</AuthProvider>
+          <Toaster richColors position="top-right" closeButton />
         </TooltipProvider>
       </body>
     </html>

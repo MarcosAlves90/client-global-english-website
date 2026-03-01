@@ -94,7 +94,21 @@ export async function fetchUserProfile(uid: string): Promise<UserProfile | null>
     mustChangePassword: data.mustChangePassword ?? false,
     createdAt: data.createdAt?.toDate?.() ?? null,
     updatedAt: data.updatedAt?.toDate?.() ?? null,
+    photoURL: data.photoURL ?? null,
   } satisfies UserProfile
+}
+
+export async function updateUserProfile(uid: string, data: Partial<UserProfile>) {
+  const firestore = getDbOrThrow()
+  const userRef = doc(firestore, COLLECTIONS.users, uid)
+  await setDoc(
+    userRef,
+    {
+      ...data,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  )
 }
 
 export async function setUserMustChangePassword(params: {

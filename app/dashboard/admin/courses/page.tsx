@@ -31,6 +31,9 @@ import {
   saveAdminCourse,
   type CourseStatus,
 } from "@/modules/courses"
+import { uploadImage } from "@/lib/cloudinary-actions"
+import { toast } from "sonner"
+import { Loader2, Upload } from "lucide-react"
 
 type CreateCourseForm = {
   title: string
@@ -58,6 +61,8 @@ export default function Page() {
     null
   )
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [isUploading, setIsUploading] = React.useState(false)
+  const coverInputRef = React.useRef<HTMLInputElement>(null)
   const [form, setForm] = React.useState<CreateCourseForm>({
     title: "",
     description: "",
@@ -142,6 +147,25 @@ export default function Page() {
       )
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handleCoverUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      setIsUploading(true)
+      const formData = new FormData()
+      formData.append("file", file)
+      const result = await uploadImage(formData, "covers")
+      setForm(prev => ({ ...prev, coverUrl: result.secure_url }))
+      toast.success("Capa enviada com sucesso!")
+    } catch (error) {
+      console.error("Upload failed:", error)
+      toast.error("Falha no envio da capa.")
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -448,6 +472,35 @@ export default function Page() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Capa do curso</Label>
+                  <div className="flex items-center gap-4">
+                    {form.coverUrl && (
+                      <div className="relative size-11 rounded-lg overflow-hidden border border-primary/10">
+                        <img src={form.coverUrl} alt="Capa" className="size-full object-cover" />
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      ref={coverInputRef}
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleCoverUpload}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-11 flex-1 border-dashed"
+                      onClick={() => coverInputRef.current?.click()}
+                      disabled={isUploading}
+                    >
+                      {isUploading ? <Loader2 className="size-4 animate-spin mr-2" /> : <Upload className="size-4 mr-2" />}
+                      {isUploading ? "Enviando..." : form.coverUrl ? "Alterar Capa" : "Upload da Capa"}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
