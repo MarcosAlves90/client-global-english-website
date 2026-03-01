@@ -61,6 +61,7 @@ export default function Page() {
   const [currentCursor, setCurrentCursor] = React.useState<string | null>(null)
   const [cursorHistory, setCursorHistory] = React.useState<string[]>([])
   const [page, setPage] = React.useState(1)
+  const breadcrumbItems = React.useMemo(() => [{ label: "Admin", href: "/dashboard/admin" }, { label: "Usuários" }], [])
 
   const loadUsersPage = React.useCallback(
     async (cursor: string | null) => {
@@ -254,12 +255,12 @@ export default function Page() {
           prev.map((user) =>
             user.uid === selectedUser.uid
               ? {
-                  ...user,
-                  name: form.name.trim(),
-                  email: form.email.trim(),
-                  role: form.role,
-                  team: form.team.trim() || null,
-                }
+                ...user,
+                name: form.name.trim(),
+                email: form.email.trim(),
+                role: form.role,
+                team: form.team.trim() || null,
+              }
               : user
           )
         )
@@ -305,6 +306,7 @@ export default function Page() {
     <div>
       <DashboardHeader
         title="Gerenciar usuários"
+        breadcrumbItems={breadcrumbItems}
         description="Gerencie alunos, instrutores e permissões da plataforma."
         action={
           <Button size="sm" onClick={() => setSelectedUser(null)}>
@@ -503,8 +505,8 @@ export default function Page() {
                     ? "Salvando..."
                     : "Criando..."
                   : selectedUser
-                  ? "Salvar usuário"
-                  : "Criar usuário"}
+                    ? "Salvar usuário"
+                    : "Criar usuário"}
               </Button>
               <Button variant="outline" onClick={handleCancelEdit}>
                 Cancelar

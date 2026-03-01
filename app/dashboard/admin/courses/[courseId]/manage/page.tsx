@@ -207,6 +207,7 @@ export default function Page() {
   >("overview")
   const breadcrumbItems = React.useMemo(
     () => [
+      { label: "Admin", href: "/dashboard/admin" },
       { label: "Cursos", href: "/dashboard/admin/courses" },
       {
         label: course?.title ?? "Curso",
@@ -868,11 +869,10 @@ export default function Page() {
               <button
                 key={item.id}
                 type="button"
-                className={`rounded-full px-4 py-2 text-sm transition ${
-                  isActive
+                className={`rounded-full px-4 py-2 text-sm transition ${isActive
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
                 onClick={() =>
                   setActiveSection(item.id as typeof activeSection)
                 }
@@ -1101,8 +1101,8 @@ export default function Page() {
                         ? "Salvando módulo..."
                         : "Criando módulo..."
                       : isEditing
-                      ? "Salvar alterações"
-                      : "Salvar módulo"}
+                        ? "Salvar alterações"
+                        : "Salvar módulo"}
                   </Button>
                   <Button variant="outline" disabled={creating} onClick={resetForm}>
                     {isEditing ? "Cancelar edição" : "Limpar"}
@@ -1408,11 +1408,10 @@ export default function Page() {
                         <button
                           key={option.value}
                           type="button"
-                          className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition ${
-                            isActive
+                          className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition ${isActive
                               ? "border-primary/40 bg-primary/10 text-foreground"
                               : "border-muted-foreground/20 text-muted-foreground hover:border-primary/30"
-                          }`}
+                            }`}
                           onClick={() => {
                             setMaterialForm((prev) => ({
                               ...prev,
@@ -1544,11 +1543,10 @@ export default function Page() {
                           <button
                             key={option.value}
                             type="button"
-                            className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition ${
-                              isActive
+                            className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition ${isActive
                                 ? "border-primary/40 bg-primary/10 text-foreground"
                                 : "border-muted-foreground/20 text-muted-foreground hover:border-primary/30"
-                            }`}
+                              }`}
                             onClick={() =>
                               setMaterialForm((prev) => ({
                                 ...prev,
@@ -1652,10 +1650,10 @@ export default function Page() {
                               material.visibility === "private"
                                 ? "Privado"
                                 : material.releaseAt
-                                ? `Agendado para ${new Date(
+                                  ? `Agendado para ${new Date(
                                     material.releaseAt as string
                                   ).toLocaleString()}`
-                                : "Liberado"
+                                  : "Liberado"
 
                             return (
                               <div
@@ -1678,8 +1676,8 @@ export default function Page() {
                                     {material.visibility === "users"
                                       ? `${material.userIds?.length ?? 0} usuários`
                                       : material.visibility === "module"
-                                      ? "Módulo inteiro"
-                                      : "Privado"}{" "}
+                                        ? "Módulo inteiro"
+                                        : "Privado"}{" "}
                                     • {material.attachments?.length ?? 0} anexos
                                   </span>
                                   <Button
@@ -1841,11 +1839,10 @@ export default function Page() {
                         <button
                           key={option.value}
                           type="button"
-                          className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition ${
-                            isActive
+                          className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition ${isActive
                               ? "border-primary/40 bg-primary/10 text-foreground"
                               : "border-muted-foreground/20 text-muted-foreground hover:border-primary/30"
-                          }`}
+                            }`}
                           onClick={() => {
                             setActivityForm((prev) => ({
                               ...prev,
@@ -1977,11 +1974,10 @@ export default function Page() {
                           <button
                             key={option.value}
                             type="button"
-                            className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition ${
-                              isActive
+                            className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition ${isActive
                                 ? "border-primary/40 bg-primary/10 text-foreground"
                                 : "border-muted-foreground/20 text-muted-foreground hover:border-primary/30"
-                            }`}
+                              }`}
                             onClick={() =>
                               setActivityForm((prev) => ({
                                 ...prev,
@@ -2182,8 +2178,8 @@ export default function Page() {
                                     type: event.target.value as ActivityForm["questions"][number]["type"],
                                     options:
                                       event.target.value === "essay" ||
-                                      event.target.value === "short_answer" ||
-                                      event.target.value === "true_false"
+                                        event.target.value === "short_answer" ||
+                                        event.target.value === "true_false"
                                         ? []
                                         : next[index].options,
                                     correctAnswers:
@@ -2243,70 +2239,70 @@ export default function Page() {
 
                         {(question.type === "single_choice" ||
                           question.type === "multiple_choice") && (
-                          <div className="space-y-2">
-                            <Label>Opções</Label>
                             <div className="space-y-2">
-                              {(question.options.length ? question.options : [""]).map(
-                                (option, optionIndex) => (
-                                  <div
-                                    key={`${question.id}-opt-${optionIndex}`}
-                                    className="flex items-center gap-2"
-                                  >
-                                    <Input
-                                      placeholder={`Opção ${optionIndex + 1}`}
-                                      value={option}
-                                      onChange={(event) =>
-                                        setActivityForm((prev) => {
-                                          const next = [...prev.questions]
-                                          const options = [...next[index].options]
-                                          options[optionIndex] = event.target.value
-                                          next[index] = {
-                                            ...next[index],
-                                            options,
-                                          }
-                                          return { ...prev, questions: next }
-                                        })
-                                      }
-                                    />
-                                    <Button
-                                      variant="outline"
-                                      onClick={() =>
-                                        setActivityForm((prev) => {
-                                          const next = [...prev.questions]
-                                          const options = next[index].options.filter(
-                                            (_, idx) => idx !== optionIndex
-                                          )
-                                          next[index] = {
-                                            ...next[index],
-                                            options,
-                                          }
-                                          return { ...prev, questions: next }
-                                        })
-                                      }
+                              <Label>Opções</Label>
+                              <div className="space-y-2">
+                                {(question.options.length ? question.options : [""]).map(
+                                  (option, optionIndex) => (
+                                    <div
+                                      key={`${question.id}-opt-${optionIndex}`}
+                                      className="flex items-center gap-2"
                                     >
-                                      Remover
-                                    </Button>
-                                  </div>
-                                )
-                              )}
-                              <Button
-                                variant="outline"
-                                onClick={() =>
-                                  setActivityForm((prev) => {
-                                    const next = [...prev.questions]
-                                    next[index] = {
-                                      ...next[index],
-                                      options: [...next[index].options, ""],
-                                    }
-                                    return { ...prev, questions: next }
-                                  })
-                                }
-                              >
-                                Adicionar opção
-                              </Button>
+                                      <Input
+                                        placeholder={`Opção ${optionIndex + 1}`}
+                                        value={option}
+                                        onChange={(event) =>
+                                          setActivityForm((prev) => {
+                                            const next = [...prev.questions]
+                                            const options = [...next[index].options]
+                                            options[optionIndex] = event.target.value
+                                            next[index] = {
+                                              ...next[index],
+                                              options,
+                                            }
+                                            return { ...prev, questions: next }
+                                          })
+                                        }
+                                      />
+                                      <Button
+                                        variant="outline"
+                                        onClick={() =>
+                                          setActivityForm((prev) => {
+                                            const next = [...prev.questions]
+                                            const options = next[index].options.filter(
+                                              (_, idx) => idx !== optionIndex
+                                            )
+                                            next[index] = {
+                                              ...next[index],
+                                              options,
+                                            }
+                                            return { ...prev, questions: next }
+                                          })
+                                        }
+                                      >
+                                        Remover
+                                      </Button>
+                                    </div>
+                                  )
+                                )}
+                                <Button
+                                  variant="outline"
+                                  onClick={() =>
+                                    setActivityForm((prev) => {
+                                      const next = [...prev.questions]
+                                      next[index] = {
+                                        ...next[index],
+                                        options: [...next[index].options, ""],
+                                      }
+                                      return { ...prev, questions: next }
+                                    })
+                                  }
+                                >
+                                  Adicionar opção
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
 
                         {question.type === "true_false" && (
                           <div className="space-y-2">
@@ -2477,10 +2473,10 @@ export default function Page() {
                               activity.visibility === "private"
                                 ? "Privado"
                                 : activity.releaseAt
-                                ? `Agendado para ${new Date(
+                                  ? `Agendado para ${new Date(
                                     activity.releaseAt as string
                                   ).toLocaleString()}`
-                                : "Liberado"
+                                  : "Liberado"
 
                             return (
                               <div
@@ -2507,8 +2503,8 @@ export default function Page() {
                                     {activity.visibility === "users"
                                       ? `${activity.userIds?.length ?? 0} usuários`
                                       : activity.visibility === "module"
-                                      ? "Módulo inteiro"
-                                      : "Privado"}{" "}
+                                        ? "Módulo inteiro"
+                                        : "Privado"}{" "}
                                     • {activity.attachments?.length ?? 0} anexos •{" "}
                                     {activity.questions?.length ?? 0} questões
                                   </span>

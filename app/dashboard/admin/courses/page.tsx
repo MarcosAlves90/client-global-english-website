@@ -62,7 +62,7 @@ export default function Page() {
   })
 
   const isEditing = editingCourseId !== null
-  const breadcrumbItems = React.useMemo(() => [{ label: "Cursos" }], [])
+  const breadcrumbItems = React.useMemo(() => [{ label: "Admin", href: "/dashboard/admin" }, { label: "Cursos" }], [])
 
   const resetForm = React.useCallback(() => {
     setForm({
@@ -416,8 +416,8 @@ export default function Page() {
                       ? "Salvando curso..."
                       : "Criando curso..."
                     : isEditing
-                    ? "Salvar alterações"
-                    : "Publicar curso"}
+                      ? "Salvar alterações"
+                      : "Publicar curso"}
                 </Button>
                 <Button
                   variant="outline"

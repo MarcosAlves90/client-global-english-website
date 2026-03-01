@@ -1,13 +1,14 @@
 ﻿"use client"
 
 import * as React from "react"
-import { BarChart3, GraduationCap, Users2 } from "lucide-react"
+import { GraduationCap, LayoutDashboard, Users2 } from "lucide-react"
 
 import { DashboardHeader } from "@/components/dashboard-header"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { fetchAdminOverview } from "@/lib/firebase/firestore"
+import { AdminNavCard } from "@/components/admin/admin-nav-card"
 import type { AdminOverview } from "@/lib/firebase/types"
 
 export default function Page() {
@@ -85,70 +86,54 @@ export default function Page() {
           </div>
         ) : null}
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="border-primary/5 bg-primary/1">
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm font-medium">Usuários ativos</CardTitle>
-              <Users2 className="size-4 text-muted-foreground" />
+              <Users2 className="size-4 text-primary/60" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-semibold">
+              <div className="text-3xl font-bold tracking-tight">
                 {loading ? "..." : overview?.usersCount ?? "-"}
               </div>
-              <p className="text-xs text-muted-foreground">Total cadastrado</p>
+              <p className="text-xs text-muted-foreground mt-1">Total cadastrado na plataforma</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-primary/5 bg-primary/1">
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm font-medium">Cursos ativos</CardTitle>
-              <GraduationCap className="size-4 text-muted-foreground" />
+              <GraduationCap className="size-4 text-primary/60" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-semibold">
+              <div className="text-3xl font-bold tracking-tight">
                 {loading ? "..." : overview?.coursesCount ?? "-"}
               </div>
-              <p className="text-xs text-muted-foreground">Total publicado</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium">Engajamento</CardTitle>
-              <BarChart3 className="size-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-semibold">-</div>
-              <p className="text-xs text-muted-foreground">Sem dados disponíveis</p>
+              <p className="text-xs text-muted-foreground mt-1">Total publicado e disponível</p>
             </CardContent>
           </Card>
         </div>
 
-        <Card>
-          <CardHeader className="flex items-center justify-between gap-4 sm:flex-row">
-            <div>
-              <CardTitle className="text-base">Ações prioritárias</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Itens que precisam de atenção administrativa.
-              </p>
-            </div>
-            <Button variant="outline">Ver todas</Button>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
-              Nenhuma ação pendente no momento.
-            </div>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <LayoutDashboard className="size-5 text-primary" />
+            <h2 className="text-lg font-semibold tracking-tight">Gestão do Sistema</h2>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Indicadores por turma</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
-              Indicadores serão exibidos quando houver dados.
-            </div>
-          </CardContent>
-        </Card>
+          <div className="grid gap-4 md:grid-cols-2">
+            <AdminNavCard
+              title="Gestão de Usuários"
+              description="Gerencie contas de alunos, professores e administradores. Altere permissões e visualize perfis."
+              href="/dashboard/admin/users"
+              icon={Users2}
+            />
+            <AdminNavCard
+              title="Gestão de Cursos"
+              description="Administre trilhas de aprendizado, módulos e materiais. Publique novos conteúdos ou edite existentes."
+              href="/dashboard/admin/courses"
+              icon={GraduationCap}
+            />
+          </div>
+        </div>
       </div>
     </div>
   )

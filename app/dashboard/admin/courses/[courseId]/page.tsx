@@ -24,6 +24,7 @@ export default function Page() {
   const [error, setError] = React.useState<string | null>(null)
   const breadcrumbItems = React.useMemo(
     () => [
+      { label: "Admin", href: "/dashboard/admin" },
       { label: "Cursos", href: "/dashboard/admin/courses" },
       { label: course?.title ?? "Curso" },
     ],
