@@ -57,7 +57,7 @@ export const DashboardStatCard = React.memo(function DashboardStatCard({
                         )}
                         {trend && (
                             <span className={cn(
-                                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black tracking-tight",
+                                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tracking-tight",
                                 trend.positive
                                     ? "bg-emerald-500/10 text-emerald-500"
                                     : "bg-destructive/10 text-destructive"

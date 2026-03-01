@@ -54,13 +54,13 @@ export function StudentMaterialCard({ material, className }: StudentMaterialCard
                     <div className="rounded-2xl bg-primary/5 p-3 text-primary group-hover:bg-primary/10 group-hover:scale-110 transition-all duration-500">
                         <Icon className="size-6" />
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/30 group-hover:text-primary/40 transition-colors">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/30 group-hover:text-primary/40 transition-colors">
                         {typeLabels[baseType] || "Material"}
                     </span>
                 </div>
 
                 <div className="space-y-1.5">
-                    <h3 className="line-clamp-1 text-base font-black tracking-tight text-foreground group-hover:text-primary transition-colors">
+                    <h3 className="line-clamp-1 text-base font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
                         {material.title}
                     </h3>
                     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-tight text-muted-foreground/60">

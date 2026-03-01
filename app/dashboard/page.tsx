@@ -167,7 +167,7 @@ export default function Page() {
                     <GraduationCap className="size-8" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-lg font-black tracking-tight text-foreground">
+                    <p className="text-lg font-bold tracking-tight text-foreground">
                       Nenhum curso atribuído
                     </p>
                     <p className="text-sm text-muted-foreground/60">
@@ -201,7 +201,7 @@ export default function Page() {
               ) : (
                 <div className="space-y-2.5 rounded-2xl border border-primary/5 bg-primary/5 p-4 group-hover:bg-primary/10 transition-colors">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">Nenhuma tarefa pendente</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">Nenhuma tarefa pendente</span>
                   </div>
                 </div>
               )}
@@ -210,7 +210,7 @@ export default function Page() {
             {courses.length > 0 && (
               <Card className="overflow-hidden border-primary/10 bg-primary/5 backdrop-blur-sm">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
+                  <CardTitle className="text-sm font-bold uppercase tracking-widest text-primary/60 flex items-center gap-2">
                     <Sparkles className="size-4" />
                     Insight de hoje
                   </CardTitle>
@@ -218,7 +218,7 @@ export default function Page() {
                 <CardContent>
                   <p className="text-xs font-medium leading-relaxed text-muted-foreground">
                     Alunos que mantêm uma rotina de 15 minutos diários têm 3x mais chances de atingir a fluência em 1 ano.
-                    <span className="block mt-2 font-black text-primary/80">Keep going! 🚀</span>
+                    <span className="block mt-2 font-bold text-primary/80">Keep going! 🚀</span>
                   </p>
                 </CardContent>
               </Card>

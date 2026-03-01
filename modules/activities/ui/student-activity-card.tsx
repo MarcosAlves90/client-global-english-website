@@ -65,7 +65,7 @@ export function StudentActivityCard({
                         <Icon className="size-4" />
                     </div>
                     <div>
-                        <h4 className="text-sm font-black tracking-tight text-foreground line-clamp-1">{activity.title}</h4>
+                        <h4 className="text-sm font-bold tracking-tight text-foreground line-clamp-1">{activity.title}</h4>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 line-clamp-1">
                             {activity.courseTitle}
                         </p>
@@ -94,16 +94,16 @@ export function StudentActivityCard({
                     <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
                             <span className={cn(
-                                "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest border",
+                                "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest border",
                                 statusStyles[status]
                             )}>
                                 {status === "in_progress" ? "Em andamento" : status === "completed" ? "Concluído" : "Pendente"}
                             </span>
-                            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">
                                 {activity.type}
                             </span>
                         </div>
-                        <h3 className="line-clamp-2 text-base font-black tracking-tight text-foreground group-hover:text-primary transition-colors">
+                        <h3 className="line-clamp-2 text-base font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
                             {activity.title}
                         </h3>
                         <p className="text-xs font-medium text-muted-foreground/60">

@@ -149,7 +149,7 @@ export default function Page() {
               <FolderOpen className="size-8" />
             </div>
             <div className="space-y-1">
-              <p className="text-lg font-black tracking-tight text-foreground">
+              <p className="text-lg font-bold tracking-tight text-foreground">
                 Nenhuma atividade encontrada
               </p>
               <p className="text-sm text-muted-foreground/60">

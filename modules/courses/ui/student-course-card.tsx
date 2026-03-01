@@ -50,7 +50,7 @@ export function StudentCourseCard({
                     <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2">
                             <span className={cn(
-                                "rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest border",
+                                "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest border",
                                 statusStyles[course.enrollment.status] || statusStyles.active
                             )}>
                                 {statusLabels[course.enrollment.status] || "Em andamento"}
@@ -60,7 +60,7 @@ export function StudentCourseCard({
                             </span>
                         </div>
                         <div>
-                            <h3 className="text-base font-black tracking-tight text-foreground group-hover:text-primary transition-colors">
+                            <h3 className="text-base font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
                                 {course.title}
                             </h3>
                             <p className="line-clamp-1 text-xs text-muted-foreground/70 font-medium">
@@ -71,8 +71,8 @@ export function StudentCourseCard({
 
                     <div className="flex items-center gap-4">
                         <div className="hidden sm:flex flex-col items-end gap-1">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Progresso</span>
-                            <span className="text-sm font-black text-primary">{course.enrollment.progress}%</span>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Progresso</span>
+                            <span className="text-sm font-bold text-primary">{course.enrollment.progress}%</span>
                         </div>
                         <Button size="sm" className="rounded-full px-6 font-bold shadow-lg shadow-primary/10 active:scale-95" asChild>
                             <Link href={`/dashboard/courses/${course.id}`}>
@@ -117,7 +117,7 @@ export function StudentCourseCard({
 
                 <div className="absolute left-3 top-3">
                     <span className={cn(
-                        "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest border shadow-xl backdrop-blur-md",
+                        "rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest border shadow-xl backdrop-blur-md",
                         statusStyles[course.enrollment.status] || statusStyles.active
                     )}>
                         {statusLabels[course.enrollment.status] || "Em andamento"}
@@ -125,7 +125,7 @@ export function StudentCourseCard({
                 </div>
 
                 <div className="absolute right-3 top-3">
-                    <span className="rounded-full bg-black/60 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white shadow-xl backdrop-blur-md border border-white/10">
+                    <span className="rounded-full bg-black/60 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white shadow-xl backdrop-blur-md border border-white/10">
                         {course.level}
                     </span>
                 </div>
@@ -133,7 +133,7 @@ export function StudentCourseCard({
 
             <CardContent className="flex flex-1 flex-col gap-4 p-5">
                 <div className="space-y-1.5">
-                    <h3 className="line-clamp-1 text-lg font-black tracking-tight text-foreground group-hover:text-primary transition-colors">
+                    <h3 className="line-clamp-1 text-lg font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
                         {course.title}
                     </h3>
                     <p className="line-clamp-2 text-xs font-medium leading-relaxed text-muted-foreground/70">
@@ -143,8 +143,8 @@ export function StudentCourseCard({
 
                 <div className="space-y-2.5 rounded-2xl border border-primary/5 bg-primary/5 p-4 group-hover:bg-primary/10 transition-colors">
                     <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">Progresso geral</span>
-                        <span className="text-xs font-black text-primary">{course.enrollment.progress}%</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">Progresso geral</span>
+                        <span className="text-xs font-bold text-primary">{course.enrollment.progress}%</span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-primary/5">
                         <div
