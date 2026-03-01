@@ -45,6 +45,26 @@ export async function uploadImage(formData: FormData, subfolder: string = "gener
     })
 }
 
+export async function getPublicIdFromUrl(url: string): Promise<string | null> {
+    if (!url || !url.includes("cloudinary.com")) return null
+
+    // Extract the part after /upload/v<numeric>/
+    // Example: https://res.cloudinary.com/demo/image/upload/v12345/global-english/avatars/foobar.jpg
+    const parts = url.split("/")
+    const uploadIndex = parts.indexOf("upload")
+    if (uploadIndex === -1) return null
+
+    // The public ID is everything from parts[uploadIndex + 2] to the end, excluding the extension
+    // We skip the version (v12345)
+    const publicIdWithExtension = parts.slice(uploadIndex + 2).join("/")
+    return publicIdWithExtension.replace(/\.[^/.]+$/, "")
+}
+
 export async function deleteImage(publicId: string) {
-    return cloudinary.uploader.destroy(publicId)
+    if (!publicId) return
+    try {
+        return await cloudinary.uploader.destroy(publicId)
+    } catch (error) {
+        console.error("Cloudinary delete failed:", error)
+    }
 }

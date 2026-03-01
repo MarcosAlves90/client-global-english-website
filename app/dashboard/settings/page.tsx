@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { uploadImage } from "@/lib/cloudinary-actions"
+import { uploadImage, deleteImage, getPublicIdFromUrl } from "@/lib/cloudinary-actions"
 import { updateUserProfile } from "@/lib/firebase/firestore"
 import { updateProfile } from "firebase/auth"
 import { toast } from "sonner"
@@ -35,6 +35,15 @@ export default function Page() {
       formData.append("file", file)
 
       const result = await uploadImage(formData, "avatars")
+
+      // Delete previous image from Cloudinary if it exists
+      const oldPhotoURL = profile?.photoURL || user.photoURL
+      if (oldPhotoURL) {
+        const publicId = await getPublicIdFromUrl(oldPhotoURL)
+        if (publicId) {
+          await deleteImage(publicId)
+        }
+      }
 
       // Update Firebase Auth
       await updateProfile(user, {

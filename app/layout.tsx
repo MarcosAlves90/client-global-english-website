@@ -35,7 +35,20 @@ export default function RootLayout({
       >
         <TooltipProvider>
           <AuthProvider>{children}</AuthProvider>
-          <Toaster richColors position="top-right" closeButton />
+          <Toaster
+            richColors
+            position="top-right"
+            closeButton
+            theme="dark"
+            toastOptions={{
+              className: "border-primary/20 bg-card/80 backdrop-blur-xl text-foreground rounded-2xl shadow-2xl shadow-primary/5",
+              descriptionClassName: "text-muted-foreground text-xs",
+              style: {
+                border: "1px solid oklch(1 0 0 / 10%)",
+                fontFamily: "var(--font-geist-sans), ui-sans-serif, system-ui",
+              }
+            }}
+          />
         </TooltipProvider>
       </body>
     </html>

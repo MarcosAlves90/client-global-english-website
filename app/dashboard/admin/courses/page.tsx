@@ -31,7 +31,7 @@ import {
   saveAdminCourse,
   type CourseStatus,
 } from "@/modules/courses"
-import { uploadImage } from "@/lib/cloudinary-actions"
+import { uploadImage, deleteImage, getPublicIdFromUrl } from "@/lib/cloudinary-actions"
 import { toast } from "sonner"
 import { Loader2, Upload } from "lucide-react"
 
@@ -159,6 +159,15 @@ export default function Page() {
       const formData = new FormData()
       formData.append("file", file)
       const result = await uploadImage(formData, "covers")
+
+      // Delete previous image from Cloudinary if it exists in the form
+      if (form.coverUrl) {
+        const publicId = await getPublicIdFromUrl(form.coverUrl)
+        if (publicId) {
+          await deleteImage(publicId)
+        }
+      }
+
       setForm(prev => ({ ...prev, coverUrl: result.secure_url }))
       toast.success("Capa enviada com sucesso!")
     } catch (error) {
