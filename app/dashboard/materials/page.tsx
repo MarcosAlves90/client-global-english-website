@@ -104,7 +104,7 @@ export default function Page() {
             Sincronizando biblioteca...
           </div>
         ) : materials.length === 0 ? (
-          <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-primary/10 bg-primary/5 p-12 text-center backdrop-blur-sm">
+          <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-primary/20 bg-primary/5 p-12 text-center backdrop-blur-sm">
             <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
               <FileText className="size-8" />
             </div>

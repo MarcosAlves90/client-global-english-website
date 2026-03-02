@@ -162,7 +162,7 @@ export default function Page() {
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-col gap-4 rounded-3xl bg-card/40 backdrop-blur-md border-primary/10 hover:bg-primary/5 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1 p-12 text-center">
+                <div className="flex flex-col gap-4 rounded-3xl bg-card/40 backdrop-blur-md border-primary/20 hover:bg-primary/5 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1 p-12 text-center">
                   <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
                     <GraduationCap className="size-8" />
                   </div>
@@ -208,7 +208,7 @@ export default function Page() {
             </div>
 
             {courses.length > 0 && (
-              <Card className="overflow-hidden border-primary/10 bg-primary/5 backdrop-blur-sm">
+              <Card className="overflow-hidden border-primary/20 bg-primary/5 backdrop-blur-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-bold uppercase tracking-widest text-primary/60 flex items-center gap-2">
                     <Sparkles className="size-4" />

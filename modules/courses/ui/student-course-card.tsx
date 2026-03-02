@@ -41,7 +41,7 @@ export function StudentCourseCard({
     if (variant === "horizontal") {
         return (
             <div className={cn(
-                "group relative overflow-hidden rounded-2xl border border-primary/10 bg-card/40 backdrop-blur-sm p-4 transition-all duration-500",
+                "group relative overflow-hidden rounded-2xl border border-primary/20 bg-card/40 backdrop-blur-sm p-4 transition-all duration-500",
                 "hover:bg-primary/5 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1",
                 className
             )}>
@@ -95,11 +95,11 @@ export function StudentCourseCard({
 
     return (
         <Card className={cn(
-            "group flex h-full flex-col overflow-hidden border-primary/10 bg-card/40 backdrop-blur-sm transition-all duration-500",
+            "group flex h-full flex-col overflow-hidden border-primary/20 bg-card/40 backdrop-blur-sm transition-all duration-500",
             "hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1.5",
             className
         )}>
-            <div className="relative aspect-video w-full overflow-hidden border-b border-primary/10 bg-muted/30">
+            <div className="relative aspect-video w-full overflow-hidden border-b border-primary/20 bg-muted/30">
                 {course.coverUrl && !imageError ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img

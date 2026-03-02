@@ -28,7 +28,7 @@ export const DashboardStatCard = React.memo(function DashboardStatCard({
     return (
         <Card className={cn(
             "relative overflow-hidden transition-all duration-500",
-            "bg-card/40 backdrop-blur-md border-primary/10",
+            "bg-card/40 backdrop-blur-md border-primary/20",
             "hover:bg-primary/5 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1",
             className
         )}>

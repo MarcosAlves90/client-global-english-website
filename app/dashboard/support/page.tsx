@@ -76,7 +76,7 @@ export default function Page() {
 
             <div className="flex flex-col gap-8 p-6">
                 {/* Search Hero */}
-                <div className="relative overflow-hidden rounded-2xl bg-primary/5 border border-dashed border-primary/10 p-8 sm:p-12 text-center">
+                <div className="relative overflow-hidden rounded-2xl bg-primary/5 border border-dashed border-primary/20 p-8 sm:p-12 text-center">
                     <div className="absolute top-0 right-0 p-4 opacity-5">
                         <LifeBuoy className="size-48 text-primary" />
                     </div>
@@ -87,7 +87,7 @@ export default function Page() {
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                             <Input
                                 placeholder="Pesquisar por dúvidas, recursos ou tutoriais..."
-                                className="h-14 pl-12 pr-4 bg-background/60 backdrop-blur-md border-primary/10 text-lg rounded-2xl shadow-xl transition-all focus:ring-primary/20"
+                                className="h-14 pl-12 pr-4 bg-background/60 backdrop-blur-md border-primary/20 text-lg rounded-2xl shadow-xl transition-all focus:ring-primary/20"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />

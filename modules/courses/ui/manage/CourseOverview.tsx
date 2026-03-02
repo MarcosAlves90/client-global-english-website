@@ -11,9 +11,10 @@ import {
 } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DashboardSectionHeader } from "@/components/dashboard-section-header"
 import { useCourseManagement } from "./CourseManagementContext"
 
-export function CourseOverview() {
+export function     CourseOverview() {
     const { course, tracks, materials, activities } = useCourseManagement()
 
     if (!course) return null
@@ -51,17 +52,22 @@ export function CourseOverview() {
 
     return (
         <div className="space-y-6">
+            <DashboardSectionHeader
+                icon={BookOpen}
+                title="Visão Geral"
+                description="Resumo do curso, distribuição de conteúdo por módulo e métricas gerais."
+            />
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {stats.map((stat) => (
-                    <Card key={stat.label} className="border-primary/5 bg-card/40 backdrop-blur-sm group hover:border-primary/20 transition-all">
-                        <CardContent className="p-6">
+                    <Card key={stat.label} className="border-primary/20 border-dashed bg-card/40 backdrop-blur-sm group hover:border-primary/50 transition-all">
+                        <CardContent className="px-6 py-2">
                             <div className="flex items-center justify-between">
                                 <div className={`p-2 rounded-xl ${stat.bg} ${stat.color}`}>
                                     <stat.icon className="size-5" />
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">{stat.label}</p>
-                                    <p className="text-2xl font-black tracking-tighter mt-1">{stat.value}</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">{stat.label}</p>
+                                    <p className="text-2xl font-bold tracking-tighter mt-1">{stat.value}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -70,13 +76,13 @@ export function CourseOverview() {
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
-                <Card className="border-primary/10 bg-card/20 backdrop-blur-md">
+                <Card className="border-primary/20 bg-card/40 backdrop-blur-md">
                     <CardHeader>
                         <CardTitle className="text-base font-bold">Resumo do Curso</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="flex items-start gap-4 p-4 rounded-2xl bg-primary/5 border border-primary/5">
-                            <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                        <div className="flex items-start gap-4 p-4 rounded-xl bg-primary/5 border border-dashed border-primary/30">
+                            <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center">
                                 <BookOpen className="size-6 text-primary" />
                             </div>
                             <div>
@@ -91,7 +97,7 @@ export function CourseOverview() {
                             <div className="p-4 rounded-2xl border border-primary/5 bg-background/40">
                                 <div className="flex items-center gap-2 mb-2">
                                     <Users2 className="size-3 text-primary/40" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Status do Curso</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Status do Curso</span>
                                 </div>
                                 <p className="text-sm font-bold uppercase tracking-widest text-emerald-500">Ativo na Plataforma</p>
                             </div>
@@ -99,7 +105,7 @@ export function CourseOverview() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-primary/10 bg-card/20 backdrop-blur-md">
+                <Card className="border-primary/20 bg-card/40 backdrop-blur-md">
                     <CardHeader>
                         <CardTitle className="text-base font-bold">Distribuição por Módulo</CardTitle>
                     </CardHeader>
@@ -114,7 +120,7 @@ export function CourseOverview() {
                                     return (
                                         <div key={track.id} className="flex items-center justify-between p-3 rounded-xl border border-primary/5 bg-primary/1 group hover:border-primary/20 transition-all">
                                             <div className="flex flex-col">
-                                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/40 mb-1">Módulo {track.order}</span>
+                                                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/40 mb-1">Módulo {track.order}</span>
                                                 <span className="text-xs font-bold">{track.title}</span>
                                             </div>
                                             <div className="flex gap-2">

@@ -30,7 +30,7 @@ export function AdminUserCard({
             className={cn(
                 "group relative flex flex-col rounded-xl border bg-card/40 backdrop-blur-sm p-4 transition-all duration-300",
                 "hover:border-primary/30 hover:bg-primary/2 hover:shadow-xl hover:shadow-primary/5",
-                isSelected ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20 shadow-lg" : "border-primary/10",
+                isSelected ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20 shadow-lg" : "border-primary/20",
                 isDisabled && "grayscale-[0.8] opacity-60"
             )}
         >
@@ -89,7 +89,7 @@ export function AdminUserCard({
                 )}
             </div>
 
-            <div className="mt-4 flex items-center justify-between gap-1 border-t border-dashed border-primary/10 pt-4 group-hover:border-primary/20">
+            <div className="mt-4 flex items-center justify-between gap-1 border-t border-dashed border-primary/20 pt-4 group-hover:border-primary/20">
                 <div className="flex items-center gap-2">
                     <Button size="icon" variant="ghost" className="size-8 rounded-full transition-all hover:bg-primary/10 hover:text-primary hover:scale-110" onClick={() => { }}>
                         <Eye className="size-4" />

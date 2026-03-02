@@ -359,7 +359,7 @@ export default function Page() {
                   <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
                   <Input
                     placeholder="Buscar usuários..."
-                    className="h-9 w-full pl-9 lg:w-[300px] bg-card/40 backdrop-blur-sm border-primary/10 transition-all focus:border-primary/30"
+                    className="h-9 w-full pl-9 lg:w-[300px] bg-card/40 backdrop-blur-sm border-primary/20 transition-all focus:border-primary/30"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -367,7 +367,7 @@ export default function Page() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="rounded-full border-primary/10 hover:border-primary/30"
+                  className="rounded-full border-primary/20 hover:border-primary/30"
                   onClick={() => setSearchQuery("")}
                 >
                   Limpar
@@ -383,7 +383,7 @@ export default function Page() {
                 Sincronizando base de dados...
               </div>
             ) : filteredUsers.length === 0 ? (
-              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground border border-dashed border-primary/10 rounded-lg m-2">
+              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground border border-dashed border-primary/20 rounded-lg m-2">
                 {searchQuery ? "Nenhum resultado para esta busca." : "Nenhum usuário cadastrado."}
               </div>
             ) : (
@@ -412,7 +412,7 @@ export default function Page() {
               icon={selectedUser ? UserCheck : UserPlus}
             />
 
-            <Card className="border-primary/10 bg-card/40 backdrop-blur-sm overflow-hidden border-dashed">
+            <Card className="border-primary/20 bg-card/40 backdrop-blur-sm overflow-hidden border-dashed">
               <CardHeader className="border-b border-primary/5 bg-primary/1">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <div className="size-2 rounded-full bg-primary animate-pulse" />

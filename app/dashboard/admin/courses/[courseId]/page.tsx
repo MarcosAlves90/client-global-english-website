@@ -122,7 +122,7 @@ export default function Page() {
         }
       />
 
-      <div className="max-w-7xl mx-auto flex flex-col gap-8 p-6 lg:p-10">
+      <div className="flex flex-col gap-8 p-6 lg:p-10">
         {!isFirebaseReady ? (
           <div className="rounded-2xl border border-dashed border-amber-500/20 bg-amber-500/5 p-4 text-xs font-medium text-amber-500/80 backdrop-blur-sm animate-in fade-in slide-in-from-top-2">
             Firebase em processo de sincronização...
@@ -137,9 +137,9 @@ export default function Page() {
 
         {/* Course Summary Hero Card */}
         <div className="grid gap-6 lg:grid-cols-[1.5fr,1fr]">
-          <Card className="relative overflow-hidden border-primary/10 bg-card/40 backdrop-blur-xl group hover:border-primary/30 transition-all duration-500">
+          <Card className="relative overflow-hidden border-primary/20 bg-card/40 backdrop-blur-xl group hover:border-primary/30 transition-all duration-500">
             <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-              <BookOpenCheck className="size-32" />
+              <BookOpenCheck className="size-32 text-primary" />
             </div>
 
             <CardHeader>
@@ -147,7 +147,7 @@ export default function Page() {
                 <Sparkles className="size-3" />
                 Administração de Conteúdo
               </div>
-              <CardTitle className="text-3xl font-black tracking-tighter sm:text-4xl text-foreground">
+              <CardTitle className="text-3xl font-bold tracking-tighter sm:text-4xl text-foreground">
                 {loadingCourse ? (
                   <div className="h-10 w-64 bg-primary/10 rounded-lg animate-pulse" />
                 ) : course?.title ?? "-"}
@@ -196,7 +196,7 @@ export default function Page() {
                     <ChevronRight className="size-4 text-muted-foreground/20 group-hover:text-primary transition-colors" />
                   </div>
                   <div>
-                    <div className="text-3xl font-black tracking-tighter mb-1">{item.value}</div>
+                    <div className="text-3xl font-bold tracking-tighter mb-1">{item.value}</div>
                     <div className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/40">{item.label}</div>
                     <div className="text-[10px] font-medium text-muted-foreground/60">{item.detail}</div>
                   </div>

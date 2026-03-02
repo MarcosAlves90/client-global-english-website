@@ -45,7 +45,7 @@ export function StudentMaterialCard({ material, className }: StudentMaterialCard
 
     return (
         <Card className={cn(
-            "group relative flex flex-col overflow-hidden border-primary/10 bg-card/40 backdrop-blur-sm transition-all duration-500",
+            "group relative flex flex-col overflow-hidden border-primary/20 bg-card/40 backdrop-blur-sm transition-all duration-500",
             "hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1.5",
             className
         )}>

@@ -56,7 +56,7 @@ export function StudentActivityCard({
     if (variant === "compact") {
         return (
             <div className={cn(
-                "group relative flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-primary/10 bg-card/40 backdrop-blur-sm p-3 transition-all duration-300",
+                "group relative flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-primary/20 bg-card/40 backdrop-blur-sm p-3 transition-all duration-300",
                 "hover:bg-primary/5 hover:border-primary/20 hover:shadow-lg hover:-translate-y-0.5",
                 className
             )}>
@@ -85,7 +85,7 @@ export function StudentActivityCard({
 
     return (
         <Card className={cn(
-            "group flex flex-col overflow-hidden border-primary/10 bg-card/40 backdrop-blur-sm transition-all duration-500",
+            "group flex flex-col overflow-hidden border-primary/20 bg-card/40 backdrop-blur-sm transition-all duration-500",
             "hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1.5",
             className
         )}>
@@ -134,7 +134,7 @@ export function StudentActivityCard({
                     <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-full font-bold border-primary/10 hover:border-emerald-500/30 hover:text-emerald-500 hover:bg-emerald-500/5 active:scale-95"
+                        className="rounded-full font-bold border-primary/20 hover:border-emerald-500/30 hover:text-emerald-500 hover:bg-emerald-500/5 active:scale-95"
                         onClick={() => onComplete?.(activity.id)}
                     >
                         <CheckCircle2 className="mr-2 size-3.5" />

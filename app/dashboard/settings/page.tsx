@@ -88,7 +88,7 @@ export default function Page() {
         {/* Profile Card */}
         <div className="relative group">
           <div className="absolute -inset-0.5 bg-linear-to-r from-primary/20 to-primary/5 rounded-3xl blur opacity-30 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
-          <Card className="relative bg-card/40 border-dashed backdrop-blur-xl border-primary/10 overflow-hidden">
+          <Card className="relative bg-card/40 border-dashed backdrop-blur-xl border-primary/20 overflow-hidden">
             <CardContent className="flex flex-col items-center gap-6 px-8 py-2 sm:flex-row sm:justify-between">
               <div className="flex flex-col items-center gap-6 sm:flex-row">
                 <div className="relative group/avatar">
@@ -120,7 +120,7 @@ export default function Page() {
                 />
                 <Button
                   variant="outline"
-                  className="rounded-full px-6 border-primary/10 hover:bg-primary/5 transition-all"
+                  className="rounded-full px-6 border-primary/20 hover:bg-primary/5 transition-all"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
                 >
@@ -157,7 +157,7 @@ export default function Page() {
                     id="name"
                     placeholder="Seu nome"
                     defaultValue={profile?.name ?? user?.displayName ?? ""}
-                    className="bg-background/50 border-primary/10 focus:border-primary/30 h-11"
+                    className="bg-background/50 border-primary/20 focus:border-primary/30 h-11"
                     disabled
                   />
                   <p className="text-[10px] text-muted-foreground italic">Nome bloqueado para edição pelo sistema.</p>
@@ -168,7 +168,7 @@ export default function Page() {
                     id="email"
                     placeholder="seu@email.com"
                     defaultValue={user?.email ?? ""}
-                    className="bg-background/50 border-primary/10 focus:border-primary/30 h-11"
+                    className="bg-background/50 border-primary/20 focus:border-primary/30 h-11"
                     disabled
                   />
                 </div>
@@ -193,7 +193,7 @@ export default function Page() {
                         id="password"
                         type={showPassword ? "text" : "password"}
                         placeholder="••••••••"
-                        className="bg-background/50 border-primary/10 pr-10 h-11"
+                        className="bg-background/50 border-primary/20 pr-10 h-11"
                       />
                       <button
                         type="button"
@@ -212,7 +212,7 @@ export default function Page() {
                         id="confirm"
                         type={showConfirm ? "text" : "password"}
                         placeholder="••••••••"
-                        className="bg-background/50 border-primary/10 pr-10 h-11"
+                        className="bg-background/50 border-primary/20 pr-10 h-11"
                       />
                       <button
                         type="button"

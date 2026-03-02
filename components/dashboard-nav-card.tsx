@@ -24,7 +24,7 @@ export function DashboardNavCard({
         <Link href={href} className="block group">
             <Card className={cn(
                 "relative overflow-hidden transition-all duration-500",
-                "bg-card/40 backdrop-blur-md border-primary/10 border-dashed",
+                "bg-card/40 backdrop-blur-md border-primary/20 border-dashed",
                 "hover:bg-primary/5 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1",
                 "active:scale-[0.98]",
                 className

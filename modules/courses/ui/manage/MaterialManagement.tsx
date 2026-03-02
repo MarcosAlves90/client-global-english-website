@@ -8,7 +8,6 @@ import {
     Trash2,
     Users2,
     X,
-    Calendar,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -16,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useCourseManagement, MaterialForm } from "./CourseManagementContext"
+import { ReleaseControls } from "./ReleaseControls"
 import { MATERIAL_TYPE_LABELS, MATERIAL_TYPE_ICONS } from "./constants"
 import { uploadImage } from "@/lib/cloudinary-actions"
 
@@ -136,7 +136,7 @@ export function MaterialManagement() {
         <div className="grid gap-6 lg:grid-cols-[1.5fr,1fr]">
             {/* Creation and Form Card */}
             <div className="flex flex-col gap-6">
-                <Card className="border-primary/10 bg-card/40 backdrop-blur-sm">
+                <Card className="border-primary/20 bg-card/40 backdrop-blur-sm">
                     <CardHeader>
                         <CardTitle className="text-base font-bold">Conteúdo do Material</CardTitle>
                         <p className="text-xs text-muted-foreground leading-relaxed">Defina os tópicos, textos e arquivos de apoio.</p>
@@ -146,7 +146,7 @@ export function MaterialManagement() {
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Módulo de Destino</Label>
                                 <select
-                                    className="bg-background/50 text-foreground border-primary/10 h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus:border-primary/30"
+                                    className="bg-background/50 text-foreground border-primary/20 h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus:border-primary/30"
                                     value={form.trackId}
                                     onChange={(e) => setForm((p) => ({ ...p, trackId: e.target.value }))}
                                 >
@@ -162,7 +162,7 @@ export function MaterialManagement() {
                                     placeholder="Ex.: Checklist de Apresentação"
                                     value={form.title}
                                     onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                                    className="bg-background/50 border-primary/10"
+                                    className="bg-background/50 border-primary/20"
                                 />
                             </div>
                         </div>
@@ -183,7 +183,7 @@ export function MaterialManagement() {
                                         <div key={idx} className="flex gap-2 p-2 rounded-lg border border-primary/5 bg-primary/1 items-start transition-all hover:border-primary/20">
                                             <div className="grid grid-cols-[100px,1fr,1.5fr] gap-2 flex-1">
                                                 <select
-                                                    className="bg-background/50 text-foreground border-primary/10 h-8 w-full rounded-md border px-2 py-0 text-[10px] uppercase font-bold tracking-tight outline-none"
+                                                    className="bg-background/50 text-foreground border-primary/20 h-8 w-full rounded-md border px-2 py-0 text-[10px] uppercase font-bold tracking-tight outline-none"
                                                     value={att.type}
                                                     onChange={(e) => setForm((p) => {
                                                         const next = [...p.attachments];
@@ -201,7 +201,7 @@ export function MaterialManagement() {
                                                         next[idx] = { ...next[idx], name: e.target.value };
                                                         return { ...p, attachments: next };
                                                     })}
-                                                    className="h-8 text-xs bg-background/50 border-primary/10"
+                                                    className="h-8 text-xs bg-background/50 border-primary/20"
                                                 />
                                                 <Input
                                                     placeholder="https://..."
@@ -211,7 +211,7 @@ export function MaterialManagement() {
                                                         next[idx] = { ...next[idx], url: e.target.value };
                                                         return { ...p, attachments: next };
                                                     })}
-                                                    className="h-8 text-xs bg-background/50 border-primary/10"
+                                                    className="h-8 text-xs bg-background/50 border-primary/20"
                                                 />
                                                 <div className="flex items-center">
                                                     <input
@@ -241,7 +241,7 @@ export function MaterialManagement() {
 
                         <div className="space-y-2">
                             <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Texto Markdown (Opcional)</Label>
-                            <div className="rounded-xl border border-primary/10 overflow-hidden bg-background/40 p-1">
+                            <div className="rounded-xl overflow-hidden bg-background/40 p-1">
                                 <MarkdownEditor
                                     value={form.markdown}
                                     onChange={(val) => setForm((p) => ({ ...p, markdown: val || "" }))}
@@ -254,110 +254,75 @@ export function MaterialManagement() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-primary/10 bg-card/40 backdrop-blur-sm">
-                    <CardHeader>
-                        <CardTitle className="text-base font-bold">Regras de Liberação</CardTitle>
+                <Card className="border-primary/20 bg-card/40 backdrop-blur-sm">
+                    <CardHeader className="pb-4">
+                        <CardTitle className="text-base font-bold">Configurações de Acesso</CardTitle>
+                        <p className="text-xs text-muted-foreground leading-relaxed">Defina quem e quando poderá acessar este material.</p>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <div className="space-y-3">
-                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Abrangência da Visibilidade</Label>
-                            <div className="grid grid-cols-3 gap-2">
-                                {[
-                                    { value: "module", label: "Módulo", icon: Plus },
-                                    { value: "users", label: "Alunos", icon: Users2 },
-                                    { value: "private", label: "Privado", icon: X },
-                                ].map((opt) => (
-                                    <button
-                                        key={opt.value}
-                                        onClick={() => setForm((p) => ({ ...p, visibility: opt.value as MaterialForm["visibility"] }))}
-                                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${form.visibility === opt.value ? "bg-primary/10 border-primary/30 text-primary" : "border-primary/5 bg-primary/1 text-muted-foreground hover:bg-primary/5"
-                                            }`}
-                                    >
-                                        <div className="text-[10px] font-bold uppercase tracking-widest">{opt.label}</div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {form.visibility === "users" && (
-                            <div className="space-y-3 p-4 rounded-2xl border border-dashed border-primary/10 bg-primary/1">
-                                <div className="flex items-center justify-between">
-                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Alunos Selecionados</Label>
-                                    <span className="text-[10px] font-bold text-primary px-2 py-0.5 rounded-full bg-primary/5">{form.userIds.length} total</span>
-                                </div>
-                                <Input
-                                    placeholder="Buscar alunos..."
-                                    value={userSearch}
-                                    onChange={(e) => setUserSearch(e.target.value)}
-                                    className="bg-background/50 border-primary/5 text-xs h-8"
-                                />
-                                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                                    {selectedUsers.length === 0 ? (
-                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/30 text-center w-full py-4">Nenhum aluno selecionado</p>
-                                    ) : (
-                                        selectedUsers.map((u) => (
-                                            <span key={u.uid} className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/5 px-2 py-0.5 text-[9px] font-bold">
-                                                {u.name}
-                                                <button onClick={() => toggleUserSelection(u.uid)}><X className="size-2.5" /></button>
-                                            </span>
-                                        ))
+                        <ReleaseControls
+                            visibility={form.visibility}
+                            onVisibilityChange={(value) => setForm((p) => ({ ...p, visibility: value }))}
+                            scheduleMode={form.scheduleMode}
+                            onScheduleModeChange={(mode) => setForm((p) => ({ ...p, scheduleMode: mode }))}
+                            releaseAt={form.releaseAt}
+                            onReleaseAtChange={(value) => setForm((p) => ({ ...p, releaseAt: value }))}
+                        >
+                            {form.visibility === "users" && (
+                                <div className="space-y-3 p-3 rounded-xl border border-primary/20 bg-background/50">
+                                    <div className="flex items-center justify-between px-1">
+                                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">Alunos Liberados</Label>
+                                        <span className="text-[10px] font-bold text-primary px-2 py-0.5 rounded-full bg-primary/10">{form.userIds.length} selecionados</span>
+                                    </div>
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="Buscar alunos por nome..."
+                                            value={userSearch}
+                                            onChange={(e) => setUserSearch(e.target.value)}
+                                            className="bg-background border-primary/20 text-xs h-9 pl-9"
+                                        />
+                                        <Users2 className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground/40" />
+                                    </div>
+                                    
+                                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                                        {selectedUsers.length === 0 ? (
+                                            <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/40 text-center w-full py-3 bg-primary/5 rounded-lg">Nenhum aluno selecionado</p>
+                                        ) : (
+                                            selectedUsers.map((u) => (
+                                                <span key={u.uid} className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/20 px-2 py-1 text-[10px] font-medium text-primary">
+                                                    {u.name}
+                                                    <button onClick={() => toggleUserSelection(u.uid)} className="hover:text-destructive opacity-70 hover:opacity-100 transition-opacity"><X className="size-3" /></button>
+                                                </span>
+                                            ))
+                                        )}
+                                    </div>
+                                    
+                                    {suggestedUsers.length > 0 && (
+                                        <div className="space-y-1 pt-3 border-t border-primary/20">
+                                            <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 px-1 pb-1">Sugestões (Clique para adicionar)</p>
+                                            {suggestedUsers.map((u) => (
+                                                <button key={u.uid} onClick={() => toggleUserSelection(u.uid)} className="w-full text-left text-xs p-2 hover:bg-primary/5 rounded-md border border-transparent hover:border-primary/20 flex justify-between items-center group transition-colors">
+                                                    <span className="font-medium text-muted-foreground group-hover:text-foreground">{u.name}</span>
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"><Plus className="size-3"/> Adicionar</span>
+                                                </button>
+                                            ))}
+                                        </div>
                                     )}
                                 </div>
-                                {suggestedUsers.length > 0 && (
-                                    <div className="space-y-1 pt-2 border-t border-primary/5">
-                                        {suggestedUsers.map((u) => (
-                                            <button key={u.uid} onClick={() => toggleUserSelection(u.uid)} className="w-full text-left text-[10px] p-1.5 hover:bg-primary/5 rounded border border-transparent hover:border-primary/10 flex justify-between items-center group">
-                                                <span>{u.name}</span>
-                                                <span className="text-primary font-bold opacity-0 group-hover:opacity-100">+ Add</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <div className="space-y-3">
-                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Cronograma</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                                {[
-                                    { value: "now", label: "Imediato" },
-                                    { value: "scheduled", label: "Agendado" },
-                                ].map(opt => (
-                                    <button
-                                        key={opt.value}
-                                        onClick={() => setForm(p => ({ ...p, scheduleMode: opt.value as MaterialForm["scheduleMode"] }))}
-                                        className={`p-2 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all ${form.scheduleMode === opt.value ? "bg-primary/10 border-primary/30 text-primary" : "border-primary/5 bg-primary/1 text-muted-foreground hover:bg-primary/5"
-                                            }`}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
-                            </div>
-                            {form.scheduleMode === "scheduled" && (
-                                <div className="flex items-center gap-2 mt-2 p-2 border border-primary/10 rounded-lg bg-background/50">
-                                    <Calendar className="size-4 text-primary" />
-                                    <Input
-                                        type="datetime-local"
-                                        value={form.releaseAt}
-                                        onChange={(e) => setForm(p => ({ ...p, releaseAt: e.target.value }))}
-                                        className="border-none bg-transparent h-7 text-xs focus-visible:ring-0"
-                                    />
-                                </div>
                             )}
-                        </div>
+                        </ReleaseControls>
 
-                        <div className="pt-4 flex gap-2">
-                            <Button onClick={onSubmit} disabled={localCreating} className="flex-1 shadow-lg shadow-primary/20">
-                                {localCreating ? "Criando..." : "Salvar Material"}
+                        <div className="pt-2 flex gap-3">
+                            <Button onClick={onSubmit} disabled={localCreating} className="flex-1 h-10 shadow-md shadow-primary/20 hover:shadow-primary/30 text-xs font-bold uppercase tracking-wider">
+                                {localCreating ? "Salvando..." : "Salvar Material"}
                             </Button>
-                            <Button variant="outline" onClick={resetForm} disabled={localCreating}>Limpar</Button>
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
             {/* List Card */}
-            <Card className="border-primary/10 bg-card/20 backdrop-blur-sm h-fit sticky top-6">
+            <Card className="border-primary/20 bg-card/20 backdrop-blur-sm h-fit sticky top-6">
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle className="text-base font-bold">Biblioteca do Curso</CardTitle>
@@ -377,7 +342,7 @@ export function MaterialManagement() {
                                 if (!trackMaterials.length) return null
                                 return (
                                     <div key={track.id} className="space-y-2">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 border-b border-primary/10 pb-1 mb-3">{track.title}</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/60 border-b border-primary/20 pb-1 mb-3">{track.title}</p>
                                         {trackMaterials.map(m => {
                                             const primaryAtt = m.attachments?.[0]?.type || "link"
                                             const Icon = MATERIAL_TYPE_ICONS[primaryAtt as keyof typeof MATERIAL_TYPE_ICONS] || FileText

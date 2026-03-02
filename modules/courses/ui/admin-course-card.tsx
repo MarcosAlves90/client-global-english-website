@@ -41,8 +41,8 @@ export function AdminCourseCard({
     }, [course.coverUrl]);
 
     return (
-        <Card className="group flex py-0 rounded-b-none h-full flex-col overflow-hidden border-primary/10 bg-card/40 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1.5 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5">
-            <div className="relative aspect-16/10 w-full overflow-hidden border-b border-primary/10 bg-muted/30">
+        <Card className="group flex py-0 rounded-b-none h-full flex-col overflow-hidden border-primary/20 bg-card/40 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1.5 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5">
+            <div className="relative aspect-16/10 w-full overflow-hidden border-b border-primary/20 bg-muted/30">
                 {course.coverUrl && !imageError ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
