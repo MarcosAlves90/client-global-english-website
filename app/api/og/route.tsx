@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og"
 
-import { siteConfig } from "@/lib/seo"
+import { getSiteHost, siteConfig } from "@/lib/seo"
 
 export const runtime = "edge"
 
@@ -22,6 +22,7 @@ export async function GET(request: Request) {
     140
   )
   const path = searchParams.get("path") || "/"
+  const siteHost = getSiteHost()
 
   return new ImageResponse(
     (
@@ -137,7 +138,7 @@ export async function GET(request: Request) {
                 padding: "8px 16px",
               }}
             >
-              globalenglish.com.br
+              {siteHost}
             </span>
           </div>
         </div>

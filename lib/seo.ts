@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-const FALLBACK_URL = "https://globalenglish.com.br"
+const FALLBACK_URL = "https://global-english-website.netlify.app"
 
 export const siteConfig = {
   name: "Global English",
@@ -19,6 +19,14 @@ export function getMetadataBase() {
   }
 }
 
+export function getSiteOrigin() {
+  return getMetadataBase().origin
+}
+
+export function getSiteHost() {
+  return getMetadataBase().host
+}
+
 export function createOgImageUrl({
   title,
   description,
@@ -35,7 +43,7 @@ export function createOgImageUrl({
     path: canonicalPath,
   })
 
-  return `${getMetadataBase().origin}/api/og?${params.toString()}`
+  return `${getSiteOrigin()}/api/og?${params.toString()}`
 }
 
 export function buildPageMetadata({
