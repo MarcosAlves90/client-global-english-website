@@ -1,33 +1,26 @@
-"use client"
+import type { Metadata } from "next"
 
-import * as React from "react"
-import { useRouter } from "next/navigation"
-import { DashboardShell } from "@/components/dashboard-shell"
-import { useAuth } from "@/hooks/use-auth"
+import { DashboardLayoutClient } from "./dashboard-layout-client"
+import { buildPageMetadata } from "@/lib/seo"
+
+export const metadata: Metadata = {
+  ...buildPageMetadata({
+    title: "Área do Aluno",
+    description:
+      "Painel interno da Global English para acompanhamento de cursos, atividades e progresso.",
+    path: "/dashboard",
+    noIndex: true,
+  }),
+  title: {
+    default: "Área do Aluno",
+    template: "%s | Dashboard Global English",
+  },
+}
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const router = useRouter()
-  const { user, loading, profile } = useAuth()
-
-  React.useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login")
-      return
-    }
-
-    if (!loading && user && profile?.mustChangePassword) {
-      router.push("/update-password")
-    }
-  }, [loading, user, profile?.mustChangePassword, router])
-
-  if (loading || !user || profile?.mustChangePassword) {
-    return null
-  }
-
-  return <DashboardShell>{children}</DashboardShell>
+  return <DashboardLayoutClient>{children}</DashboardLayoutClient>
 }
-

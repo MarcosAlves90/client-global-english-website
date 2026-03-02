@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import {
   ArrowRight,
@@ -10,6 +11,14 @@ import {
 import { Avatar, AvatarFallback, AvatarGroup, AvatarImage } from "@/components/ui/avatar"
 import { Logo } from "@/components/ui/logo"
 import { DashboardMockup } from "@/components/landing/dashboard-mockup"
+import { buildPageMetadata } from "@/lib/seo"
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Portal do Aluno de Inglês",
+  description:
+    "Acesse a plataforma da Global English para acompanhar trilhas, materiais e evolução no inglês em um só lugar.",
+  path: "/",
+})
 
 // Hoisted static features array out of the render cycle
 const featuresList = [
