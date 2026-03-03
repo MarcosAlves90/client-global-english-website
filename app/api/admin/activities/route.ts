@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server"
 
 import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
+import { deleteCloudinaryAssetsByUrls, isCloudinaryUrl } from "@/lib/cloudinary-admin"
 import { COLLECTIONS } from "@/lib/firebase/collections"
 import type { Activity } from "@/lib/firebase/types"
 
@@ -77,9 +78,13 @@ const ATTACHMENT_TYPES = new Set(["pdf", "video", "link", "audio"])
 
 function normalizeAttachments(input?: unknown) {
   if (!Array.isArray(input)) {
-    return []
+    return {
+      attachments: [],
+      invalidUrls: [] as string[],
+    }
   }
-  return input
+
+  const mapped = input
     .map((item) => ({
       name: typeof item?.name === "string" ? item.name.trim() : "",
       url: typeof item?.url === "string" ? item.url.trim() : "",
@@ -89,6 +94,15 @@ function normalizeAttachments(input?: unknown) {
           : "link",
     }))
     .filter((item) => item.url)
+
+  const invalidUrls = mapped
+    .filter((item) => !isCloudinaryUrl(item.url))
+    .map((item) => item.url)
+
+  return {
+    attachments: mapped.filter((item) => isCloudinaryUrl(item.url)),
+    invalidUrls,
+  }
 }
 
 function normalizeQuestions(input?: unknown) {
@@ -246,12 +260,19 @@ export async function POST(req: NextRequest) {
   const type = body.type
   const estimatedMinutes = Number(body.estimatedMinutes ?? 0)
   const visibility = body.visibility ?? "private"
-  const attachments = normalizeAttachments(body.attachments)
+  const { attachments, invalidUrls } = normalizeAttachments(body.attachments)
   const questions = normalizeQuestions(body.questions)
 
   if (!courseId || !trackId || !title || !type || estimatedMinutes <= 0) {
     return NextResponse.json(
       { error: "courseId, trackId, title, type and estimatedMinutes are required" },
+      { status: 400 }
+    )
+  }
+
+  if (invalidUrls.length > 0) {
+    return NextResponse.json(
+      { error: "attachments must use Cloudinary URLs" },
       { status: 400 }
     )
   }
@@ -346,6 +367,15 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Activity not found" }, { status: 404 })
     }
 
+    const data = snap.data()
+    const attachments = Array.isArray(data?.attachments) ? data.attachments : []
+    const urls = attachments
+      .map((item: { url?: unknown }) =>
+        typeof item?.url === "string" ? item.url : null
+      )
+      .filter((value: string | null): value is string => Boolean(value))
+
+    await deleteCloudinaryAssetsByUrls(urls)
     await ref.delete()
     return NextResponse.json({ ok: true })
   } catch (err) {

@@ -3,6 +3,10 @@
 const ACTIVITIES_CACHE_TTL = 60_000
 const activitiesCache = new Map<string, { data: Activity[]; ts: number }>()
 
+export function clearAdminActivitiesCache() {
+  activitiesCache.clear()
+}
+
 export type CreateAdminActivityPayload = {
   courseId: string
   trackId: string
@@ -72,7 +76,7 @@ export async function createAdminActivity(
     throw new Error("create failed")
   }
 
-  activitiesCache.clear()
+  clearAdminActivitiesCache()
   return (await resp.json()) as Activity
 }
 
@@ -90,5 +94,5 @@ export async function deleteAdminActivity(idToken: string | null, id: string) {
     throw new Error("delete failed")
   }
 
-  activitiesCache.clear()
+  clearAdminActivitiesCache()
 }

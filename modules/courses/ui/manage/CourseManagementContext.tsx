@@ -27,6 +27,7 @@ import {
     deleteAdminActivity,
     fetchAdminCourseActivities,
 } from "@/modules/activities"
+import { deleteAdminAttachment } from "@/modules/attachments"
 import { fetchAdminUsersPage } from "@/modules/users"
 import { toast } from "sonner"
 
@@ -100,11 +101,13 @@ interface CourseManagementContextType {
     loadMaterials: (force?: boolean) => Promise<void>
     handleDeleteMaterial: (material: Material) => Promise<void>
     handleCreateMaterial: (form: MaterialForm) => Promise<void>
+    handleDeleteMaterialAttachment: (materialId: string, attachmentUrl: string) => Promise<void>
 
     // Activity Actions
     loadActivities: (force?: boolean) => Promise<void>
     handleDeleteActivity: (activity: Activity) => Promise<void>
     handleCreateActivity: (form: ActivityForm) => Promise<void>
+    handleDeleteActivityAttachment: (activityId: string, attachmentUrl: string) => Promise<void>
 }
 
 const CourseManagementContext = React.createContext<CourseManagementContextType | undefined>(undefined)
@@ -290,6 +293,22 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
         }
     }
 
+    const handleDeleteMaterialAttachment = async (materialId: string, attachmentUrl: string) => {
+        if (!user) return
+        try {
+            const idToken = await user.getIdToken()
+            await deleteAdminAttachment(idToken, {
+                entityType: "material",
+                entityId: materialId,
+                attachmentUrl,
+            })
+            toast.success("Anexo removido")
+            void loadMaterials(true)
+        } catch {
+            toast.error("Erro ao remover anexo")
+        }
+    }
+
     // Activity Handlers
     const handleCreateActivity = async (form: ActivityForm) => {
         if (!user) return
@@ -330,6 +349,22 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
         }
     }
 
+    const handleDeleteActivityAttachment = async (activityId: string, attachmentUrl: string) => {
+        if (!user) return
+        try {
+            const idToken = await user.getIdToken()
+            await deleteAdminAttachment(idToken, {
+                entityType: "activity",
+                entityId: activityId,
+                attachmentUrl,
+            })
+            toast.success("Anexo removido")
+            void loadActivities(true)
+        } catch {
+            toast.error("Erro ao remover anexo")
+        }
+    }
+
     React.useEffect(() => {
         if (isFirebaseReady && user) {
             void loadCourse()
@@ -355,9 +390,11 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
         loadMaterials,
         handleDeleteMaterial,
         handleCreateMaterial,
+        handleDeleteMaterialAttachment,
         loadActivities,
         handleDeleteActivity,
         handleCreateActivity,
+        handleDeleteActivityAttachment,
     }
 
     return (

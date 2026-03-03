@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
 import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
+import { deleteCloudinaryAssetsByUrls } from "@/lib/cloudinary-admin"
 import { COLLECTIONS } from "@/lib/firebase/collections"
 import type { Track } from "@/lib/firebase/types"
 
@@ -139,6 +140,22 @@ async function deleteDocsInBatches(
   if (count > 0) {
     await batch.commit()
   }
+}
+
+function extractAttachmentUrlsFromDocs(
+  docs: FirebaseFirestore.QueryDocumentSnapshot[]
+) {
+  const urls: string[] = []
+  docs.forEach((docSnap) => {
+    const data = docSnap.data()
+    const attachments = Array.isArray(data?.attachments) ? data.attachments : []
+    attachments.forEach((attachment: { url?: unknown }) => {
+      if (typeof attachment?.url === "string" && attachment.url.trim()) {
+        urls.push(attachment.url.trim())
+      }
+    })
+  })
+  return urls
 }
 
 export async function GET(req: NextRequest) {
@@ -402,6 +419,12 @@ export async function DELETE(req: NextRequest) {
         .get(),
     ])
 
+    const attachmentUrls = [
+      ...extractAttachmentUrlsFromDocs(materialsSnapshot.docs),
+      ...extractAttachmentUrlsFromDocs(activitiesSnapshot.docs),
+    ]
+
+    await deleteCloudinaryAssetsByUrls(attachmentUrls)
     await deleteDocsInBatches(materialsSnapshot.docs)
     await deleteDocsInBatches(activitiesSnapshot.docs)
     await trackRef.delete()

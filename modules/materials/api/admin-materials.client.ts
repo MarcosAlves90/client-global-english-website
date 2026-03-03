@@ -3,6 +3,10 @@
 const MATERIALS_CACHE_TTL = 60_000
 const materialsCache = new Map<string, { data: Material[]; ts: number }>()
 
+export function clearAdminMaterialsCache() {
+  materialsCache.clear()
+}
+
 export type CreateAdminMaterialPayload = {
   courseId: string
   trackId: string
@@ -63,7 +67,7 @@ export async function createAdminMaterial(
     throw new Error("create failed")
   }
 
-  materialsCache.clear()
+  clearAdminMaterialsCache()
   return (await resp.json()) as Material
 }
 
@@ -81,6 +85,6 @@ export async function deleteAdminMaterial(idToken: string | null, id: string) {
     throw new Error("delete failed")
   }
 
-  materialsCache.clear()
+  clearAdminMaterialsCache()
 }
 

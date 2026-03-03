@@ -7,6 +7,7 @@ import {
     Trash2,
     X,
     FileText,
+    Upload,
     GripVertical,
     CheckCircle2,
     Circle,
@@ -28,6 +29,8 @@ import {
 import { useCourseManagement, ActivityForm } from "./CourseManagementContext"
 import { ReleaseControls } from "./ReleaseControls"
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "./constants"
+import { deleteImage, getPublicIdFromUrl, uploadImage } from "@/lib/cloudinary-actions"
+import { MATERIAL_TYPE_LABELS } from "./constants"
 
 export function ActivityManagement() {
     const {
@@ -38,6 +41,7 @@ export function ActivityManagement() {
         loadActivities,
         handleCreateActivity,
         handleDeleteActivity,
+        handleDeleteActivityAttachment,
     } = useCourseManagement()
 
     const [form, setForm] = React.useState<ActivityForm>({
@@ -104,6 +108,55 @@ export function ActivityManagement() {
             ...prev,
             questions: prev.questions.filter((_, i) => i !== index),
         }))
+    }
+
+    const addAttachment = () => {
+        setForm((prev) => ({
+            ...prev,
+            attachments: [...prev.attachments, { name: "", url: "", type: "pdf" }],
+        }))
+    }
+
+    const removeAttachment = async (index: number) => {
+        const currentUrl = form.attachments[index]?.url?.trim()
+        if (currentUrl) {
+            try {
+                const publicId = await getPublicIdFromUrl(currentUrl)
+                if (publicId) {
+                    await deleteImage(publicId)
+                }
+            } catch (error) {
+                console.error("Attachment delete failed", error)
+            }
+        }
+
+        setForm((prev) => ({
+            ...prev,
+            attachments: prev.attachments.filter((_, i) => i !== index),
+        }))
+    }
+
+    const handleFileUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        const formData = new FormData()
+        formData.append("file", file)
+
+        try {
+            const result = await uploadImage(formData, "activities")
+            setForm((prev) => {
+                const next = [...prev.attachments]
+                next[index] = {
+                    ...next[index],
+                    url: result.secure_url,
+                    name: next[index].name || file.name,
+                }
+                return { ...prev, attachments: next }
+            })
+        } catch (error) {
+            console.error("Upload failed", error)
+        }
     }
 
     const toggleUserSelection = (uid: string) => {
@@ -186,6 +239,70 @@ export function ActivityManagement() {
                                     onChange={(e) => setForm((p) => ({ ...p, order: e.target.value }))}
                                     className="bg-background/50 border-primary/20"
                                 />
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 pt-4 border-t border-primary/5">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Anexos</Label>
+                                <Button variant="ghost" size="xs" onClick={addAttachment} className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                                    <Plus className="mr-1 size-3" /> Adicionar
+                                </Button>
+                            </div>
+
+                            <div className="space-y-2">
+                                {form.attachments.length === 0 ? (
+                                    <div className="rounded-xl border border-dashed border-primary/20 p-4 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Nenhum anexo configurado</div>
+                                ) : (
+                                    form.attachments.map((att, idx) => (
+                                        <div key={idx} className="flex gap-2 p-2 rounded-lg border border-primary/5 bg-primary/1 items-start transition-all hover:border-primary/20">
+                                            <div className="grid grid-cols-[100px,1fr,auto] gap-2 flex-1">
+                                                <select
+                                                    className="bg-background/50 text-foreground border-primary/20 h-8 w-full rounded-md border px-2 py-0 text-[10px] uppercase font-bold tracking-tight outline-none"
+                                                    value={att.type}
+                                                    onChange={(e) => setForm((p) => {
+                                                        const next = [...p.attachments];
+                                                        next[idx] = { ...next[idx], type: e.target.value as typeof next[number]["type"] };
+                                                        return { ...p, attachments: next };
+                                                    })}
+                                                >
+                                                    {Object.entries(MATERIAL_TYPE_LABELS)
+                                                        .filter(([k]) => k !== "link")
+                                                        .map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                                </select>
+                                                <Input
+                                                    placeholder="Nome"
+                                                    value={att.name}
+                                                    onChange={(e) => setForm((p) => {
+                                                        const next = [...p.attachments];
+                                                        next[idx] = { ...next[idx], name: e.target.value };
+                                                        return { ...p, attachments: next };
+                                                    })}
+                                                    className="h-8 text-xs bg-background/50 border-primary/20"
+                                                />
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="file"
+                                                        id={`activity-file-upload-${idx}`}
+                                                        className="hidden"
+                                                        onChange={(e) => handleFileUpload(idx, e)}
+                                                    />
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="xs"
+                                                        onClick={() => document.getElementById(`activity-file-upload-${idx}`)?.click()}
+                                                        className="h-8 px-2 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/10"
+                                                    >
+                                                        <Upload className="mr-1 size-3" /> Upload
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                            <Button variant="ghost" size="xs" onClick={() => void removeAttachment(idx)} className="h-8 w-8 p-0 text-destructive/40 hover:text-destructive">
+                                                <Trash2 className="size-3" />
+                                            </Button>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
 
@@ -510,6 +627,23 @@ export function ActivityManagement() {
                                                             <span className="text-[9px] font-bold uppercase text-muted-foreground/20">•</span>
                                                             <span className="text-[9px] font-medium text-muted-foreground/40">{a.estimatedMinutes || 0} min</span>
                                                         </div>
+                                                        {(a.attachments?.length ?? 0) > 0 ? (
+                                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                {(a.attachments ?? []).map((attachment, idx) => (
+                                                                    <span key={`${a.id}-${idx}`} className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+                                                                        {attachment.name || `Anexo ${idx + 1}`}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => void handleDeleteActivityAttachment(a.id, attachment.url)}
+                                                                            className="text-destructive/60 hover:text-destructive"
+                                                                            aria-label={`Excluir anexo ${attachment.name || idx + 1}`}
+                                                                        >
+                                                                            <X className="size-3" />
+                                                                        </button>
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        ) : null}
                                                     </div>
                                                     <Button variant="ghost" size="xs" onClick={() => handleDeleteActivity(a)} className="h-8 w-8 p-0 text-destructive/20 hover:text-destructive hover:bg-destructive/5 transition-all opacity-0 group-hover:opacity-100">
                                                         <X className="size-3" />

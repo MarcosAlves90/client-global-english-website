@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label"
 import { useCourseManagement, MaterialForm } from "./CourseManagementContext"
 import { ReleaseControls } from "./ReleaseControls"
 import { MATERIAL_TYPE_LABELS, MATERIAL_TYPE_ICONS } from "./constants"
-import { uploadImage } from "@/lib/cloudinary-actions"
+import { deleteImage, getPublicIdFromUrl, uploadImage } from "@/lib/cloudinary-actions"
 
 const MarkdownEditor = dynamic(() => import("@uiw/react-md-editor"), {
     ssr: false,
@@ -32,6 +32,7 @@ export function MaterialManagement() {
         loadMaterials,
         handleCreateMaterial,
         handleDeleteMaterial,
+        handleDeleteMaterialAttachment,
     } = useCourseManagement()
 
     const [form, setForm] = React.useState<MaterialForm>({
@@ -76,7 +77,19 @@ export function MaterialManagement() {
         }))
     }
 
-    const removeAttachment = (index: number) => {
+    const removeAttachment = async (index: number) => {
+        const currentUrl = form.attachments[index]?.url?.trim()
+        if (currentUrl) {
+            try {
+                const publicId = await getPublicIdFromUrl(currentUrl)
+                if (publicId) {
+                    await deleteImage(publicId)
+                }
+            } catch (error) {
+                console.error("Attachment delete failed", error)
+            }
+        }
+
         setForm((prev) => ({
             ...prev,
             attachments: prev.attachments.filter((_, i) => i !== index),
@@ -169,7 +182,7 @@ export function MaterialManagement() {
 
                         <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Anexos & Links</Label>
+                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Anexos</Label>
                                 <Button variant="ghost" size="xs" onClick={addAttachment} className="text-[10px] font-bold uppercase tracking-widest text-primary">
                                     <Plus className="mr-1 size-3" /> Adicionar
                                 </Button>
@@ -191,7 +204,9 @@ export function MaterialManagement() {
                                                         return { ...p, attachments: next };
                                                     })}
                                                 >
-                                                    {Object.entries(MATERIAL_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                                    {Object.entries(MATERIAL_TYPE_LABELS)
+                                                        .filter(([k]) => k !== "link")
+                                                        .map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                                                 </select>
                                                 <Input
                                                     placeholder="Nome"
@@ -199,16 +214,6 @@ export function MaterialManagement() {
                                                     onChange={(e) => setForm((p) => {
                                                         const next = [...p.attachments];
                                                         next[idx] = { ...next[idx], name: e.target.value };
-                                                        return { ...p, attachments: next };
-                                                    })}
-                                                    className="h-8 text-xs bg-background/50 border-primary/20"
-                                                />
-                                                <Input
-                                                    placeholder="https://..."
-                                                    value={att.url}
-                                                    onChange={(e) => setForm((p) => {
-                                                        const next = [...p.attachments];
-                                                        next[idx] = { ...next[idx], url: e.target.value };
                                                         return { ...p, attachments: next };
                                                     })}
                                                     className="h-8 text-xs bg-background/50 border-primary/20"
@@ -230,7 +235,7 @@ export function MaterialManagement() {
                                                     </Button>
                                                 </div>
                                             </div>
-                                            <Button variant="ghost" size="xs" onClick={() => removeAttachment(idx)} className="h-8 w-8 p-0 text-destructive/40 hover:text-destructive">
+                                            <Button variant="ghost" size="xs" onClick={() => void removeAttachment(idx)} className="h-8 w-8 p-0 text-destructive/40 hover:text-destructive">
                                                 <Trash2 className="size-3" />
                                             </Button>
                                         </div>
@@ -359,6 +364,23 @@ export function MaterialManagement() {
                                                                 <span className="text-[9px] font-bold uppercase text-muted-foreground/20">•</span>
                                                                 <span className="text-[9px] font-medium text-muted-foreground/40">{m.attachments?.length || 0} anexo(s)</span>
                                                             </div>
+                                                            {(m.attachments?.length ?? 0) > 0 ? (
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {(m.attachments ?? []).map((attachment, idx) => (
+                                                                        <span key={`${m.id}-${idx}`} className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+                                                                            {attachment.name || `Anexo ${idx + 1}`}
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => void handleDeleteMaterialAttachment(m.id, attachment.url)}
+                                                                                className="text-destructive/60 hover:text-destructive"
+                                                                                aria-label={`Excluir anexo ${attachment.name || idx + 1}`}
+                                                                            >
+                                                                                <X className="size-3" />
+                                                                            </button>
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            ) : null}
                                                         </div>
                                                     </div>
                                                     <Button variant="ghost" size="xs" onClick={() => handleDeleteMaterial(m)} className="h-8 w-8 p-0 text-destructive/20 hover:text-destructive hover:bg-destructive/5 transition-all opacity-0 group-hover:opacity-100">
