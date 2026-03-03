@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og"
 
+import { Logo } from "@/components/ui/logo"
 import { getSiteHost, siteConfig } from "@/lib/seo"
 
 export const runtime = "edge"
@@ -83,14 +84,10 @@ export async function GET(request: Request) {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 999,
-                background: "linear-gradient(135deg, #d7b0ff 0%, #b26dff 55%, #8a4cff 100%)",
-                boxShadow: "0 0 40px rgba(178, 109, 255, 0.45)",
-              }}
+            <Logo
+              width={60}
+              height={60}
+              style={{ color: "#f6ebff" }}
             />
             <div style={{ display: "flex", flexDirection: "column" }}>
               <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>
@@ -103,17 +100,21 @@ export async function GET(request: Request) {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 22, maxWidth: 980 }}>
-            <span
-              style={{
-                fontSize: 20,
-                fontWeight: 600,
-                color: "#dbbeff",
-                textTransform: "uppercase",
-                letterSpacing: 1.5,
-              }}
-            >
-              {path}
-            </span>
+            {
+              path !== "/" && (
+                <span
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 600,
+                    color: "#dbbeff",
+                    textTransform: "uppercase",
+                    letterSpacing: 1.5,
+                  }}
+                >
+                  {path}
+                </span>
+              )
+            }
 
             <span style={{ fontSize: 66, lineHeight: 1.05, fontWeight: 800, letterSpacing: -2 }}>
               {title}
