@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+﻿import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import "@uiw/react-md-editor/markdown-editor.css"
@@ -27,11 +27,12 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   applicationName: siteConfig.name,
+  manifest: "/site.webmanifest",
   keywords: [
-    "curso de inglês",
-    "plataforma de inglês",
-    "trilhas de inglês",
-    "atividades de inglês",
+    "curso de inglÃªs",
+    "plataforma de inglÃªs",
+    "trilhas de inglÃªs",
+    "atividades de inglÃªs",
     "Global English",
   ],
   alternates: {
