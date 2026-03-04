@@ -20,6 +20,16 @@ export type CreateAdminMaterialPayload = {
   attachments?: { name: string; url: string; type?: "pdf" | "video" | "link" | "audio" }[]
 }
 
+export type UpdateAdminMaterialPayload = {
+  id: string
+  title?: string
+  trackId?: string
+  visibility?: "module" | "users" | "private"
+  userIds?: string[]
+  releaseAt?: string | null
+  markdown?: string
+}
+
 export async function fetchAdminCourseMaterials(
   idToken: string | null,
   courseId: string,
@@ -86,5 +96,26 @@ export async function deleteAdminMaterial(idToken: string | null, id: string) {
   }
 
   clearAdminMaterialsCache()
+}
+
+export async function updateAdminMaterial(
+  idToken: string | null,
+  payload: UpdateAdminMaterialPayload
+) {
+  const resp = await fetch("/api/admin/materials", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!resp.ok) {
+    throw new Error("update failed")
+  }
+
+  clearAdminMaterialsCache()
+  return (await resp.json()) as Material
 }
 

@@ -92,7 +92,7 @@ export default function UpdatePasswordPage() {
             <form onSubmit={handleSubmit}>
               <FieldGroup>
                 <Field>
-                  <FieldLabel htmlFor="new-password">Nova senha</FieldLabel>
+                  <FieldLabel required htmlFor="new-password">Nova senha</FieldLabel>
                   <div className="relative">
                     <Input
                       id="new-password"
@@ -117,7 +117,7 @@ export default function UpdatePasswordPage() {
                   </div>
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="confirm-password">Confirmar senha</FieldLabel>
+                  <FieldLabel required htmlFor="confirm-password">Confirmar senha</FieldLabel>
                   <div className="relative">
                     <Input
                       id="confirm-password"

@@ -110,7 +110,7 @@ export function LoginForm({
           <form onSubmit={handleSubmit}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="email" className="font-medium text-foreground">
+                <FieldLabel required htmlFor="email" className="font-medium text-foreground">
                   E-mail
                 </FieldLabel>
                 <Input
@@ -125,7 +125,7 @@ export function LoginForm({
               </Field>
               <Field>
                 <div className="flex items-center">
-                  <FieldLabel htmlFor="password" className="font-medium text-foreground">
+                  <FieldLabel required htmlFor="password" className="font-medium text-foreground">
                     Senha
                   </FieldLabel>
                   <button

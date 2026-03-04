@@ -2,21 +2,31 @@
 
 import * as React from "react"
 import {
+    AlertCircle,
+    ChevronDown,
+    Copy,
+    Eye,
     Plus,
     Target,
     Trash2,
     X,
     FileText,
-    Upload,
+    UploadCloud,
     GripVertical,
     CheckCircle2,
     Circle,
     Info,
     Users,
+    Loader2,
+    Sparkles,
+    Link2,
+    Video,
+    FileAudio,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -31,6 +41,29 @@ import { ReleaseControls } from "./ReleaseControls"
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "./constants"
 import { deleteImage, getPublicIdFromUrl, uploadImage } from "@/lib/cloudinary-actions"
 import { MATERIAL_TYPE_LABELS } from "./constants"
+import { toast } from "sonner"
+
+type UploadFeedbackState = {
+    status: "idle" | "uploading" | "success" | "error"
+    message: string
+}
+
+type ActivityValidationErrors = {
+    trackId?: string
+    title?: string
+    estimatedMinutes?: string
+    users?: string
+}
+
+function reindexRecordByRemovedIndex<T>(record: Record<number, T>, removedIndex: number): Record<number, T> {
+    const entries = Object.entries(record).flatMap(([key, value]) => {
+        const numericKey = Number(key)
+        if (numericKey === removedIndex) return []
+        const adjustedKey = numericKey > removedIndex ? numericKey - 1 : numericKey
+        return [[adjustedKey, value] as const]
+    })
+    return Object.fromEntries(entries)
+}
 
 export function ActivityManagement() {
     const {
@@ -60,6 +93,13 @@ export function ActivityManagement() {
 
     const [localCreating, setLocalCreating] = React.useState(false)
     const [userSearch, setUserSearch] = React.useState("")
+    const [uploadingIndices, setUploadingIndices] = React.useState<Record<number, boolean>>({})
+    const [uploadFeedback, setUploadFeedback] = React.useState<Record<number, UploadFeedbackState>>({})
+    const [uploadProgress, setUploadProgress] = React.useState<Record<number, number>>({})
+    const [isDropZoneActive, setIsDropZoneActive] = React.useState(false)
+    const filePickerRef = React.useRef<HTMLInputElement | null>(null)
+    const uploadIntervalsRef = React.useRef<Record<number, ReturnType<typeof setInterval>>>({})
+    const [validationErrors, setValidationErrors] = React.useState<ActivityValidationErrors>({})
 
     const resetForm = () => {
         setForm({
@@ -76,13 +116,42 @@ export function ActivityManagement() {
             questions: [],
         })
         setUserSearch("")
+        setUploadingIndices({})
+        setUploadFeedback({})
+        setUploadProgress({})
+        setValidationErrors({})
     }
 
+    React.useEffect(() => {
+        const intervalStore = uploadIntervalsRef.current
+        return () => {
+            Object.values(intervalStore).forEach((intervalId) => clearInterval(intervalId))
+        }
+    }, [])
+
     const onSubmit = async () => {
+        const errors: ActivityValidationErrors = {}
+        const estimated = Number(form.estimatedMinutes)
+        if (!form.trackId.trim()) errors.trackId = "Selecione o modulo de destino."
+        if (!form.title.trim()) errors.title = "Informe o titulo da atividade."
+        if (!Number.isFinite(estimated) || estimated <= 0) {
+            errors.estimatedMinutes = "Informe uma duracao valida em minutos."
+        }
+        if (form.visibility === "users" && form.userIds.length === 0) {
+            errors.users = "Selecione ao menos um aluno para visibilidade restrita."
+        }
+        if (Object.keys(errors).length > 0) {
+            setValidationErrors(errors)
+            toast.error("Revise os campos obrigatorios antes de salvar.")
+            return
+        }
+
         setLocalCreating(true)
-        await handleCreateActivity(form)
+        const success = await handleCreateActivity(form)
         setLocalCreating(false)
-        resetForm()
+        if (success) {
+            resetForm()
+        }
     }
 
     const addQuestion = () => {
@@ -110,15 +179,78 @@ export function ActivityManagement() {
         }))
     }
 
-    const addAttachment = () => {
-        setForm((prev) => ({
+    const inferAttachmentType = (file: File): ActivityForm["attachments"][number]["type"] => {
+        if (file.type.startsWith("video/")) return "video"
+        if (file.type.startsWith("audio/")) return "audio"
+        return "pdf"
+    }
+
+    const startProgressSimulation = (index: number) => {
+        clearInterval(uploadIntervalsRef.current[index])
+        setUploadProgress((prev) => ({ ...prev, [index]: 9 }))
+        uploadIntervalsRef.current[index] = setInterval(() => {
+            setUploadProgress((prev) => {
+                const current = prev[index] ?? 0
+                if (current >= 88) return prev
+                return { ...prev, [index]: Math.min(88, current + Math.round(Math.random() * 10) + 4) }
+            })
+        }, 180)
+    }
+
+    const finishProgressSimulation = (index: number) => {
+        clearInterval(uploadIntervalsRef.current[index])
+        delete uploadIntervalsRef.current[index]
+        setUploadProgress((prev) => ({ ...prev, [index]: 100 }))
+    }
+
+    const uploadFileAtIndex = async (index: number, file: File) => {
+        const formData = new FormData()
+        formData.append("file", file)
+        setUploadingIndices((prev) => ({ ...prev, [index]: true }))
+        setUploadFeedback((prev) => ({
             ...prev,
-            attachments: [...prev.attachments, { name: "", url: "", type: "pdf" }],
+            [index]: { status: "uploading", message: `Enviando ${file.name}...` },
         }))
+        startProgressSimulation(index)
+
+        try {
+            const result = await uploadImage(formData, "activities")
+            setForm((prev) => {
+                if (!prev.attachments[index]) return prev
+                const next = [...prev.attachments]
+                next[index] = {
+                    ...next[index],
+                    type: inferAttachmentType(file),
+                    url: result.secure_url,
+                    name: next[index].name || file.name,
+                }
+                return { ...prev, attachments: next }
+            })
+            finishProgressSimulation(index)
+            setUploadFeedback((prev) => ({
+                ...prev,
+                [index]: { status: "success", message: "Upload concluido. Arquivo pronto para visualizacao." },
+            }))
+            toast.success(`Upload concluido: ${file.name}`)
+        } catch (error) {
+            clearInterval(uploadIntervalsRef.current[index])
+            delete uploadIntervalsRef.current[index]
+            setUploadProgress((prev) => ({ ...prev, [index]: 100 }))
+            console.error("Upload failed", error)
+            setUploadFeedback((prev) => ({
+                ...prev,
+                [index]: { status: "error", message: "Falha no upload. Tente novamente." },
+            }))
+            toast.error(`Falha no upload: ${file.name}`)
+        } finally {
+            setUploadingIndices((prev) => ({ ...prev, [index]: false }))
+        }
     }
 
     const removeAttachment = async (index: number) => {
         const currentUrl = form.attachments[index]?.url?.trim()
+        clearInterval(uploadIntervalsRef.current[index])
+        delete uploadIntervalsRef.current[index]
         if (currentUrl) {
             try {
                 const publicId = await getPublicIdFromUrl(currentUrl)
@@ -134,28 +266,69 @@ export function ActivityManagement() {
             ...prev,
             attachments: prev.attachments.filter((_, i) => i !== index),
         }))
+        setUploadingIndices((prev) => reindexRecordByRemovedIndex(prev, index))
+        setUploadFeedback((prev) => reindexRecordByRemovedIndex(prev, index))
+        setUploadProgress((prev) => reindexRecordByRemovedIndex(prev, index))
     }
 
     const handleFileUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
+        await uploadFileAtIndex(index, file)
+        e.target.value = ""
+    }
 
-        const formData = new FormData()
-        formData.append("file", file)
-
-        try {
-            const result = await uploadImage(formData, "activities")
-            setForm((prev) => {
-                const next = [...prev.attachments]
-                next[index] = {
-                    ...next[index],
-                    url: result.secure_url,
-                    name: next[index].name || file.name,
-                }
-                return { ...prev, attachments: next }
+    const enqueueFiles = async (files: File[]) => {
+        if (!files.length) return
+        const startIndex = form.attachments.length
+        setForm((prev) => ({
+            ...prev,
+            attachments: [
+                ...prev.attachments,
+                ...files.map((file) => ({
+                    name: file.name,
+                    url: "",
+                    type: inferAttachmentType(file),
+                })),
+            ],
+        }))
+        setUploadFeedback((prev) => {
+            const next = { ...prev }
+            files.forEach((file, offset) => {
+                next[startIndex + offset] = { status: "uploading", message: `Preparando ${file.name}...` }
             })
-        } catch (error) {
-            console.error("Upload failed", error)
+            return next
+        })
+        setUploadProgress((prev) => {
+            const next = { ...prev }
+            files.forEach((_, offset) => {
+                next[startIndex + offset] = 0
+            })
+            return next
+        })
+
+        await Promise.all(files.map((file, offset) => uploadFileAtIndex(startIndex + offset, file)))
+    }
+
+    const handleDropZoneDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault()
+        setIsDropZoneActive(false)
+        const files = Array.from(e.dataTransfer.files ?? [])
+        await enqueueFiles(files)
+    }
+
+    const handleFilePickerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files ?? [])
+        await enqueueFiles(files)
+        e.target.value = ""
+    }
+
+    const handleCopyAttachmentLink = async (url: string) => {
+        try {
+            await navigator.clipboard.writeText(url)
+            toast.success("Link do anexo copiado")
+        } catch {
+            toast.error("Nao foi possivel copiar o link")
         }
     }
 
@@ -166,11 +339,25 @@ export function ActivityManagement() {
                 ? prev.userIds.filter((id) => id !== uid)
                 : [...prev.userIds, uid],
         }))
+        setValidationErrors((prev) => ({ ...prev, users: undefined }))
     }
 
     const selectedUsers = React.useMemo(() => {
         return availableUsers.filter((user) => form.userIds.includes(user.uid))
     }, [availableUsers, form.userIds])
+
+    const suggestedUsers = React.useMemo(() => {
+        if (!userSearch.trim()) return []
+        const search = userSearch.toLowerCase()
+        return availableUsers
+            .filter(
+                (user) =>
+                    !form.userIds.includes(user.uid) &&
+                    (user.name?.toLowerCase().includes(search) ||
+                        user.email?.toLowerCase().includes(search))
+            )
+            .slice(0, 5)
+    }, [availableUsers, form.userIds, userSearch])
 
 
 
@@ -186,11 +373,19 @@ export function ActivityManagement() {
                     <CardContent className="space-y-4">
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
-                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Módulo de Destino</Label>
+                                <Label required className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Módulo de Destino</Label>
                                 <select
-                                    className="bg-background/50 text-foreground border-primary/20 h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus:border-primary/30"
+                                    className={`bg-background/50 text-foreground h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus:border-primary/30 ${
+                                        validationErrors.trackId ? "border-destructive/60" : "border-primary/20"
+                                    }`}
                                     value={form.trackId}
-                                    onChange={(e) => setForm((p) => ({ ...p, trackId: e.target.value }))}
+                                    onChange={(e) => {
+                                        const value = e.target.value
+                                        setForm((p) => ({ ...p, trackId: value }))
+                                        if (value.trim()) {
+                                            setValidationErrors((prev) => ({ ...prev, trackId: undefined }))
+                                        }
+                                    }}
                                 >
                                     <option value="">Selecione um módulo</option>
                                     {tracks.map((track) => (
@@ -199,19 +394,25 @@ export function ActivityManagement() {
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Título</Label>
+                                <Label required className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Título</Label>
                                 <Input
                                     placeholder="Ex.: Simulação de Reunião"
                                     value={form.title}
-                                    onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                                    className="bg-background/50 border-primary/20"
+                                    onChange={(e) => {
+                                        const value = e.target.value
+                                        setForm((p) => ({ ...p, title: value }))
+                                        if (value.trim()) {
+                                            setValidationErrors((prev) => ({ ...prev, title: undefined }))
+                                        }
+                                    }}
+                                    className={`bg-background/50 ${validationErrors.title ? "border-destructive/60" : "border-primary/20"}`}
                                 />
                             </div>
                         </div>
 
                         <div className="grid gap-4 sm:grid-cols-3">
                             <div className="space-y-2">
-                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Categoria</Label>
+                                <Label required className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Categoria</Label>
                                 <select
                                     className="bg-background/50 text-foreground border-primary/20 h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus:border-primary/30"
                                     value={form.type}
@@ -221,13 +422,19 @@ export function ActivityManagement() {
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Duração (Min)</Label>
+                                <Label required className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Duração (Min)</Label>
                                 <Input
                                     type="number"
                                     placeholder="Ex.: 45"
                                     value={form.estimatedMinutes}
-                                    onChange={(e) => setForm((p) => ({ ...p, estimatedMinutes: e.target.value }))}
-                                    className="bg-background/50 border-primary/20"
+                                    onChange={(e) => {
+                                        const value = e.target.value
+                                        setForm((p) => ({ ...p, estimatedMinutes: value }))
+                                        if (Number(value) > 0) {
+                                            setValidationErrors((prev) => ({ ...prev, estimatedMinutes: undefined }))
+                                        }
+                                    }}
+                                    className={`bg-background/50 ${validationErrors.estimatedMinutes ? "border-destructive/60" : "border-primary/20"}`}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -243,65 +450,181 @@ export function ActivityManagement() {
                         </div>
 
                         <div className="space-y-3 pt-4 border-t border-primary/5">
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
                                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Anexos</Label>
-                                <Button variant="ghost" size="xs" onClick={addAttachment} className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                                    <Plus className="mr-1 size-3" /> Adicionar
-                                </Button>
+                                <p className="text-[10px] font-medium text-muted-foreground/70">Use a area abaixo para clicar ou arrastar arquivos</p>
+                            </div>
+
+                            <input
+                                ref={filePickerRef}
+                                type="file"
+                                multiple
+                                className="hidden"
+                                onChange={handleFilePickerChange}
+                            />
+
+                            <div
+                                role="button"
+                                tabIndex={0}
+                                onDragOver={(e) => {
+                                    e.preventDefault()
+                                    setIsDropZoneActive(true)
+                                }}
+                                onDragLeave={() => setIsDropZoneActive(false)}
+                                onDrop={(e) => void handleDropZoneDrop(e)}
+                                onClick={() => filePickerRef.current?.click()}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault()
+                                        filePickerRef.current?.click()
+                                    }
+                                }}
+                                className={`rounded-2xl border border-dashed p-5 transition-all cursor-pointer ${
+                                    isDropZoneActive
+                                        ? "border-primary/50 bg-primary/10"
+                                        : "border-primary/20 bg-linear-to-br from-primary/5 via-background/40 to-background/10 hover:border-primary/40"
+                                }`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                        <UploadCloud className="size-5" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-bold uppercase tracking-wider">Arraste e solte arquivos aqui</p>
+                                        <p className="text-xs text-muted-foreground">Ou clique para selecionar. Upload automatico com feedback em tempo real.</p>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="space-y-2">
                                 {form.attachments.length === 0 ? (
-                                    <div className="rounded-xl border border-dashed border-primary/20 p-4 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Nenhum anexo configurado</div>
+                                    <div className="rounded-xl border border-dashed border-primary/10 p-4 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                                        Nenhum anexo na fila
+                                    </div>
                                 ) : (
-                                    form.attachments.map((att, idx) => (
-                                        <div key={idx} className="flex gap-2 p-2 rounded-lg border border-primary/5 bg-primary/1 items-start transition-all hover:border-primary/20">
-                                            <div className="grid grid-cols-[100px,1fr,auto] gap-2 flex-1">
-                                                <select
-                                                    className="bg-background/50 text-foreground border-primary/20 h-8 w-full rounded-md border px-2 py-0 text-[10px] uppercase font-bold tracking-tight outline-none"
-                                                    value={att.type}
-                                                    onChange={(e) => setForm((p) => {
-                                                        const next = [...p.attachments];
-                                                        next[idx] = { ...next[idx], type: e.target.value as typeof next[number]["type"] };
-                                                        return { ...p, attachments: next };
-                                                    })}
-                                                >
-                                                    {Object.entries(MATERIAL_TYPE_LABELS)
-                                                        .filter(([k]) => k !== "link")
-                                                        .map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                                                </select>
-                                                <Input
-                                                    placeholder="Nome"
-                                                    value={att.name}
-                                                    onChange={(e) => setForm((p) => {
-                                                        const next = [...p.attachments];
-                                                        next[idx] = { ...next[idx], name: e.target.value };
-                                                        return { ...p, attachments: next };
-                                                    })}
-                                                    className="h-8 text-xs bg-background/50 border-primary/20"
-                                                />
-                                                <div className="flex items-center">
-                                                    <input
-                                                        type="file"
-                                                        id={`activity-file-upload-${idx}`}
-                                                        className="hidden"
-                                                        onChange={(e) => handleFileUpload(idx, e)}
-                                                    />
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="xs"
-                                                        onClick={() => document.getElementById(`activity-file-upload-${idx}`)?.click()}
-                                                        className="h-8 px-2 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/10"
-                                                    >
-                                                        <Upload className="mr-1 size-3" /> Upload
-                                                    </Button>
+                                    form.attachments.map((att, idx) => {
+                                        const feedback = uploadFeedback[idx]
+                                        const progress = uploadProgress[idx] ?? 0
+                                        const statusClass =
+                                            feedback?.status === "error"
+                                                ? "text-destructive"
+                                                : feedback?.status === "success"
+                                                    ? "text-emerald-600"
+                                                    : "text-muted-foreground"
+
+                                        const AttachmentTypeIcon =
+                                            att.type === "video" ? Video : att.type === "audio" ? FileAudio : att.type === "link" ? Link2 : FileText
+
+                                        return (
+                                            <div key={idx} className="rounded-xl border border-primary/15 bg-background/70 p-3 space-y-3 overflow-hidden">
+                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                    <div className="flex min-w-0 flex-1 items-start gap-2">
+                                                        <div className="mt-0.5 size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                                                            <AttachmentTypeIcon className="size-4" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1 space-y-2">
+                                                            <div className="grid gap-2 md:grid-cols-[120px,1fr]">
+                                                                <select
+                                                                    className="bg-background/60 text-foreground border-primary/20 h-8 w-full rounded-md border px-2 py-0 text-[10px] uppercase font-bold tracking-tight outline-none"
+                                                                    value={att.type}
+                                                                    onChange={(e) =>
+                                                                        setForm((p) => {
+                                                                            const next = [...p.attachments]
+                                                                            next[idx] = { ...next[idx], type: e.target.value as typeof next[number]["type"] }
+                                                                            return { ...p, attachments: next }
+                                                                        })
+                                                                    }
+                                                                >
+                                                                    {Object.entries(MATERIAL_TYPE_LABELS)
+                                                                        .filter(([key]) => key !== "link")
+                                                                        .map(([key, label]) => (
+                                                                            <option key={key} value={key}>
+                                                                                {label}
+                                                                            </option>
+                                                                        ))}
+                                                                </select>
+                                                                <Input
+                                                                    placeholder="Nome amigavel do anexo"
+                                                                    value={att.name}
+                                                                    onChange={(e) =>
+                                                                        setForm((p) => {
+                                                                            const next = [...p.attachments]
+                                                                            next[idx] = { ...next[idx], name: e.target.value }
+                                                                            return { ...p, attachments: next }
+                                                                        })
+                                                                    }
+                                                                    className="h-8 text-xs bg-background/60 border-primary/20"
+                                                                />
+                                                            </div>
+                                                            <div className="h-1.5 w-full rounded-full bg-primary/10 overflow-hidden">
+                                                                <div
+                                                                    className={`h-full transition-all duration-300 ${
+                                                                        feedback?.status === "error"
+                                                                            ? "bg-destructive/80"
+                                                                            : feedback?.status === "success"
+                                                                                ? "bg-emerald-500"
+                                                                                : "bg-primary"
+                                                                    }`}
+                                                                    style={{ width: `${progress}%` }}
+                                                                />
+                                                            </div>
+                                                            <p className={`text-[11px] inline-flex items-center gap-1 ${statusClass}`}>
+                                                                {feedback?.status === "uploading" ? (
+                                                                    <Loader2 className="size-3 animate-spin" />
+                                                                ) : feedback?.status === "success" ? (
+                                                                    <CheckCircle2 className="size-3" />
+                                                                ) : feedback?.status === "error" ? (
+                                                                    <AlertCircle className="size-3" />
+                                                                ) : (
+                                                                    <Sparkles className="size-3" />
+                                                                )}
+                                                                {feedback?.message ?? (att.url ? "Anexo pronto para visualizacao" : "Aguardando upload")}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 self-end sm:self-auto">
+                                                        <input
+                                                            type="file"
+                                                            id={`activity-file-upload-${idx}`}
+                                                            className="hidden"
+                                                            onChange={(e) => void handleFileUpload(idx, e)}
+                                                        />
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon-xs"
+                                                            type="button"
+                                                            disabled={uploadingIndices[idx]}
+                                                            onClick={() => document.getElementById(`activity-file-upload-${idx}`)?.click()}
+                                                            aria-label="Reenviar arquivo"
+                                                        >
+                                                            {uploadingIndices[idx] ? <Loader2 className="size-3 animate-spin" /> : <UploadCloud className="size-3" />}
+                                                        </Button>
+                                                        {att.url ? (
+                                                            <a
+                                                                href={att.url}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="inline-flex size-6 items-center justify-center rounded-md border border-primary/20 text-primary hover:bg-primary/10"
+                                                                aria-label="Visualizar anexo"
+                                                            >
+                                                                <Eye className="size-3" />
+                                                            </a>
+                                                        ) : null}
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon-xs"
+                                                            type="button"
+                                                            onClick={() => void removeAttachment(idx)}
+                                                            className="text-destructive/60 hover:text-destructive"
+                                                            aria-label="Excluir anexo"
+                                                        >
+                                                            <Trash2 className="size-3" />
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <Button variant="ghost" size="xs" onClick={() => void removeAttachment(idx)} className="h-8 w-8 p-0 text-destructive/40 hover:text-destructive">
-                                                <Trash2 className="size-3" />
-                                            </Button>
-                                        </div>
-                                    ))
+                                        )
+                                    })
                                 )}
                             </div>
                         </div>
@@ -534,42 +857,84 @@ export function ActivityManagement() {
                     <CardContent className="space-y-6">
                         <ReleaseControls
                             visibility={form.visibility}
-                            onVisibilityChange={(value) => setForm((p) => ({ ...p, visibility: value }))}
+                            onVisibilityChange={(value) => {
+                                setForm((p) => ({ ...p, visibility: value }))
+                                if (value !== "users") {
+                                    setValidationErrors((prev) => ({ ...prev, users: undefined }))
+                                }
+                            }}
                             scheduleMode={form.scheduleMode}
                             onScheduleModeChange={(mode) => setForm((p) => ({ ...p, scheduleMode: mode }))}
                             releaseAt={form.releaseAt}
                             onReleaseAtChange={(value) => setForm((p) => ({ ...p, releaseAt: value }))}
                         >
                             {form.visibility === "users" && (
-                                <div className="space-y-3 p-3 rounded-xl border border-primary/20 bg-background/50">
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between rounded-lg border border-primary/15 bg-primary/5 px-2 py-1.5">
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-primary/80">Acesso Restrito</p>
+                                            <p className="text-[11px] text-muted-foreground">Somente alunos selecionados poderao visualizar.</p>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-primary px-2 py-0.5 rounded-full bg-primary/10">{form.userIds.length} selecionados</span>
+                                    </div>
                                     <div className="relative">
                                         <Input
-                                            placeholder="Pesquisar alunos por nome..."
+                                            placeholder="Buscar por nome ou email..."
                                             value={userSearch}
                                             onChange={(e) => setUserSearch(e.target.value)}
                                             className="bg-background border-primary/20 text-xs h-9 pl-9"
                                         />
                                         <Users className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground/40" />
                                     </div>
-                                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
-                                        {selectedUsers.length === 0 ? (
-                                            <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/40 text-center w-full py-4 bg-primary/5 rounded-lg">Selecione os alunos abaixo...</p>
-                                        ) : (
-                                            selectedUsers.map((u) => (
-                                                <Badge key={u.uid} variant="secondary" className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
-                                                    <span className="text-[10px] font-bold">{u.name}</span>
-                                                    <button onClick={() => toggleUserSelection(u.uid)} className="hover:text-destructive transition-colors">
-                                                        <X className="h-3 w-3" />
-                                                    </button>
-                                                </Badge>
-                                            ))
-                                        )}
+                                    <div className="rounded-lg border border-primary/10 bg-background/70 p-2">
+                                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Selecionados</p>
+                                        <div className="flex flex-wrap gap-2 max-h-28 overflow-y-auto pr-1 custom-scrollbar">
+                                            {selectedUsers.length === 0 ? (
+                                                <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/40 text-center w-full py-3 bg-primary/5 rounded-lg">Nenhum aluno selecionado</p>
+                                            ) : (
+                                                selectedUsers.map((u) => (
+                                                    <Badge key={u.uid} variant="secondary" className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                                                        <span className="text-[10px] font-bold">{u.name}</span>
+                                                        <button type="button" onClick={() => toggleUserSelection(u.uid)} className="hover:text-destructive transition-colors">
+                                                            <X className="h-3 w-3" />
+                                                        </button>
+                                                    </Badge>
+                                                ))
+                                            )}
+                                        </div>
                                     </div>
+                                    {suggestedUsers.length > 0 && (
+                                        <div className="space-y-1 rounded-lg border border-primary/10 bg-background/70 p-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Sugestoes</p>
+                                            {suggestedUsers.map((u) => (
+                                                <button
+                                                    key={u.uid}
+                                                    type="button"
+                                                    onClick={() => toggleUserSelection(u.uid)}
+                                                    className="w-full text-left text-xs p-2 hover:bg-primary/5 rounded-md border border-transparent hover:border-primary/20 flex justify-between items-center group transition-colors"
+                                                >
+                                                    <span className="font-medium text-muted-foreground group-hover:text-foreground">{u.name}</span>
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                                        <Plus className="size-3" /> Adicionar
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </ReleaseControls>
 
                         <div className="pt-2 flex flex-col gap-3">
+                            {Object.values(validationErrors).some(Boolean) ? (
+                                <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-2 text-xs text-destructive">
+                                    {Object.values(validationErrors)
+                                        .filter((message): message is string => Boolean(message))
+                                        .map((message, idx) => (
+                                            <p key={`${message}-${idx}`}>{message}</p>
+                                        ))}
+                                </div>
+                            ) : null}
                             <Button
                                 onClick={onSubmit}
                                 disabled={localCreating}
@@ -587,7 +952,7 @@ export function ActivityManagement() {
             </div>
 
             {/* List Card */}
-            <Card className="border-primary/20 bg-card/20 backdrop-blur-sm h-fit sticky top-6">
+            <Card className="border-primary/20 bg-card/20 backdrop-blur-sm h-fit overflow-hidden lg:sticky lg:top-6">
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div className="flex flex-col">
                         <CardTitle className="text-base font-bold">Banco de Atividades</CardTitle>
@@ -609,46 +974,140 @@ export function ActivityManagement() {
                                 const trackActivities = activities.filter(a => a.trackId === track.id)
                                 if (!trackActivities.length) return null
                                 return (
-                                    <div key={track.id} className="space-y-2">
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500/60 border-b border-blue-500/10 pb-1 mb-3">{track.title}</p>
-                                        {trackActivities.map(a => {
+                                    <div key={track.id} className="space-y-3">
+                                        <p className="break-words text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500/60 border-b border-blue-500/10 pb-1 mb-3">{track.title}</p>
+                                        {trackActivities.map((a) => {
                                             const Icon = ACTIVITY_TYPE_ICONS[a.type as keyof typeof ACTIVITY_TYPE_ICONS] || FileText
+                                            const questions = Array.isArray(a.questions) ? a.questions : []
                                             return (
-                                                <div key={a.id} className="flex items-center justify-between p-3 rounded-2xl border border-primary/5 bg-primary/1 transition-all hover:bg-primary/5 hover:border-primary/20 group">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="size-8 rounded-xl bg-primary/5 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                                                            <Icon className="size-4 text-primary/60" />
+                                                <Collapsible key={a.id} className="overflow-hidden rounded-2xl border border-primary/10 bg-background/60 p-3 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
+                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                                                            <div className="size-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                                                <Icon className="size-4" />
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs font-bold tracking-tight break-words">{a.title}</p>
+                                                                <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                                                                    <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold uppercase text-primary">
+                                                                        {ACTIVITY_TYPE_LABELS[a.type as keyof typeof ACTIVITY_TYPE_LABELS]}
+                                                                    </span>
+                                                                    <span>{a.estimatedMinutes || 0} min</span>
+                                                                    <span>{a.attachments?.length || 0} anexo(s)</span>
+                                                                    <span>{questions.length} questao(oes)</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 self-end sm:self-auto">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon-xs"
+                                                                onClick={() => handleDeleteActivity(a)}
+                                                                className="text-destructive/60 hover:text-destructive"
+                                                                aria-label="Excluir atividade"
+                                                            >
+                                                                <X className="size-3" />
+                                                            </Button>
+                                                            <CollapsibleTrigger asChild>
+                                                                <Button variant="ghost" size="icon-xs" type="button" aria-label="Expandir atividade" className="group">
+                                                                    <ChevronDown className="size-3 transition-transform group-data-[state=open]:rotate-180" />
+                                                                </Button>
+                                                            </CollapsibleTrigger>
                                                         </div>
                                                     </div>
-                                                    <div>
-                                                        <p className="text-xs font-bold tracking-tight">{a.title}</p>
-                                                        <div className="flex items-center gap-2 mt-0.5">
-                                                            <span className="text-[9px] font-bold uppercase text-muted-foreground/40">{ACTIVITY_TYPE_LABELS[a.type as keyof typeof ACTIVITY_TYPE_LABELS]}</span>
-                                                            <span className="text-[9px] font-bold uppercase text-muted-foreground/20">•</span>
-                                                            <span className="text-[9px] font-medium text-muted-foreground/40">{a.estimatedMinutes || 0} min</span>
-                                                        </div>
-                                                        {(a.attachments?.length ?? 0) > 0 ? (
-                                                            <div className="mt-2 flex flex-wrap gap-1.5">
-                                                                {(a.attachments ?? []).map((attachment, idx) => (
-                                                                    <span key={`${a.id}-${idx}`} className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[9px] font-medium text-primary">
-                                                                        {attachment.name || `Anexo ${idx + 1}`}
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => void handleDeleteActivityAttachment(a.id, attachment.url)}
-                                                                            className="text-destructive/60 hover:text-destructive"
-                                                                            aria-label={`Excluir anexo ${attachment.name || idx + 1}`}
-                                                                        >
-                                                                            <X className="size-3" />
-                                                                        </button>
-                                                                    </span>
+
+                                                    <CollapsibleContent className="mt-3 space-y-3">
+                                                        {questions.length > 0 ? (
+                                                            <div className="rounded-xl border border-primary/10 bg-background/70 p-2 space-y-2">
+                                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                                                                    Questoes da Atividade
+                                                                </p>
+                                                                {questions.map((q, idx) => (
+                                                                    <div key={q.id || `${a.id}-q-${idx}`} className="rounded-lg border border-primary/10 bg-background/60 p-2">
+                                                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                            <p className="text-[11px] font-semibold">Q{idx + 1}</p>
+                                                                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                                                <span className="rounded-full bg-primary/10 px-2 py-0.5 uppercase font-semibold text-primary">
+                                                                                    {q.type?.replace("_", " ") || "questao"}
+                                                                                </span>
+                                                                                <span>{q.points ?? 0} pts</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <p className="mt-1 break-words text-xs text-foreground/90">{q.prompt || "Sem enunciado"}</p>
+                                                                        {(q.options?.length ?? 0) > 0 ? (
+                                                                            <ul className="mt-2 space-y-1">
+                                                                                {(q.options ?? []).map((option, optionIdx) => {
+                                                                                    const isCorrect = (q.correctAnswers ?? []).includes(option)
+                                                                                    return (
+                                                                                        <li
+                                                                                            key={`${a.id}-${idx}-opt-${optionIdx}`}
+                                                                                            className={`break-words rounded-md px-2 py-1 text-[11px] ${isCorrect
+                                                                                                ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-700"
+                                                                                                : "bg-primary/5 text-muted-foreground"
+                                                                                                }`}
+                                                                                        >
+                                                                                            {option || `Opcao ${optionIdx + 1}`}
+                                                                                        </li>
+                                                                                    )
+                                                                                })}
+                                                                            </ul>
+                                                                        ) : null}
+                                                                    </div>
                                                                 ))}
                                                             </div>
-                                                        ) : null}
-                                                    </div>
-                                                    <Button variant="ghost" size="xs" onClick={() => handleDeleteActivity(a)} className="h-8 w-8 p-0 text-destructive/20 hover:text-destructive hover:bg-destructive/5 transition-all opacity-0 group-hover:opacity-100">
-                                                        <X className="size-3" />
-                                                    </Button>
-                                                </div>
+                                                        ) : (
+                                                            <p className="text-[10px] text-muted-foreground/60">Sem questoes cadastradas nesta atividade.</p>
+                                                        )}
+
+                                                        {(a.attachments?.length ?? 0) > 0 ? (
+                                                            <div className="grid gap-2">
+                                                                {(a.attachments ?? []).map((attachment, idx) => (
+                                                                    <div key={`${a.id}-${idx}`} className="rounded-lg border border-primary/10 bg-primary/5 px-2 py-1.5">
+                                                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                                            <p className="min-w-0 break-all text-[11px] font-medium">{attachment.name || `Anexo ${idx + 1}`}</p>
+                                                                            <div className="flex items-center gap-1 self-end sm:self-auto">
+                                                                                {attachment.url ? (
+                                                                                    <>
+                                                                                        <a
+                                                                                            href={attachment.url}
+                                                                                            target="_blank"
+                                                                                            rel="noreferrer"
+                                                                                            className="inline-flex size-6 items-center justify-center rounded-md border border-primary/20 text-primary hover:bg-primary/10"
+                                                                                            aria-label={`Abrir anexo ${attachment.name || idx + 1}`}
+                                                                                        >
+                                                                                            <Eye className="size-3" />
+                                                                                        </a>
+                                                                                        <Button
+                                                                                            variant="ghost"
+                                                                                            size="icon-xs"
+                                                                                            type="button"
+                                                                                            onClick={() => void handleCopyAttachmentLink(attachment.url)}
+                                                                                            aria-label={`Copiar link ${attachment.name || idx + 1}`}
+                                                                                        >
+                                                                                            <Copy className="size-3" />
+                                                                                        </Button>
+                                                                                    </>
+                                                                                ) : null}
+                                                                                <Button
+                                                                                    variant="ghost"
+                                                                                    size="icon-xs"
+                                                                                    type="button"
+                                                                                    onClick={() => void handleDeleteActivityAttachment(a.id, attachment.url)}
+                                                                                    className="text-destructive/60 hover:text-destructive"
+                                                                                    aria-label={`Excluir anexo ${attachment.name || idx + 1}`}
+                                                                                >
+                                                                                    <Trash2 className="size-3" />
+                                                                                </Button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-[10px] text-muted-foreground/60">Sem anexos nesta atividade.</p>
+                                                        )}
+                                                    </CollapsibleContent>
+                                                </Collapsible>
                                             )
                                         })}
                                     </div>
@@ -661,3 +1120,5 @@ export function ActivityManagement() {
         </div>
     )
 }
+
+

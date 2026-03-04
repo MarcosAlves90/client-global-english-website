@@ -19,6 +19,16 @@ type CreateMaterialBody = {
   attachments?: { name?: string; url?: string; type?: string }[]
 }
 
+type UpdateMaterialBody = {
+  id?: string
+  title?: string
+  trackId?: string
+  visibility?: "module" | "users" | "private"
+  userIds?: string[]
+  releaseAt?: string | null
+  markdown?: string
+}
+
 async function assertIsAdmin(req: NextRequest) {
   const authHeader = req.headers.get("authorization")
   const token = authHeader?.split(" ")[1]
@@ -299,6 +309,120 @@ export async function DELETE(req: NextRequest) {
     console.error("delete material failed", err)
     return NextResponse.json(
       { error: "Could not delete material" },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  const authCheck = await assertIsAdmin(req)
+  if (!authCheck.ok) {
+    return NextResponse.json(
+      { error: authCheck.message },
+      { status: authCheck.status }
+    )
+  }
+
+  let body: UpdateMaterialBody
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  const id = body.id?.trim()
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 })
+  }
+
+  const patch: Record<string, unknown> = {
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedBy: authCheck.uid,
+  }
+
+  if (typeof body.title === "string") {
+    const normalizedTitle = body.title.trim()
+    if (!normalizedTitle) {
+      return NextResponse.json({ error: "title cannot be empty" }, { status: 400 })
+    }
+    patch.title = normalizedTitle
+  }
+
+  if (typeof body.trackId === "string") {
+    const normalizedTrackId = body.trackId.trim()
+    if (!normalizedTrackId) {
+      return NextResponse.json({ error: "trackId cannot be empty" }, { status: 400 })
+    }
+    patch.trackId = normalizedTrackId
+  }
+
+  if (typeof body.visibility === "string") {
+    if (!["module", "users", "private"].includes(body.visibility)) {
+      return NextResponse.json({ error: "invalid visibility" }, { status: 400 })
+    }
+    patch.visibility = body.visibility
+    if (body.visibility === "users") {
+      const userIds = normalizeUserIds(body.userIds)
+      if (!userIds.length) {
+        return NextResponse.json(
+          { error: "userIds are required for users visibility" },
+          { status: 400 }
+        )
+      }
+      patch.userIds = userIds
+    } else {
+      patch.userIds = []
+    }
+  } else if (Array.isArray(body.userIds)) {
+    patch.userIds = normalizeUserIds(body.userIds)
+  }
+
+  if (body.releaseAt !== undefined) {
+    patch.releaseAt = resolveReleaseAt(body.releaseAt)
+  }
+
+  if (typeof body.markdown === "string") {
+    patch.markdown = body.markdown
+    if (body.markdown.trim()) {
+      patch.type = "markdown"
+    }
+  }
+
+  if (Object.keys(patch).length <= 2) {
+    return NextResponse.json({ error: "no fields to update" }, { status: 400 })
+  }
+
+  try {
+    const ref = adminDb.collection(COLLECTIONS.materials).doc(id)
+    const snap = await ref.get()
+    if (!snap.exists) {
+      return NextResponse.json({ error: "Material not found" }, { status: 404 })
+    }
+
+    await ref.update(patch)
+    const updatedSnap = await ref.get()
+    const data = updatedSnap.data()
+
+    const result: Material = {
+      id: updatedSnap.id,
+      activityId: data?.activityId ?? undefined,
+      courseId: data?.courseId ?? undefined,
+      trackId: data?.trackId ?? undefined,
+      title: data?.title ?? "",
+      type: data?.type ?? undefined,
+      url: data?.url ?? undefined,
+      visibility: data?.visibility ?? "private",
+      userIds: Array.isArray(data?.userIds) ? data?.userIds : [],
+      releaseAt: data?.releaseAt?.toDate?.() ?? null,
+      markdown: data?.markdown ?? "",
+      attachments: Array.isArray(data?.attachments) ? data?.attachments : [],
+    }
+
+    return NextResponse.json(result)
+  } catch (err) {
+    console.error("update material failed", err)
+    return NextResponse.json(
+      { error: "Could not update material" },
       { status: 500 }
     )
   }

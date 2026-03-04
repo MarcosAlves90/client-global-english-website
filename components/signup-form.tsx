@@ -107,7 +107,7 @@ export function SignupForm({
           <form onSubmit={handleSubmit}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="name" className="font-medium text-foreground">
+                <FieldLabel required htmlFor="name" className="font-medium text-foreground">
                   Nome completo
                 </FieldLabel>
                 <Input
@@ -122,7 +122,7 @@ export function SignupForm({
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="email" className="font-medium text-foreground">
+                <FieldLabel required htmlFor="email" className="font-medium text-foreground">
                   E-mail institucional
                 </FieldLabel>
                 <Input
@@ -138,7 +138,7 @@ export function SignupForm({
               </Field>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <Field>
-                  <FieldLabel htmlFor="password" className="font-medium text-foreground">
+                  <FieldLabel required htmlFor="password" className="font-medium text-foreground">
                     Criar Senha
                   </FieldLabel>
                   <Input
@@ -153,7 +153,7 @@ export function SignupForm({
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="confirm-password" className="font-medium text-foreground">
+                  <FieldLabel required htmlFor="confirm-password" className="font-medium text-foreground">
                     Confirmar
                   </FieldLabel>
                   <Input

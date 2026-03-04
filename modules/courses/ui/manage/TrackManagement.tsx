@@ -93,7 +93,7 @@ export function TrackManagement() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="track-title" className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Título do módulo</Label>
+                            <Label required htmlFor="track-title" className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Título do módulo</Label>
                             <Input
                                 id="track-title"
                                 placeholder="Ex.: Comunicação estratégica"
@@ -104,7 +104,7 @@ export function TrackManagement() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="track-description" className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Descrição</Label>
+                            <Label required htmlFor="track-description" className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Descrição</Label>
                             <textarea
                                 id="track-description"
                                 className="bg-background/50 text-foreground border-primary/20 min-h-24 w-full rounded-md border p-3 text-sm transition-all focus:border-primary/30 outline-none"

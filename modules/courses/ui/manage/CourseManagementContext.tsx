@@ -21,6 +21,7 @@ import {
     createAdminMaterial,
     deleteAdminMaterial,
     fetchAdminCourseMaterials,
+    updateAdminMaterial,
 } from "@/modules/materials"
 import {
     createAdminActivity,
@@ -47,6 +48,12 @@ export type MaterialForm = {
     releaseAt: string
     markdown: string
     attachments: { name: string; url: string; type: "pdf" | "video" | "link" | "audio" }[]
+}
+
+export type UpdateMaterialForm = {
+    id: string
+    title: string
+    markdown: string
 }
 
 export type ActivityForm = {
@@ -100,13 +107,14 @@ interface CourseManagementContextType {
     // Material Actions
     loadMaterials: (force?: boolean) => Promise<void>
     handleDeleteMaterial: (material: Material) => Promise<void>
-    handleCreateMaterial: (form: MaterialForm) => Promise<void>
+    handleCreateMaterial: (form: MaterialForm) => Promise<boolean>
+    handleUpdateMaterial: (form: UpdateMaterialForm) => Promise<void>
     handleDeleteMaterialAttachment: (materialId: string, attachmentUrl: string) => Promise<void>
 
     // Activity Actions
     loadActivities: (force?: boolean) => Promise<void>
     handleDeleteActivity: (activity: Activity) => Promise<void>
-    handleCreateActivity: (form: ActivityForm) => Promise<void>
+    handleCreateActivity: (form: ActivityForm) => Promise<boolean>
     handleDeleteActivityAttachment: (activityId: string, attachmentUrl: string) => Promise<void>
 }
 
@@ -261,7 +269,7 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
 
     // Material Handlers
     const handleCreateMaterial = async (form: MaterialForm) => {
-        if (!user) return
+        if (!user) return false
         try {
             const idToken = await user.getIdToken()
             await createAdminMaterial(idToken, {
@@ -276,8 +284,10 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
             })
             toast.success("Material criado")
             void loadMaterials(true)
+            return true
         } catch {
             toast.error("Erro ao criar material")
+            return false
         }
     }
 
@@ -290,6 +300,22 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
             void loadMaterials(true)
         } catch {
             toast.error("Erro ao excluir material")
+        }
+    }
+
+    const handleUpdateMaterial = async (form: UpdateMaterialForm) => {
+        if (!user) return
+        try {
+            const idToken = await user.getIdToken()
+            await updateAdminMaterial(idToken, {
+                id: form.id,
+                title: form.title,
+                markdown: form.markdown,
+            })
+            toast.success("Material atualizado")
+            void loadMaterials(true)
+        } catch {
+            toast.error("Erro ao atualizar material")
         }
     }
 
@@ -311,7 +337,7 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
 
     // Activity Handlers
     const handleCreateActivity = async (form: ActivityForm) => {
-        if (!user) return
+        if (!user) return false
         try {
             const idToken = await user.getIdToken()
             await createAdminActivity(idToken, {
@@ -332,8 +358,10 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
             })
             toast.success("Atividade criada")
             void loadActivities(true)
+            return true
         } catch {
             toast.error("Erro ao criar atividade")
+            return false
         }
     }
 
@@ -390,6 +418,7 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
         loadMaterials,
         handleDeleteMaterial,
         handleCreateMaterial,
+        handleUpdateMaterial,
         handleDeleteMaterialAttachment,
         loadActivities,
         handleDeleteActivity,

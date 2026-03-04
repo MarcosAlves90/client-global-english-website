@@ -421,7 +421,7 @@ export default function Page() {
               </CardHeader>
               <CardContent className="grid gap-6 md:grid-cols-2 pt-6">
                 <div className="space-y-2">
-                  <Label htmlFor="user-name">Nome completo</Label>
+                  <Label required htmlFor="user-name">Nome completo</Label>
                   <Input
                     id="user-name"
                     placeholder="Nome do usuário"
@@ -431,7 +431,7 @@ export default function Page() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="user-email">Email</Label>
+                  <Label required htmlFor="user-email">Email</Label>
                   <Input
                     id="user-email"
                     type="email"

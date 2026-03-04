@@ -400,7 +400,7 @@ export default function Page() {
               </CardHeader>
               <CardContent className="grid gap-6 md:grid-cols-2 pt-6">
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="course-title">Título do curso</Label>
+                  <Label required htmlFor="course-title">Título do curso</Label>
                   <Input
                     id="course-title"
                     placeholder="Ex.: Inglês para negociações internacionais"
@@ -412,7 +412,7 @@ export default function Page() {
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="course-description">Descrição</Label>
+                  <Label required htmlFor="course-description">Descrição</Label>
                   <textarea
                     id="course-description"
                     className="bg-card text-foreground border-input min-h-28 w-full rounded-md border p-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
@@ -447,7 +447,7 @@ export default function Page() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="course-duration">Duração (semanas)</Label>
+                  <Label required htmlFor="course-duration">Duração (semanas)</Label>
                   <Input
                     id="course-duration"
                     type="number"
