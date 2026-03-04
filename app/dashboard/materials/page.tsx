@@ -9,6 +9,7 @@ import { DashboardStatCard } from "@/components/dashboard-stat-card"
 import { StudentMaterialCard } from "@/modules/materials/ui/student-material-card"
 import { useAuth } from "@/hooks/use-auth"
 import { fetchUserMaterials } from "@/lib/firebase/firestore"
+import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
 import type { Material } from "@/lib/firebase/types"
 
 
@@ -31,8 +32,13 @@ export default function Page() {
         setError(null)
         const data = await fetchUserMaterials(user.uid)
         setMaterials(data)
-      } catch {
-        setError("Não foi possível carregar seus materiais.")
+      } catch (error) {
+        setError(
+          toFriendlyFirestoreLoadError(
+            error,
+            "Não foi possível carregar seus materiais."
+          )
+        )
       } finally {
         setLoading(false)
       }

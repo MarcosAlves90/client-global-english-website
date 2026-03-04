@@ -15,6 +15,7 @@ import { StudentCourseCard } from "@/modules/courses/ui/student-course-card"
 import { useAuth } from "@/hooks/use-auth"
 
 import { fetchUserDashboard } from "@/lib/firebase/firestore"
+import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
 import type { DashboardCourse } from "@/lib/firebase/types"
 
 // Status constants removed as they are now handled by StudentCourseCard
@@ -36,8 +37,13 @@ export default function Page() {
       setError(null)
       const data = await fetchUserDashboard(user.uid)
       setCourses(data)
-    } catch {
-      setError("Não foi possível carregar seus cursos.")
+    } catch (error) {
+      setError(
+        toFriendlyFirestoreLoadError(
+          error,
+          "Não foi possível carregar seus cursos."
+        )
+      )
     } finally {
       setLoading(false)
     }
@@ -139,7 +145,6 @@ export default function Page() {
           )}
         </div>
 
-        {/* Summary Footer removed as it's redundant with StatCards */}
       </div>
     </div>
   )

@@ -14,6 +14,7 @@ import { DashboardSectionHeader } from "@/components/dashboard-section-header"
 import { DashboardStatCard } from "@/components/dashboard-stat-card"
 import { StudentActivityCard } from "@/modules/activities/ui/student-activity-card"
 import { useAuth } from "@/hooks/use-auth"
+import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
 import { fetchUserActivities, fetchUserDashboard } from "@/lib/firebase/firestore"
 
 
@@ -62,8 +63,13 @@ export default function Page() {
           estimatedMinutes: activity.estimatedMinutes,
         }))
         setActivities(flattened)
-      } catch {
-        setError("Não foi possível carregar suas atividades.")
+      } catch (error) {
+        setError(
+          toFriendlyFirestoreLoadError(
+            error,
+            "Não foi possível carregar suas atividades."
+          )
+        )
       } finally {
         setLoading(false)
       }

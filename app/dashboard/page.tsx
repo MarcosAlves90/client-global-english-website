@@ -17,6 +17,7 @@ import { StudentCourseCard } from "@/modules/courses/ui/student-course-card"
 import { StudentActivityCard } from "@/modules/activities/ui/student-activity-card"
 import { useAuth } from "@/hooks/use-auth"
 import { fetchUserDashboard } from "@/lib/firebase/firestore"
+import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
 import type { DashboardCourse } from "@/lib/firebase/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -45,8 +46,13 @@ export default function Page() {
         setError(null)
         const data = await fetchUserDashboard(user.uid)
         setCourses(data)
-      } catch {
-        setError("Não foi possível carregar seus cursos.")
+      } catch (error) {
+        setError(
+          toFriendlyFirestoreLoadError(
+            error,
+            "Não foi possível carregar seus cursos."
+          )
+        )
       } finally {
         setIsLoading(false)
       }
@@ -208,7 +214,7 @@ export default function Page() {
             </div>
 
             {courses.length > 0 && (
-              <Card className="overflow-hidden border-primary/20 bg-primary/5 backdrop-blur-sm">
+              <Card className="overflow-hidden border-primary/20 bg-primary/5 backdrop-blur-sm gap-2">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-bold uppercase tracking-widest text-primary/60 flex items-center gap-2">
                     <Sparkles className="size-4" />

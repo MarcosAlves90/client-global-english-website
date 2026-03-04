@@ -42,37 +42,60 @@ function chunkArray<T>(items: T[], size = FIRESTORE_IN_LIMIT): T[][] {
   return chunks
 }
 
+function isFirestorePermissionDenied(error: unknown) {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: string }).code)
+      : ""
+  return code.toLowerCase().replace("firestore/", "") === "permission-denied"
+}
+
 async function fetchEnrollmentsWithTrackFallback(
   uid: string
 ): Promise<Enrollment[]> {
   const firestore = getDbOrThrow()
 
-  const enrollmentQuery = query(
-    collection(firestore, COLLECTIONS.enrollments),
-    where("userId", "==", uid)
-  )
-  const enrollmentSnapshots = await getDocs(enrollmentQuery)
-  const enrollments: Enrollment[] = enrollmentSnapshots.docs.map((docSnap) => {
-    const data = docSnap.data()
-    return {
-      id: docSnap.id,
-      userId: data.userId,
-      courseId: data.courseId,
-      status: data.status ?? "active",
-      progress: data.progress ?? 0,
+  let enrollments: Enrollment[] = []
+  try {
+    const enrollmentQuery = query(
+      collection(firestore, COLLECTIONS.enrollments),
+      where("userId", "==", uid)
+    )
+    const enrollmentSnapshots = await getDocs(enrollmentQuery)
+    enrollments = enrollmentSnapshots.docs.map((docSnap) => {
+      const data = docSnap.data()
+      return {
+        id: docSnap.id,
+        userId: data.userId,
+        courseId: data.courseId,
+        status: data.status ?? "active",
+        progress: data.progress ?? 0,
+      }
+    })
+  } catch (error) {
+    if (!isFirestorePermissionDenied(error)) {
+      throw error
     }
-  })
+  }
 
   if (enrollments.length) {
     return enrollments
   }
 
-  const trackSnapshot = await getDocs(
-    query(
-      collection(firestore, COLLECTIONS.tracks),
-      where("userIds", "array-contains", uid)
+  let trackSnapshot
+  try {
+    trackSnapshot = await getDocs(
+      query(
+        collection(firestore, COLLECTIONS.tracks),
+        where("userIds", "array-contains", uid)
+      )
     )
-  )
+  } catch (error) {
+    if (isFirestorePermissionDenied(error)) {
+      return []
+    }
+    throw error
+  }
   const fallbackCourseIds = Array.from(
     new Set(
       trackSnapshot.docs
@@ -96,39 +119,61 @@ async function fetchTracksVisibleToUserByCourseIds(
 ): Promise<Track[]> {
   const firestore = getDbOrThrow()
   const chunks = chunkArray(courseIds)
-  const snapshots = await Promise.all(
-    chunks.flatMap((idsChunk) => [
-      getDocs(
+  const deduped = new Map<string, Track>()
+
+  const loadChunk = async (idsChunk: string[]) => {
+    try {
+      const publicSnapshot = await getDocs(
         query(
           collection(firestore, COLLECTIONS.tracks),
           where("courseId", "in", idsChunk),
           where("userIds", "==", [])
         )
-      ),
-      getDocs(
+      )
+      publicSnapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data()
+        deduped.set(docSnap.id, {
+          id: docSnap.id,
+          courseId: data.courseId,
+          title: data.title ?? "",
+          description: data.description ?? "",
+          order: data.order ?? 0,
+          userIds: Array.isArray(data.userIds) ? data.userIds : [],
+        })
+      })
+    } catch (error) {
+      if (!isFirestorePermissionDenied(error)) {
+        throw error
+      }
+    }
+
+    try {
+      const assignedSnapshot = await getDocs(
         query(
           collection(firestore, COLLECTIONS.tracks),
           where("courseId", "in", idsChunk),
           where("userIds", "array-contains", uid)
         )
-      ),
-    ])
-  )
-
-  const deduped = new Map<string, Track>()
-  snapshots.forEach((snapshot) => {
-    snapshot.docs.forEach((docSnap) => {
-      const data = docSnap.data()
-      deduped.set(docSnap.id, {
-        id: docSnap.id,
-        courseId: data.courseId,
-        title: data.title ?? "",
-        description: data.description ?? "",
-        order: data.order ?? 0,
-        userIds: Array.isArray(data.userIds) ? data.userIds : [],
+      )
+      assignedSnapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data()
+        deduped.set(docSnap.id, {
+          id: docSnap.id,
+          courseId: data.courseId,
+          title: data.title ?? "",
+          description: data.description ?? "",
+          order: data.order ?? 0,
+          userIds: Array.isArray(data.userIds) ? data.userIds : [],
+        })
       })
-    })
-  })
+    } catch (error) {
+      if (!isFirestorePermissionDenied(error)) {
+        throw error
+      }
+    }
+  }
+
+  await Promise.all(chunks.map((idsChunk) => loadChunk(idsChunk)))
 
   return Array.from(deduped.values())
 }
@@ -139,46 +184,74 @@ async function fetchActivitiesVisibleToUserByCourseIds(
 ): Promise<Activity[]> {
   const firestore = getDbOrThrow()
   const chunks = chunkArray(courseIds)
-  const snapshots = await Promise.all(
-    chunks.flatMap((idsChunk) => [
-      getDocs(
+  const deduped = new Map<string, Activity>()
+
+  const loadChunk = async (idsChunk: string[]) => {
+    try {
+      const publicSnapshot = await getDocs(
         query(
           collection(firestore, COLLECTIONS.activities),
           where("courseId", "in", idsChunk),
           where("visibility", "==", "module")
         )
-      ),
-      getDocs(
+      )
+      publicSnapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data()
+        deduped.set(docSnap.id, {
+          id: docSnap.id,
+          courseId: data.courseId,
+          trackId: data.trackId,
+          title: data.title ?? "",
+          type: data.type ?? "lesson",
+          order: data.order ?? 0,
+          estimatedMinutes: data.estimatedMinutes ?? 0,
+          visibility: data.visibility ?? "module",
+          userIds: Array.isArray(data.userIds) ? data.userIds : [],
+          releaseAt: data.releaseAt?.toDate?.() ?? null,
+          attachments: Array.isArray(data.attachments) ? data.attachments : [],
+          questions: Array.isArray(data.questions) ? data.questions : [],
+        })
+      })
+    } catch (error) {
+      if (!isFirestorePermissionDenied(error)) {
+        throw error
+      }
+    }
+
+    try {
+      const usersSnapshot = await getDocs(
         query(
           collection(firestore, COLLECTIONS.activities),
           where("courseId", "in", idsChunk),
           where("visibility", "==", "users"),
           where("userIds", "array-contains", uid)
         )
-      ),
-    ])
-  )
-
-  const deduped = new Map<string, Activity>()
-  snapshots.forEach((snapshot) => {
-    snapshot.docs.forEach((docSnap) => {
-      const data = docSnap.data()
-      deduped.set(docSnap.id, {
-        id: docSnap.id,
-        courseId: data.courseId,
-        trackId: data.trackId,
-        title: data.title ?? "",
-        type: data.type ?? "lesson",
-        order: data.order ?? 0,
-        estimatedMinutes: data.estimatedMinutes ?? 0,
-        visibility: data.visibility ?? "module",
-        userIds: Array.isArray(data.userIds) ? data.userIds : [],
-        releaseAt: data.releaseAt?.toDate?.() ?? null,
-        attachments: Array.isArray(data.attachments) ? data.attachments : [],
-        questions: Array.isArray(data.questions) ? data.questions : [],
+      )
+      usersSnapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data()
+        deduped.set(docSnap.id, {
+          id: docSnap.id,
+          courseId: data.courseId,
+          trackId: data.trackId,
+          title: data.title ?? "",
+          type: data.type ?? "lesson",
+          order: data.order ?? 0,
+          estimatedMinutes: data.estimatedMinutes ?? 0,
+          visibility: data.visibility ?? "module",
+          userIds: Array.isArray(data.userIds) ? data.userIds : [],
+          releaseAt: data.releaseAt?.toDate?.() ?? null,
+          attachments: Array.isArray(data.attachments) ? data.attachments : [],
+          questions: Array.isArray(data.questions) ? data.questions : [],
+        })
       })
-    })
-  })
+    } catch (error) {
+      if (!isFirestorePermissionDenied(error)) {
+        throw error
+      }
+    }
+  }
+
+  await Promise.all(chunks.map((idsChunk) => loadChunk(idsChunk)))
 
   return Array.from(deduped.values())
 }
@@ -189,46 +262,74 @@ async function fetchMaterialsVisibleToUserByCourseIds(
 ): Promise<Material[]> {
   const firestore = getDbOrThrow()
   const chunks = chunkArray(courseIds)
-  const snapshots = await Promise.all(
-    chunks.flatMap((idsChunk) => [
-      getDocs(
+  const deduped = new Map<string, Material>()
+
+  const loadChunk = async (idsChunk: string[]) => {
+    try {
+      const publicSnapshot = await getDocs(
         query(
           collection(firestore, COLLECTIONS.materials),
           where("courseId", "in", idsChunk),
           where("visibility", "==", "module")
         )
-      ),
-      getDocs(
+      )
+      publicSnapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data()
+        deduped.set(docSnap.id, {
+          id: docSnap.id,
+          activityId: data.activityId ?? undefined,
+          courseId: data.courseId ?? undefined,
+          trackId: data.trackId ?? undefined,
+          title: data.title ?? "",
+          type: data.type ?? undefined,
+          url: data.url ?? "",
+          visibility: data.visibility ?? "module",
+          userIds: Array.isArray(data.userIds) ? data.userIds : [],
+          releaseAt: data.releaseAt?.toDate?.() ?? null,
+          markdown: data.markdown ?? "",
+          attachments: Array.isArray(data.attachments) ? data.attachments : [],
+        })
+      })
+    } catch (error) {
+      if (!isFirestorePermissionDenied(error)) {
+        throw error
+      }
+    }
+
+    try {
+      const usersSnapshot = await getDocs(
         query(
           collection(firestore, COLLECTIONS.materials),
           where("courseId", "in", idsChunk),
           where("visibility", "==", "users"),
           where("userIds", "array-contains", uid)
         )
-      ),
-    ])
-  )
-
-  const deduped = new Map<string, Material>()
-  snapshots.forEach((snapshot) => {
-    snapshot.docs.forEach((docSnap) => {
-      const data = docSnap.data()
-      deduped.set(docSnap.id, {
-        id: docSnap.id,
-        activityId: data.activityId ?? undefined,
-        courseId: data.courseId ?? undefined,
-        trackId: data.trackId ?? undefined,
-        title: data.title ?? "",
-        type: data.type ?? undefined,
-        url: data.url ?? "",
-        visibility: data.visibility ?? "module",
-        userIds: Array.isArray(data.userIds) ? data.userIds : [],
-        releaseAt: data.releaseAt?.toDate?.() ?? null,
-        markdown: data.markdown ?? "",
-        attachments: Array.isArray(data.attachments) ? data.attachments : [],
+      )
+      usersSnapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data()
+        deduped.set(docSnap.id, {
+          id: docSnap.id,
+          activityId: data.activityId ?? undefined,
+          courseId: data.courseId ?? undefined,
+          trackId: data.trackId ?? undefined,
+          title: data.title ?? "",
+          type: data.type ?? undefined,
+          url: data.url ?? "",
+          visibility: data.visibility ?? "module",
+          userIds: Array.isArray(data.userIds) ? data.userIds : [],
+          releaseAt: data.releaseAt?.toDate?.() ?? null,
+          markdown: data.markdown ?? "",
+          attachments: Array.isArray(data.attachments) ? data.attachments : [],
+        })
       })
-    })
-  })
+    } catch (error) {
+      if (!isFirestorePermissionDenied(error)) {
+        throw error
+      }
+    }
+  }
+
+  await Promise.all(chunks.map((idsChunk) => loadChunk(idsChunk)))
 
   return Array.from(deduped.values())
 }
@@ -304,7 +405,15 @@ export async function fetchUserDashboard(uid: string): Promise<DashboardCourse[]
   const courses = (
     await Promise.all(
       courseIds.map(async (courseId): Promise<Course | null> => {
-        const courseSnap = await getDoc(doc(firestore, COLLECTIONS.courses, courseId))
+        let courseSnap
+        try {
+          courseSnap = await getDoc(doc(firestore, COLLECTIONS.courses, courseId))
+        } catch (error) {
+          if (isFirestorePermissionDenied(error)) {
+            return null
+          }
+          throw error
+        }
         if (!courseSnap.exists()) {
           return null
         }
