@@ -32,6 +32,207 @@ function getDbOrThrow() {
   return db
 }
 
+const FIRESTORE_IN_LIMIT = 10
+
+function chunkArray<T>(items: T[], size = FIRESTORE_IN_LIMIT): T[][] {
+  const chunks: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+  return chunks
+}
+
+async function fetchEnrollmentsWithTrackFallback(
+  uid: string
+): Promise<Enrollment[]> {
+  const firestore = getDbOrThrow()
+
+  const enrollmentQuery = query(
+    collection(firestore, COLLECTIONS.enrollments),
+    where("userId", "==", uid)
+  )
+  const enrollmentSnapshots = await getDocs(enrollmentQuery)
+  const enrollments: Enrollment[] = enrollmentSnapshots.docs.map((docSnap) => {
+    const data = docSnap.data()
+    return {
+      id: docSnap.id,
+      userId: data.userId,
+      courseId: data.courseId,
+      status: data.status ?? "active",
+      progress: data.progress ?? 0,
+    }
+  })
+
+  if (enrollments.length) {
+    return enrollments
+  }
+
+  const trackSnapshot = await getDocs(
+    query(
+      collection(firestore, COLLECTIONS.tracks),
+      where("userIds", "array-contains", uid)
+    )
+  )
+  const fallbackCourseIds = Array.from(
+    new Set(
+      trackSnapshot.docs
+        .map((docSnap) => docSnap.data()?.courseId)
+        .filter((courseId): courseId is string => Boolean(courseId))
+    )
+  )
+
+  return fallbackCourseIds.map((courseId) => ({
+    id: `fallback-${courseId}-${uid}`,
+    userId: uid,
+    courseId,
+    status: "active",
+    progress: 0,
+  }))
+}
+
+async function fetchTracksVisibleToUserByCourseIds(
+  courseIds: string[],
+  uid: string
+): Promise<Track[]> {
+  const firestore = getDbOrThrow()
+  const chunks = chunkArray(courseIds)
+  const snapshots = await Promise.all(
+    chunks.flatMap((idsChunk) => [
+      getDocs(
+        query(
+          collection(firestore, COLLECTIONS.tracks),
+          where("courseId", "in", idsChunk),
+          where("userIds", "==", [])
+        )
+      ),
+      getDocs(
+        query(
+          collection(firestore, COLLECTIONS.tracks),
+          where("courseId", "in", idsChunk),
+          where("userIds", "array-contains", uid)
+        )
+      ),
+    ])
+  )
+
+  const deduped = new Map<string, Track>()
+  snapshots.forEach((snapshot) => {
+    snapshot.docs.forEach((docSnap) => {
+      const data = docSnap.data()
+      deduped.set(docSnap.id, {
+        id: docSnap.id,
+        courseId: data.courseId,
+        title: data.title ?? "",
+        description: data.description ?? "",
+        order: data.order ?? 0,
+        userIds: Array.isArray(data.userIds) ? data.userIds : [],
+      })
+    })
+  })
+
+  return Array.from(deduped.values())
+}
+
+async function fetchActivitiesVisibleToUserByCourseIds(
+  courseIds: string[],
+  uid: string
+): Promise<Activity[]> {
+  const firestore = getDbOrThrow()
+  const chunks = chunkArray(courseIds)
+  const snapshots = await Promise.all(
+    chunks.flatMap((idsChunk) => [
+      getDocs(
+        query(
+          collection(firestore, COLLECTIONS.activities),
+          where("courseId", "in", idsChunk),
+          where("visibility", "==", "module")
+        )
+      ),
+      getDocs(
+        query(
+          collection(firestore, COLLECTIONS.activities),
+          where("courseId", "in", idsChunk),
+          where("visibility", "==", "users"),
+          where("userIds", "array-contains", uid)
+        )
+      ),
+    ])
+  )
+
+  const deduped = new Map<string, Activity>()
+  snapshots.forEach((snapshot) => {
+    snapshot.docs.forEach((docSnap) => {
+      const data = docSnap.data()
+      deduped.set(docSnap.id, {
+        id: docSnap.id,
+        courseId: data.courseId,
+        trackId: data.trackId,
+        title: data.title ?? "",
+        type: data.type ?? "lesson",
+        order: data.order ?? 0,
+        estimatedMinutes: data.estimatedMinutes ?? 0,
+        visibility: data.visibility ?? "module",
+        userIds: Array.isArray(data.userIds) ? data.userIds : [],
+        releaseAt: data.releaseAt?.toDate?.() ?? null,
+        attachments: Array.isArray(data.attachments) ? data.attachments : [],
+        questions: Array.isArray(data.questions) ? data.questions : [],
+      })
+    })
+  })
+
+  return Array.from(deduped.values())
+}
+
+async function fetchMaterialsVisibleToUserByCourseIds(
+  courseIds: string[],
+  uid: string
+): Promise<Material[]> {
+  const firestore = getDbOrThrow()
+  const chunks = chunkArray(courseIds)
+  const snapshots = await Promise.all(
+    chunks.flatMap((idsChunk) => [
+      getDocs(
+        query(
+          collection(firestore, COLLECTIONS.materials),
+          where("courseId", "in", idsChunk),
+          where("visibility", "==", "module")
+        )
+      ),
+      getDocs(
+        query(
+          collection(firestore, COLLECTIONS.materials),
+          where("courseId", "in", idsChunk),
+          where("visibility", "==", "users"),
+          where("userIds", "array-contains", uid)
+        )
+      ),
+    ])
+  )
+
+  const deduped = new Map<string, Material>()
+  snapshots.forEach((snapshot) => {
+    snapshot.docs.forEach((docSnap) => {
+      const data = docSnap.data()
+      deduped.set(docSnap.id, {
+        id: docSnap.id,
+        activityId: data.activityId ?? undefined,
+        courseId: data.courseId ?? undefined,
+        trackId: data.trackId ?? undefined,
+        title: data.title ?? "",
+        type: data.type ?? undefined,
+        url: data.url ?? "",
+        visibility: data.visibility ?? "module",
+        userIds: Array.isArray(data.userIds) ? data.userIds : [],
+        releaseAt: data.releaseAt?.toDate?.() ?? null,
+        markdown: data.markdown ?? "",
+        attachments: Array.isArray(data.attachments) ? data.attachments : [],
+      })
+    })
+  })
+
+  return Array.from(deduped.values())
+}
+
 
 export async function fetchUserProfile(uid: string): Promise<UserProfile | null> {
   const firestore = getDbOrThrow()
@@ -91,84 +292,39 @@ export async function setUserMustChangePassword(params: {
 export async function fetchUserDashboard(uid: string): Promise<DashboardCourse[]> {
   const firestore = getDbOrThrow()
   const now = new Date()
-
-  const enrollmentQuery = query(
-    collection(firestore, COLLECTIONS.enrollments),
-    where("userId", "==", uid)
-  )
-
-  const enrollmentSnapshots = await getDocs(enrollmentQuery)
-  const enrollments: Enrollment[] = enrollmentSnapshots.docs.map((docSnap) => {
-    const data = docSnap.data()
-    return {
-      id: docSnap.id,
-      userId: data.userId,
-      courseId: data.courseId,
-      status: data.status ?? "active",
-      progress: data.progress ?? 0,
-    }
-  })
+  const enrollments = await fetchEnrollmentsWithTrackFallback(uid)
 
   if (!enrollments.length) {
     return []
   }
 
-  const courseIds = enrollments.map((enrollment) => enrollment.courseId)
-  const courses = await Promise.all(
-    courseIds.map(async (courseId): Promise<Course | null> => {
-      const courseSnap = await getDoc(doc(firestore, COLLECTIONS.courses, courseId))
-      if (!courseSnap.exists()) {
-        return null
-      }
-      const data = courseSnap.data()
-      return {
-        id: courseSnap.id,
-        title: data.title ?? "",
-        description: data.description ?? "",
-        level: data.level ?? "Beginner",
-        durationWeeks: data.durationWeeks ?? 0,
-        coverUrl: data.coverUrl ?? undefined,
-      } satisfies Course
-    })
+  const courseIds = Array.from(
+    new Set(enrollments.map((enrollment) => enrollment.courseId))
   )
+  const courses = (
+    await Promise.all(
+      courseIds.map(async (courseId): Promise<Course | null> => {
+        const courseSnap = await getDoc(doc(firestore, COLLECTIONS.courses, courseId))
+        if (!courseSnap.exists()) {
+          return null
+        }
+        const data = courseSnap.data()
+        return {
+          id: courseSnap.id,
+          title: data.title ?? "",
+          description: data.description ?? "",
+          level: data.level ?? "Beginner",
+          durationWeeks: data.durationWeeks ?? 0,
+          coverUrl: data.coverUrl ?? undefined,
+        } satisfies Course
+      })
+    )
+  ).filter((course): course is Course => course !== null)
 
-  const tracksQuery = query(
-    collection(firestore, COLLECTIONS.tracks),
-    where("courseId", "in", courseIds)
-  )
-  const trackSnapshots = await getDocs(tracksQuery)
-  const tracks: Track[] = trackSnapshots.docs.map((docSnap) => {
-    const data = docSnap.data()
-    return {
-      id: docSnap.id,
-      courseId: data.courseId,
-      title: data.title ?? "",
-      description: data.description ?? "",
-      order: data.order ?? 0,
-      userIds: Array.isArray(data.userIds) ? data.userIds : [],
-    }
-  })
-
-  const activitiesQuery = query(
-    collection(firestore, COLLECTIONS.activities),
-    where("courseId", "in", courseIds)
-  )
-  const activitySnapshots = await getDocs(activitiesQuery)
-  const activities: Activity[] = activitySnapshots.docs.map((docSnap) => {
-    const data = docSnap.data()
-    return {
-      id: docSnap.id,
-      courseId: data.courseId,
-      trackId: data.trackId,
-      title: data.title ?? "",
-      type: data.type ?? "lesson",
-      order: data.order ?? 0,
-      estimatedMinutes: data.estimatedMinutes ?? 0,
-      visibility: data.visibility ?? "module",
-      userIds: Array.isArray(data.userIds) ? data.userIds : [],
-      releaseAt: data.releaseAt?.toDate?.() ?? null,
-    }
-  })
+  const [tracks, activities] = await Promise.all([
+    fetchTracksVisibleToUserByCourseIds(courseIds, uid),
+    fetchActivitiesVisibleToUserByCourseIds(courseIds, uid),
+  ])
 
   const dashboardCourses = enrollments.map(
     (enrollment): DashboardCourse | null => {
@@ -222,73 +378,21 @@ export async function fetchUserDashboard(uid: string): Promise<DashboardCourse[]
 }
 
 export async function fetchUserMaterials(uid: string): Promise<Material[]> {
-  const firestore = getDbOrThrow()
   const now = new Date()
-
-  const enrollmentQuery = query(
-    collection(firestore, COLLECTIONS.enrollments),
-    where("userId", "==", uid)
-  )
-
-  const enrollmentSnapshots = await getDocs(enrollmentQuery)
-  const enrollments: Enrollment[] = enrollmentSnapshots.docs.map((docSnap) => {
-    const data = docSnap.data()
-    return {
-      id: docSnap.id,
-      userId: data.userId,
-      courseId: data.courseId,
-      status: data.status ?? "active",
-      progress: data.progress ?? 0,
-    }
-  })
+  const enrollments = await fetchEnrollmentsWithTrackFallback(uid)
 
   if (!enrollments.length) {
     return []
   }
 
-  const courseIds = enrollments.map((enrollment) => enrollment.courseId)
-  const tracksQuery = query(
-    collection(firestore, COLLECTIONS.tracks),
-    where("courseId", "in", courseIds)
+  const courseIds = Array.from(
+    new Set(enrollments.map((enrollment) => enrollment.courseId))
   )
-  const trackSnapshots = await getDocs(tracksQuery)
-  const availableTrackIds = new Set(
-    trackSnapshots.docs
-      .map((docSnap) => {
-        const data = docSnap.data()
-        const userIds = Array.isArray(data.userIds) ? data.userIds : []
-        if (userIds.length && !userIds.includes(uid)) {
-          return null
-        }
-        return docSnap.id
-      })
-      .filter((id): id is string => Boolean(id))
-  )
+  const tracks = await fetchTracksVisibleToUserByCourseIds(courseIds, uid)
+  const availableTrackIds = new Set(tracks.map((track) => track.id))
+  const materials = await fetchMaterialsVisibleToUserByCourseIds(courseIds, uid)
 
-  const materialsQuery = query(
-    collection(firestore, COLLECTIONS.materials),
-    where("courseId", "in", courseIds)
-  )
-  const materialsSnapshot = await getDocs(materialsQuery)
-
-  return materialsSnapshot.docs
-    .map((docSnap) => {
-      const data = docSnap.data()
-      return {
-        id: docSnap.id,
-        activityId: data.activityId ?? undefined,
-        courseId: data.courseId ?? undefined,
-        trackId: data.trackId ?? undefined,
-        title: data.title ?? "",
-        type: data.type ?? undefined,
-        url: data.url ?? "",
-        visibility: data.visibility ?? "module",
-        userIds: Array.isArray(data.userIds) ? data.userIds : [],
-        releaseAt: data.releaseAt?.toDate?.() ?? null,
-        markdown: data.markdown ?? "",
-        attachments: Array.isArray(data.attachments) ? data.attachments : [],
-      } satisfies Material
-    })
+  return materials
     .filter((material) =>
       material.trackId ? availableTrackIds.has(material.trackId) : true
     )
@@ -312,73 +416,21 @@ export async function fetchUserMaterials(uid: string): Promise<Material[]> {
 }
 
 export async function fetchUserActivities(uid: string): Promise<Activity[]> {
-  const firestore = getDbOrThrow()
   const now = new Date()
-
-  const enrollmentQuery = query(
-    collection(firestore, COLLECTIONS.enrollments),
-    where("userId", "==", uid)
-  )
-
-  const enrollmentSnapshots = await getDocs(enrollmentQuery)
-  const enrollments: Enrollment[] = enrollmentSnapshots.docs.map((docSnap) => {
-    const data = docSnap.data()
-    return {
-      id: docSnap.id,
-      userId: data.userId,
-      courseId: data.courseId,
-      status: data.status ?? "active",
-      progress: data.progress ?? 0,
-    }
-  })
+  const enrollments = await fetchEnrollmentsWithTrackFallback(uid)
 
   if (!enrollments.length) {
     return []
   }
 
-  const courseIds = enrollments.map((enrollment) => enrollment.courseId)
-  const tracksQuery = query(
-    collection(firestore, COLLECTIONS.tracks),
-    where("courseId", "in", courseIds)
+  const courseIds = Array.from(
+    new Set(enrollments.map((enrollment) => enrollment.courseId))
   )
-  const trackSnapshots = await getDocs(tracksQuery)
-  const availableTrackIds = new Set(
-    trackSnapshots.docs
-      .map((docSnap) => {
-        const data = docSnap.data()
-        const userIds = Array.isArray(data.userIds) ? data.userIds : []
-        if (userIds.length && !userIds.includes(uid)) {
-          return null
-        }
-        return docSnap.id
-      })
-      .filter((id): id is string => Boolean(id))
-  )
+  const tracks = await fetchTracksVisibleToUserByCourseIds(courseIds, uid)
+  const availableTrackIds = new Set(tracks.map((track) => track.id))
+  const activities = await fetchActivitiesVisibleToUserByCourseIds(courseIds, uid)
 
-  const activitiesQuery = query(
-    collection(firestore, COLLECTIONS.activities),
-    where("courseId", "in", courseIds)
-  )
-  const activitiesSnapshot = await getDocs(activitiesQuery)
-
-  return activitiesSnapshot.docs
-    .map((docSnap) => {
-      const data = docSnap.data()
-      return {
-        id: docSnap.id,
-        courseId: data.courseId,
-        trackId: data.trackId,
-        title: data.title ?? "",
-        type: data.type ?? "lesson",
-        order: data.order ?? 0,
-        estimatedMinutes: data.estimatedMinutes ?? 0,
-        visibility: data.visibility ?? "module",
-        userIds: Array.isArray(data.userIds) ? data.userIds : [],
-        releaseAt: data.releaseAt?.toDate?.() ?? null,
-        attachments: Array.isArray(data.attachments) ? data.attachments : [],
-        questions: Array.isArray(data.questions) ? data.questions : [],
-      } satisfies Activity
-    })
+  return activities
     .filter((activity) => availableTrackIds.has(activity.trackId))
     .filter((activity) => {
       const visibility = activity.visibility ?? "module"

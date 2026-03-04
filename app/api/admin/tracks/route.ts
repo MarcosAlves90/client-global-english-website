@@ -142,6 +142,102 @@ async function deleteDocsInBatches(
   }
 }
 
+async function syncCourseEnrollmentsByTracks(courseId: string) {
+  const [tracksSnapshot, enrollmentsSnapshot] = await Promise.all([
+    adminDb.collection(COLLECTIONS.tracks).where("courseId", "==", courseId).get(),
+    adminDb
+      .collection(COLLECTIONS.enrollments)
+      .where("courseId", "==", courseId)
+      .get(),
+  ])
+
+  const assignedUserIds = new Set<string>()
+  tracksSnapshot.docs.forEach((trackSnap) => {
+    const trackData = trackSnap.data()
+    const userIds = Array.isArray(trackData?.userIds) ? trackData.userIds : []
+    userIds.forEach((id: unknown) => {
+      if (typeof id === "string" && id.trim()) {
+        assignedUserIds.add(id.trim())
+      }
+    })
+  })
+
+  const enrollmentByUserId = new Map<
+    string,
+    FirebaseFirestore.QueryDocumentSnapshot
+  >()
+  enrollmentsSnapshot.docs.forEach((enrollmentSnap) => {
+    const enrollmentData = enrollmentSnap.data()
+    const userId =
+      typeof enrollmentData?.userId === "string"
+        ? enrollmentData.userId.trim()
+        : ""
+    if (userId) {
+      enrollmentByUserId.set(userId, enrollmentSnap)
+    }
+  })
+
+  const now = admin.firestore.FieldValue.serverTimestamp()
+  let batch = adminDb.batch()
+  let pendingWrites = 0
+  let hasMutations = false
+
+  const flushBatch = async () => {
+    if (!pendingWrites) {
+      return
+    }
+    await batch.commit()
+    batch = adminDb.batch()
+    pendingWrites = 0
+  }
+
+  for (const userId of assignedUserIds) {
+    if (enrollmentByUserId.has(userId)) {
+      continue
+    }
+    const ref = adminDb.collection(COLLECTIONS.enrollments).doc()
+    batch.set(ref, {
+      userId,
+      courseId,
+      status: "active",
+      progress: 0,
+      source: "track_assignment",
+      createdAt: now,
+      updatedAt: now,
+    })
+    pendingWrites += 1
+    hasMutations = true
+    if (pendingWrites >= 450) {
+      await flushBatch()
+    }
+  }
+
+  for (const enrollmentSnap of enrollmentsSnapshot.docs) {
+    const enrollmentData = enrollmentSnap.data()
+    const userId =
+      typeof enrollmentData?.userId === "string"
+        ? enrollmentData.userId.trim()
+        : ""
+    const source = typeof enrollmentData?.source === "string" ? enrollmentData.source : ""
+    if (!userId || assignedUserIds.has(userId)) {
+      return
+    }
+    // Remove only enrollments created by automatic track assignment.
+    if (source === "track_assignment") {
+      batch.delete(enrollmentSnap.ref)
+      pendingWrites += 1
+      hasMutations = true
+    }
+    if (pendingWrites >= 450) {
+      await flushBatch()
+    }
+  }
+
+  if (hasMutations) {
+    await flushBatch()
+  }
+}
+
 function extractAttachmentUrlsFromDocs(
   docs: FirebaseFirestore.QueryDocumentSnapshot[]
 ) {
@@ -266,6 +362,8 @@ export async function POST(req: NextRequest) {
       createdBy: authCheck.uid,
     })
 
+    await syncCourseEnrollmentsByTracks(courseId)
+
     const result: Track = {
       id: ref.id,
       courseId,
@@ -307,6 +405,7 @@ export async function PATCH(req: NextRequest) {
   const updates: Record<string, unknown> = {
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   }
+  let touchedCourseId: string | null = null
 
   if (body.title !== undefined) {
     const title = body.title.trim()
@@ -368,12 +467,17 @@ export async function PATCH(req: NextRequest) {
     }
 
     updates.userIds = userIds
+    touchedCourseId = courseId
   }
 
   try {
     await adminDb.collection(COLLECTIONS.tracks).doc(id).set(updates, {
       merge: true,
     })
+
+    if (touchedCourseId) {
+      await syncCourseEnrollmentsByTracks(touchedCourseId)
+    }
 
     return NextResponse.json({ ok: true })
   } catch (err) {
@@ -411,6 +515,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Track not found" }, { status: 404 })
     }
 
+    const trackData = trackSnap.data()
+    const courseId = typeof trackData?.courseId === "string" ? trackData.courseId : ""
+
     const [materialsSnapshot, activitiesSnapshot] = await Promise.all([
       adminDb.collection(COLLECTIONS.materials).where("trackId", "==", id).get(),
       adminDb
@@ -428,6 +535,9 @@ export async function DELETE(req: NextRequest) {
     await deleteDocsInBatches(materialsSnapshot.docs)
     await deleteDocsInBatches(activitiesSnapshot.docs)
     await trackRef.delete()
+    if (courseId) {
+      await syncCourseEnrollmentsByTracks(courseId)
+    }
 
     return NextResponse.json({ ok: true })
   } catch (err) {

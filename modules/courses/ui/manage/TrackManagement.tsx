@@ -134,6 +134,9 @@ export function TrackManagement() {
                                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Alunos no Módulo</Label>
                                 <span className="text-[10px] font-bold text-primary px-2 py-0.5 rounded-full bg-primary/5">{form.userIds.length} selecionado(s)</span>
                             </div>
+                            <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
+                                Alunos adicionados em qualquer módulo são matriculados automaticamente no curso.
+                            </p>
 
                             <Input
                                 placeholder="Buscar por nome ou email..."
