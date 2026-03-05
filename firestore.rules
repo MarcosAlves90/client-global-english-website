@@ -65,6 +65,24 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /activityProgress/{progressId} {
+      allow read: if isAdmin()
+        || (
+          isSignedIn()
+          && (
+            (resource != null && resource.data.userId == request.auth.uid)
+            || progressId.matches('^' + request.auth.uid + '_.*$')
+          )
+        );
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
     match /{document=**} {
       allow read, write: if isAdmin();
     }

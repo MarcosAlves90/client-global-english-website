@@ -31,6 +31,8 @@ interface StudentActivityCardProps {
   className?: string
   onOpen?: (id: string) => void
   onComplete?: (id: string) => void
+  canComplete?: boolean
+  completeDisabledReason?: string
 }
 
 const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -82,12 +84,16 @@ export function StudentActivityCard({
   className,
   onOpen,
   onComplete,
+  canComplete = false,
+  completeDisabledReason = "Disponível após finalizar a atividade.",
 }: StudentActivityCardProps) {
   const Icon = typeIcons[activity.type] || BookOpen
   const status = activity.status || "in_progress"
   const statusConfig = statusConfigByKey[status] ?? statusConfigByKey.in_progress
   const StatusIcon = statusConfig.icon
   const actionLabel = getPrimaryActionLabel(status)
+  const isCompleteActionDisabled =
+    status === "completed" || !onComplete || !canComplete
 
   if (variant === "compact") {
     return (
@@ -178,9 +184,11 @@ export function StudentActivityCard({
             variant="outline"
             className="rounded-full font-semibold border-primary/20"
             onClick={() => onComplete?.(activity.id)}
+            disabled={isCompleteActionDisabled}
+            title={isCompleteActionDisabled ? completeDisabledReason : undefined}
           >
             <CheckCircle2 className="mr-2 size-4" />
-            Marcar concluida
+            {status === "completed" ? "Concluida" : "Marcar concluida"}
           </Button>
         </div>
       </CardContent>

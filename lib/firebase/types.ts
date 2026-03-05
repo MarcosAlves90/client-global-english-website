@@ -77,6 +77,27 @@ export type Enrollment = {
   progress: number
 }
 
+export type ActivityAnswerValue = string | string[] | boolean | null
+
+export type ActivityProgressStatus = "not_started" | "in_progress" | "completed"
+
+export type ActivityProgress = {
+  id: string
+  userId: string
+  activityId: string
+  courseId: string
+  trackId: string
+  status: ActivityProgressStatus
+  answers: Record<string, ActivityAnswerValue>
+  answeredCount: number
+  totalQuestions: number
+  completionPercent: number
+  scorePercent: number | null
+  submittedAt: Date | null
+  createdAt: Date | null
+  updatedAt: Date | null
+}
+
 export type DashboardCourse = Course & {
   enrollment: Enrollment
   tracks: Track[]

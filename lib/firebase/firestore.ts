@@ -12,6 +12,9 @@ import { db, hasFirebaseConfig } from "@/lib/firebase/client"
 import { COLLECTIONS } from "@/lib/firebase/collections"
 import type {
   Activity,
+  ActivityAnswerValue,
+  ActivityProgress,
+  ActivityProgressStatus,
   AdminCourseSummary,
   AdminOverview,
   AdminUserSummary,
@@ -558,6 +561,124 @@ export async function fetchUserActivities(uid: string): Promise<Activity[]> {
       return releaseAt <= now
     })
     .sort((a, b) => a.order - b.order)
+}
+
+function mapActivityProgress(docId: string, data: Record<string, unknown>): ActivityProgress {
+  return {
+    id: docId,
+    userId: String(data.userId ?? ""),
+    activityId: String(data.activityId ?? ""),
+    courseId: String(data.courseId ?? ""),
+    trackId: String(data.trackId ?? ""),
+    status: (data.status ?? "not_started") as ActivityProgressStatus,
+    answers:
+      data.answers && typeof data.answers === "object"
+        ? (data.answers as Record<string, ActivityAnswerValue>)
+        : {},
+    answeredCount: Number(data.answeredCount ?? 0),
+    totalQuestions: Number(data.totalQuestions ?? 0),
+    completionPercent: Number(data.completionPercent ?? 0),
+    scorePercent:
+      typeof data.scorePercent === "number" ? Number(data.scorePercent) : null,
+    submittedAt: data.submittedAt && typeof data.submittedAt === "object" && "toDate" in data.submittedAt
+      ? (data.submittedAt as { toDate: () => Date }).toDate()
+      : null,
+    createdAt: data.createdAt && typeof data.createdAt === "object" && "toDate" in data.createdAt
+      ? (data.createdAt as { toDate: () => Date }).toDate()
+      : null,
+    updatedAt: data.updatedAt && typeof data.updatedAt === "object" && "toDate" in data.updatedAt
+      ? (data.updatedAt as { toDate: () => Date }).toDate()
+      : null,
+  }
+}
+
+export async function fetchUserActivityProgress(uid: string, activityId: string): Promise<ActivityProgress | null> {
+  const firestore = getDbOrThrow()
+  const docId = `${uid}_${activityId}`
+  const ref = doc(firestore, COLLECTIONS.activityProgress, docId)
+  let snapshot
+  try {
+    snapshot = await getDoc(ref)
+  } catch (error) {
+    if (isFirestorePermissionDenied(error)) {
+      return null
+    }
+    throw error
+  }
+
+  if (!snapshot.exists()) {
+    return null
+  }
+
+  const data = snapshot.data() as Record<string, unknown>
+  return mapActivityProgress(snapshot.id, data)
+}
+
+export async function fetchUserActivityProgressList(uid: string): Promise<ActivityProgress[]> {
+  const firestore = getDbOrThrow()
+  let snapshot
+  try {
+    snapshot = await getDocs(
+      query(
+        collection(firestore, COLLECTIONS.activityProgress),
+        where("userId", "==", uid)
+      )
+    )
+  } catch (error) {
+    if (isFirestorePermissionDenied(error)) {
+      return []
+    }
+    throw error
+  }
+
+  return snapshot.docs
+    .map((docSnap) =>
+      mapActivityProgress(docSnap.id, docSnap.data() as Record<string, unknown>)
+    )
+    .sort((a, b) => {
+      const left = a.updatedAt?.getTime() ?? 0
+      const right = b.updatedAt?.getTime() ?? 0
+      return right - left
+    })
+}
+
+export async function upsertUserActivityProgress(params: {
+  uid: string
+  activityId: string
+  courseId: string
+  trackId: string
+  status: ActivityProgressStatus
+  answers: Record<string, ActivityAnswerValue>
+  answeredCount: number
+  totalQuestions: number
+  completionPercent: number
+  scorePercent: number | null
+  markSubmitted: boolean
+}) {
+  const firestore = getDbOrThrow()
+  const docId = `${params.uid}_${params.activityId}`
+  const ref = doc(firestore, COLLECTIONS.activityProgress, docId)
+  const snapshot = await getDoc(ref)
+
+  await setDoc(
+    ref,
+    {
+      ...(snapshot.exists() ? {} : { createdAt: serverTimestamp() }),
+      userId: params.uid,
+      activityId: params.activityId,
+      courseId: params.courseId,
+      trackId: params.trackId,
+      status: params.status,
+      answers: params.answers,
+      answeredCount: params.answeredCount,
+      totalQuestions: params.totalQuestions,
+      completionPercent: params.completionPercent,
+      scorePercent: params.scorePercent,
+      submittedAt: params.markSubmitted ? serverTimestamp() : null,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  )
 }
 
 export async function fetchAdminUsers(): Promise<AdminUserSummary[]> {

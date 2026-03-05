@@ -16,7 +16,7 @@ import { DashboardStatCard } from "@/components/dashboard-stat-card"
 import { StudentCourseCard } from "@/modules/courses/ui/student-course-card"
 import { StudentActivityCard } from "@/modules/activities/ui/student-activity-card"
 import { useAuth } from "@/hooks/use-auth"
-import { fetchUserDashboard } from "@/lib/firebase/firestore"
+import { fetchUserActivityProgressList, fetchUserDashboard } from "@/lib/firebase/firestore"
 import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
 import type { DashboardCourse } from "@/lib/firebase/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,6 +25,7 @@ export default function Page() {
   const router = useRouter()
   const { user, loading, isFirebaseReady } = useAuth()
   const [courses, setCourses] = React.useState<DashboardCourse[]>([])
+  const [progressByActivityId, setProgressByActivityId] = React.useState<Map<string, "not_started" | "in_progress" | "completed">>(new Map())
   const [isLoading, setIsLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -44,8 +45,15 @@ export default function Page() {
       setIsLoading(true)
       try {
         setError(null)
-        const data = await fetchUserDashboard(user.uid)
+        const [data, progressList] = await Promise.all([
+          fetchUserDashboard(user.uid),
+          fetchUserActivityProgressList(user.uid),
+        ])
+        const nextProgressMap = new Map(
+          progressList.map((item) => [item.activityId, item.status] as const)
+        )
         setCourses(data)
+        setProgressByActivityId(nextProgressMap)
       } catch (error) {
         setError(
           toFriendlyFirestoreLoadError(
@@ -199,9 +207,15 @@ export default function Page() {
                     key={activity.id}
                     activity={{
                       ...activity,
-                      status: "in_progress",
+                      status:
+                        progressByActivityId.get(activity.id) === "completed"
+                          ? "completed"
+                          : progressByActivityId.get(activity.id) === "in_progress"
+                            ? "in_progress"
+                            : "pending",
                     }}
                     variant="compact"
+                    onOpen={(id) => router.push(`/dashboard/activities/${id}`)}
                   />
                 ))
               ) : (

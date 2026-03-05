@@ -1,6 +1,7 @@
 ﻿"use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   ClipboardCheck,
   Clock,
@@ -15,7 +16,11 @@ import { DashboardStatCard } from "@/components/dashboard-stat-card"
 import { StudentActivityCard } from "@/modules/activities/ui/student-activity-card"
 import { useAuth } from "@/hooks/use-auth"
 import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
-import { fetchUserActivities, fetchUserDashboard } from "@/lib/firebase/firestore"
+import {
+  fetchUserActivities,
+  fetchUserActivityProgressList,
+  fetchUserDashboard,
+} from "@/lib/firebase/firestore"
 
 
 type ActivityView = {
@@ -25,9 +30,11 @@ type ActivityView = {
   trackTitle: string
   type: string
   estimatedMinutes: number
+  status: "pending" | "completed" | "in_progress"
 }
 
 export default function Page() {
+  const router = useRouter()
   const { user, isFirebaseReady } = useAuth()
   const [activities, setActivities] = React.useState<ActivityView[]>([])
   const [loading, setLoading] = React.useState(false)
@@ -42,10 +49,14 @@ export default function Page() {
       setLoading(true)
       try {
         setError(null)
-        const [dashboard, items] = await Promise.all([
+        const [dashboard, items, progressItems] = await Promise.all([
           fetchUserDashboard(user.uid),
           fetchUserActivities(user.uid),
+          fetchUserActivityProgressList(user.uid),
         ])
+        const progressByActivityId = new Map(
+          progressItems.map((item) => [item.activityId, item] as const)
+        )
         const trackById = new Map(
           dashboard.flatMap((course) =>
             course.tracks.map((track) => [track.id, track.title] as const)
@@ -61,6 +72,12 @@ export default function Page() {
           trackTitle: trackById.get(activity.trackId) ?? "",
           type: activity.type,
           estimatedMinutes: activity.estimatedMinutes,
+          status:
+            progressByActivityId.get(activity.id)?.status === "completed"
+              ? "completed"
+              : progressByActivityId.get(activity.id)
+                ? "in_progress"
+                : "pending",
         }))
         setActivities(flattened)
       } catch (error) {
@@ -92,6 +109,14 @@ export default function Page() {
         acc[activity.type] = (acc[activity.type] ?? 0) + 1
         return acc
       }, {}),
+    [activities]
+  )
+  const completedCount = React.useMemo(
+    () => activities.filter((activity) => activity.status === "completed").length,
+    [activities]
+  )
+  const inProgressCount = React.useMemo(
+    () => activities.filter((activity) => activity.status === "in_progress").length,
     [activities]
   )
 
@@ -132,15 +157,15 @@ export default function Page() {
             icon={Target}
           />
           <DashboardStatCard
-            title="Em andamento"
-            value={activities.length}
+            title="Concluídas"
+            value={completedCount}
             icon={ListChecks}
           />
         </div>
 
         <DashboardSectionHeader
           title="Minhas Atividades"
-          description="Acompanhe pendências, entregas e feedbacks das aulas."
+          description={`Acompanhe pendências, entregas e feedbacks das aulas. ${inProgressCount} em andamento.`}
           icon={ClipboardCheck}
         />
 
@@ -169,8 +194,8 @@ export default function Page() {
                 key={activity.id}
                 activity={{
                   ...activity,
-                  status: "in_progress",
                 }}
+                onOpen={(id) => router.push(`/dashboard/activities/${id}`)}
               />
             ))}
           </div>
