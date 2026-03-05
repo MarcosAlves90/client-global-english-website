@@ -36,7 +36,7 @@ const statusConfigByKey: Record<string, StatusConfig> = {
     icon: Play,
   },
   completed: {
-    label: "Concluido",
+    label: "Concluído",
     chipClass: "border-emerald-500/25 bg-emerald-500/10 text-emerald-500",
     icon: CheckCircle2,
   },
@@ -188,7 +188,7 @@ export function StudentCourseCard({
         </div>
       </div>
 
-      <CardContent className="flex flex-1 flex-col gap-4 p-5">
+      <CardContent className="flex flex-1 flex-col gap-4 p-5 pt-0">
         <div className="space-y-1.5">
           <h3 className="line-clamp-1 text-lg font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
             {course.title}
@@ -225,7 +225,7 @@ export function StudentCourseCard({
           </div>
           <div className="rounded-xl border border-primary/10 bg-background/70 p-2.5 text-center">
             <ClipboardList className="mx-auto mb-1 size-3.5 text-primary/80" />
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">Duracao</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">Duração</p>
             <p className="text-sm font-bold text-foreground">{course.durationWeeks} sem</p>
           </div>
         </div>
