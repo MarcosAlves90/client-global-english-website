@@ -120,6 +120,30 @@ export type AdminCourseSummary = {
   activitiesCount: number
 }
 
+export type AdminActivityResponse = {
+  id: string
+  userId: string
+  activityId: string
+  courseId: string
+  trackId: string
+  status: ActivityProgressStatus
+  answers: Record<string, ActivityAnswerValue>
+  answeredCount: number
+  totalQuestions: number
+  completionPercent: number
+  scorePercent: number | null
+  submittedAt: Date | string | null
+  createdAt: Date | string | null
+  updatedAt: Date | string | null
+  user?: {
+    uid: string
+    name: string
+    email: string
+    photoURL?: string | null
+    isRobot?: boolean
+  }
+}
+
 export type AdminOverview = {
   usersCount: number
   coursesCount: number

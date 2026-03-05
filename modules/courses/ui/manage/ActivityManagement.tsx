@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/tooltip"
 import { useCourseManagement, ActivityForm } from "./CourseManagementContext"
 import { ReleaseControls } from "./ReleaseControls"
-import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "./constants"
+import { ACTIVITY_TYPE_LABELS } from "./constants"
 import { deleteImage, getPublicIdFromUrl, uploadImage } from "@/lib/cloudinary-actions"
 import { MATERIAL_TYPE_LABELS } from "./constants"
 import { toast } from "sonner"
@@ -65,6 +65,29 @@ function reindexRecordByRemovedIndex<T>(record: Record<number, T>, removedIndex:
     return Object.fromEntries(entries)
 }
 
+function formatDateTime(value: Date | string | null | undefined) {
+    if (!value) return "Sem data"
+    const parsed = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(parsed.getTime())) return "Sem data"
+    return new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short",
+    }).format(parsed)
+}
+
+function formatAnswerValue(value: string | string[] | boolean | null | undefined) {
+    if (Array.isArray(value)) {
+        return value.length ? value.join(", ") : "Sem resposta"
+    }
+    if (typeof value === "boolean") {
+        return value ? "Verdadeiro" : "Falso"
+    }
+    if (typeof value === "string") {
+        return value.trim() || "Sem resposta"
+    }
+    return "Sem resposta"
+}
+
 type ActivityManagementProps = {
     showCreatePanel: boolean
 }
@@ -73,6 +96,7 @@ export function ActivityManagement({ showCreatePanel }: ActivityManagementProps)
     const {
         tracks,
         activities,
+        activityResponses,
         availableUsers,
         loading,
         loadActivities,
@@ -362,6 +386,94 @@ export function ActivityManagement({ showCreatePanel }: ActivityManagementProps)
             )
             .slice(0, 5)
     }, [availableUsers, form.userIds, userSearch])
+
+    const responsesByActivityId = React.useMemo(() => {
+        return activityResponses.reduce<Record<string, typeof activityResponses>>((acc, response) => {
+            const key = response.activityId
+            if (!key) return acc
+            if (!acc[key]) {
+                acc[key] = []
+            }
+            acc[key].push(response)
+            return acc
+        }, {})
+    }, [activityResponses])
+
+    const [selectedActivityId, setSelectedActivityId] = React.useState("")
+    const [insightsTab, setInsightsTab] = React.useState<"overview" | "responses" | "questions" | "attachments">("overview")
+    const [responseSearch, setResponseSearch] = React.useState("")
+    const [expandedResponseId, setExpandedResponseId] = React.useState<string | null>(null)
+
+    const trackById = React.useMemo(
+        () => new Map(tracks.map((track) => [track.id, track] as const)),
+        [tracks]
+    )
+
+    const activitiesOrdered = React.useMemo(() => {
+        return [...activities].sort((a, b) => {
+            const trackOrderLeft = trackById.get(a.trackId)?.order ?? 0
+            const trackOrderRight = trackById.get(b.trackId)?.order ?? 0
+            if (trackOrderLeft !== trackOrderRight) {
+                return trackOrderLeft - trackOrderRight
+            }
+            return (a.order ?? 0) - (b.order ?? 0)
+        })
+    }, [activities, trackById])
+
+    React.useEffect(() => {
+        if (!activitiesOrdered.length) {
+            if (selectedActivityId) {
+                setSelectedActivityId("")
+            }
+            return
+        }
+
+        const exists = activitiesOrdered.some((activity) => activity.id === selectedActivityId)
+        if (!exists) {
+            setSelectedActivityId(activitiesOrdered[0]?.id ?? "")
+        }
+    }, [activitiesOrdered, selectedActivityId])
+
+    React.useEffect(() => {
+        setResponseSearch("")
+        setExpandedResponseId(null)
+        setInsightsTab("overview")
+    }, [selectedActivityId])
+
+    const selectedActivity = React.useMemo(
+        () => activitiesOrdered.find((activity) => activity.id === selectedActivityId) ?? null,
+        [activitiesOrdered, selectedActivityId]
+    )
+
+    const selectedQuestions = React.useMemo(
+        () => (selectedActivity && Array.isArray(selectedActivity.questions) ? selectedActivity.questions : []),
+        [selectedActivity]
+    )
+
+    const selectedResponses = React.useMemo(
+        () => (selectedActivity ? (responsesByActivityId[selectedActivity.id] ?? []) : []),
+        [responsesByActivityId, selectedActivity]
+    )
+
+    const filteredSelectedResponses = React.useMemo(() => {
+        const query = responseSearch.trim().toLowerCase()
+        if (!query) return selectedResponses
+        return selectedResponses.filter((response) => {
+            const name = response.user?.name?.toLowerCase() ?? ""
+            const email = response.user?.email?.toLowerCase() ?? ""
+            const uid = response.userId.toLowerCase()
+            return name.includes(query) || email.includes(query) || uid.includes(query)
+        })
+    }, [selectedResponses, responseSearch])
+
+    const totalResponsesAllActivities = activityResponses.length
+    const completedResponsesAllActivities = activityResponses.filter((response) => response.status === "completed")
+    const averageScoreAllActivities = completedResponsesAllActivities.length > 0
+        ? Math.round(
+            completedResponsesAllActivities.reduce((acc, item) => acc + (item.scorePercent ?? 0), 0)
+            / completedResponsesAllActivities.length
+        )
+        : null
 
 
 
@@ -978,149 +1090,282 @@ export function ActivityManagement({ showCreatePanel }: ActivityManagementProps)
                         ) : tracks.length === 0 || activities.length === 0 ? (
                             <p className="text-[10px] text-muted-foreground/40 text-center py-12 font-bold uppercase tracking-widest">Aguardando novos desafios...</p>
                         ) : (
-                            tracks.map(track => {
-                                const trackActivities = activities.filter(a => a.trackId === track.id)
-                                if (!trackActivities.length) return null
-                                return (
-                                    <div key={track.id} className="space-y-3">
-                                        <p className="wrap-break-word text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500/60 border-b border-blue-500/10 pb-1 mb-3">{track.title}</p>
-                                        {trackActivities.map((a) => {
-                                            const Icon = ACTIVITY_TYPE_ICONS[a.type as keyof typeof ACTIVITY_TYPE_ICONS] || FileText
-                                            const questions = Array.isArray(a.questions) ? a.questions : []
-                                            return (
-                                                <Collapsible key={a.id} className="overflow-hidden rounded-2xl border border-primary/10 bg-background/60 p-3 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
-                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                                                        <div className="flex min-w-0 flex-1 items-start gap-3">
-                                                            <div className="size-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                                                                <Icon className="size-4" />
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <p className="text-xs font-bold tracking-tight wrap-break-word">{a.title}</p>
-                                                                <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-                                                                    <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold uppercase text-primary">
-                                                                        {ACTIVITY_TYPE_LABELS[a.type as keyof typeof ACTIVITY_TYPE_LABELS]}
-                                                                    </span>
-                                                                    <span>{a.estimatedMinutes || 0} min</span>
-                                                                    <span>{a.attachments?.length || 0} anexo(s)</span>
-                                                                    <span>{questions.length} questao(oes)</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 self-end sm:self-auto">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon-xs"
-                                                                onClick={() => handleDeleteActivity(a)}
-                                                                className="text-destructive/60 hover:text-destructive"
-                                                                aria-label="Excluir atividade"
-                                                            >
-                                                                <X className="size-3" />
-                                                            </Button>
-                                                            <CollapsibleTrigger asChild>
-                                                                <Button variant="ghost" size="icon-xs" type="button" aria-label="Expandir atividade" className="group">
-                                                                    <ChevronDown className="size-3 transition-transform group-data-[state=open]:rotate-180" />
-                                                                </Button>
-                                                            </CollapsibleTrigger>
+                            <>
+                                <div className="grid gap-2 sm:grid-cols-3">
+                                    <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Respostas totais</p>
+                                        <p className="text-lg font-bold text-foreground">{totalResponsesAllActivities}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Concluídas</p>
+                                        <p className="text-lg font-bold text-foreground">{completedResponsesAllActivities.length}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Média geral</p>
+                                        <p className="text-lg font-bold text-foreground">{averageScoreAllActivities === null ? "N/A" : `${averageScoreAllActivities}%`}</p>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-xl border border-primary/10 bg-background/70 p-3 space-y-3">
+                                    <div className="space-y-1">
+                                        <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Atividade selecionada</Label>
+                                        <select
+                                            value={selectedActivityId}
+                                            onChange={(event) => setSelectedActivityId(event.target.value)}
+                                            className="h-9 w-full rounded-md border border-primary/20 bg-background/80 px-3 text-xs font-semibold outline-none transition-all focus:border-primary/30"
+                                        >
+                                            {activitiesOrdered.map((activity) => {
+                                                const trackTitle = trackById.get(activity.trackId)?.title ?? "Sem módulo"
+                                                return (
+                                                    <option key={activity.id} value={activity.id}>
+                                                        [{trackTitle}] {activity.title}
+                                                    </option>
+                                                )
+                                            })}
+                                        </select>
+                                    </div>
+
+                                    {selectedActivity ? (
+                                        <>
+                                            <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-bold leading-tight wrap-break-word">{selectedActivity.title}</p>
+                                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                                                            <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold uppercase text-primary">
+                                                                {ACTIVITY_TYPE_LABELS[selectedActivity.type as keyof typeof ACTIVITY_TYPE_LABELS]}
+                                                            </span>
+                                                            <span>{selectedQuestions.length} questão(ões)</span>
+                                                            <span>{selectedResponses.length} resposta(s)</span>
+                                                            <span>{selectedActivity.estimatedMinutes || 0} min</span>
                                                         </div>
                                                     </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon-xs"
+                                                        onClick={() => handleDeleteActivity(selectedActivity)}
+                                                        className="text-destructive/60 hover:text-destructive"
+                                                        aria-label="Excluir atividade selecionada"
+                                                    >
+                                                        <X className="size-3" />
+                                                    </Button>
+                                                </div>
+                                            </div>
 
-                                                    <CollapsibleContent className="mt-3 space-y-3">
-                                                        {questions.length > 0 ? (
-                                                            <div className="rounded-xl border border-primary/10 bg-background/70 p-2 space-y-2">
-                                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
-                                                                    Questoes da Atividade
-                                                                </p>
-                                                                {questions.map((q, idx) => (
-                                                                    <div key={q.id || `${a.id}-q-${idx}`} className="rounded-lg border border-primary/10 bg-background/60 p-2">
-                                                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                                                            <p className="text-[11px] font-semibold">Q{idx + 1}</p>
-                                                                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                                                                <span className="rounded-full bg-primary/10 px-2 py-0.5 uppercase font-semibold text-primary">
-                                                                                    {q.type?.replace("_", " ") || "questao"}
-                                                                                </span>
-                                                                                <span>{q.points ?? 0} pts</span>
+                                            <div className="inline-flex items-center gap-1 rounded-xl border border-primary/15 bg-primary/5 p-1">
+                                                {[
+                                                    { id: "overview", label: "Visão geral" },
+                                                    { id: "responses", label: "Respostas" },
+                                                    { id: "questions", label: "Questões" },
+                                                    { id: "attachments", label: "Anexos" },
+                                                ].map((tab) => (
+                                                    <Button
+                                                        key={tab.id}
+                                                        type="button"
+                                                        size="xs"
+                                                        variant={insightsTab === tab.id ? "default" : "ghost"}
+                                                        className="rounded-lg text-[10px] uppercase tracking-widest font-bold"
+                                                        onClick={() => setInsightsTab(tab.id as typeof insightsTab)}
+                                                    >
+                                                        {tab.label}
+                                                    </Button>
+                                                ))}
+                                            </div>
+
+                                            {insightsTab === "overview" ? (
+                                                <div className="grid gap-2 sm:grid-cols-3">
+                                                    <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
+                                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Respostas</p>
+                                                        <p className="text-sm font-bold text-foreground">{selectedResponses.length}</p>
+                                                    </div>
+                                                    <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
+                                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Taxa de conclusão</p>
+                                                        <p className="text-sm font-bold text-foreground">
+                                                            {selectedResponses.length > 0
+                                                                ? `${Math.round((selectedResponses.filter((item) => item.status === "completed").length / selectedResponses.length) * 100)}%`
+                                                                : "0%"}
+                                                        </p>
+                                                    </div>
+                                                    <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
+                                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Média da atividade</p>
+                                                        <p className="text-sm font-bold text-foreground">
+                                                            {(() => {
+                                                                const completed = selectedResponses.filter((item) => item.status === "completed")
+                                                                if (!completed.length) return "N/A"
+                                                                const score = Math.round(completed.reduce((acc, item) => acc + (item.scorePercent ?? 0), 0) / completed.length)
+                                                                return `${score}%`
+                                                            })()}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ) : null}
+
+                                            {insightsTab === "responses" ? (
+                                                <div className="space-y-2">
+                                                    <Input
+                                                        placeholder="Buscar aluno por nome, email ou UID..."
+                                                        value={responseSearch}
+                                                        onChange={(event) => setResponseSearch(event.target.value)}
+                                                        className="bg-background/80 border-primary/20"
+                                                    />
+
+                                                    {loading.responses ? (
+                                                        <div className="rounded-lg border border-primary/10 bg-background/80 p-3 text-[11px] text-muted-foreground inline-flex items-center gap-1.5">
+                                                            <Loader2 className="size-3 animate-spin" />
+                                                            Carregando respostas...
+                                                        </div>
+                                                    ) : filteredSelectedResponses.length === 0 ? (
+                                                        <p className="rounded-lg border border-dashed border-primary/10 px-2 py-3 text-[11px] text-muted-foreground/70">
+                                                            Nenhuma resposta encontrada para os filtros atuais.
+                                                        </p>
+                                                    ) : (
+                                                        filteredSelectedResponses.map((response) => {
+                                                            const userLabel = response.user?.name || response.user?.email || response.userId
+                                                            const answersEntries = Object.entries(response.answers ?? {})
+
+                                                            return (
+                                                                <Collapsible
+                                                                    key={response.id}
+                                                                    open={expandedResponseId === response.id}
+                                                                    onOpenChange={(open) => setExpandedResponseId(open ? response.id : null)}
+                                                                    className="rounded-lg border border-primary/10 bg-background/80 p-2"
+                                                                >
+                                                                    <CollapsibleTrigger asChild>
+                                                                        <Button variant="ghost" type="button" className="group flex h-auto w-full items-center justify-between px-1 py-1.5">
+                                                                            <div className="flex min-w-0 items-center gap-2 text-left">
+                                                                                <div className="size-7 rounded-full border border-primary/20 bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                                                                                    {(response.user?.name || response.user?.email || "U").slice(0, 1).toUpperCase()}
+                                                                                </div>
+                                                                                <div className="min-w-0">
+                                                                                    <p className="text-xs font-semibold truncate">{userLabel}</p>
+                                                                                    <p className="text-[10px] text-muted-foreground">Atualizado em {formatDateTime(response.updatedAt)}</p>
+                                                                                </div>
                                                                             </div>
-                                                                        </div>
-                                                                        <p className="mt-1 wrap-break-word text-xs text-foreground/90">{q.prompt || "Sem enunciado"}</p>
-                                                                        {(q.options?.length ?? 0) > 0 ? (
-                                                                            <ul className="mt-2 space-y-1">
-                                                                                {(q.options ?? []).map((option, optionIdx) => {
-                                                                                    const isCorrect = (q.correctAnswers ?? []).includes(option)
+                                                                            <div className="flex items-center gap-1 text-[10px]">
+                                                                                <span className="rounded-full border border-primary/15 bg-primary/10 px-2 py-0.5 font-bold uppercase tracking-wider text-primary">
+                                                                                    {response.status === "completed" ? "Concluída" : "Em andamento"}
+                                                                                </span>
+                                                                                <span className="rounded-full border border-primary/10 bg-background px-2 py-0.5 font-semibold text-muted-foreground">
+                                                                                    {response.completionPercent}%
+                                                                                </span>
+                                                                                <ChevronDown className="size-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                                                                            </div>
+                                                                        </Button>
+                                                                    </CollapsibleTrigger>
+                                                                    <CollapsibleContent className="space-y-1.5 pt-2">
+                                                                        {answersEntries.length > 0 ? (
+                                                                            selectedQuestions.length > 0 ? (
+                                                                                selectedQuestions.map((question, questionIndex) => {
+                                                                                    const questionKey = question.id || `q-${questionIndex + 1}`
+                                                                                    const answer = response.answers?.[questionKey]
                                                                                     return (
-                                                                                        <li
-                                                                                            key={`${a.id}-${idx}-opt-${optionIdx}`}
-                                                                                            className={`wrap-break-word rounded-md px-2 py-1 text-[11px] ${isCorrect
-                                                                                                ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-700"
-                                                                                                : "bg-primary/5 text-muted-foreground"
-                                                                                                }`}
-                                                                                        >
-                                                                                            {option || `Opcao ${optionIdx + 1}`}
-                                                                                        </li>
+                                                                                        <div key={`${response.id}-${questionKey}`} className="rounded-md border border-primary/10 bg-primary/5 px-2 py-1.5">
+                                                                                            <p className="text-[10px] font-semibold text-muted-foreground line-clamp-2">
+                                                                                                {questionIndex + 1}. {question.prompt || "Questão sem enunciado"}
+                                                                                            </p>
+                                                                                            <p className="mt-1 text-[11px] text-foreground/90 wrap-break-word">
+                                                                                                {formatAnswerValue(answer)}
+                                                                                            </p>
+                                                                                        </div>
                                                                                     )
-                                                                                })}
-                                                                            </ul>
-                                                                        ) : null}
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        ) : (
-                                                            <p className="text-[10px] text-muted-foreground/60">Sem questoes cadastradas nesta atividade.</p>
-                                                        )}
+                                                                                })
+                                                                            ) : (
+                                                                                answersEntries.map(([key, value]) => (
+                                                                                    <div key={`${response.id}-${key}`} className="rounded-md border border-primary/10 bg-primary/5 px-2 py-1.5">
+                                                                                        <p className="text-[10px] font-semibold text-muted-foreground">{key}</p>
+                                                                                        <p className="mt-1 text-[11px] text-foreground/90 wrap-break-word">{formatAnswerValue(value)}</p>
+                                                                                    </div>
+                                                                                ))
+                                                                            )
+                                                                        ) : (
+                                                                            <p className="text-[11px] text-muted-foreground/70">Sem respostas registradas.</p>
+                                                                        )}
+                                                                    </CollapsibleContent>
+                                                                </Collapsible>
+                                                            )
+                                                        })
+                                                    )}
+                                                </div>
+                                            ) : null}
 
-                                                        {(a.attachments?.length ?? 0) > 0 ? (
-                                                            <div className="grid gap-2">
-                                                                {(a.attachments ?? []).map((attachment, idx) => (
-                                                                    <div key={`${a.id}-${idx}`} className="rounded-lg border border-primary/10 bg-primary/5 px-2 py-1.5">
-                                                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                                                            <p className="min-w-0 break-all text-[11px] font-medium">{attachment.name || `Anexo ${idx + 1}`}</p>
-                                                                            <div className="flex items-center gap-1 self-end sm:self-auto">
-                                                                                {attachment.url ? (
-                                                                                    <>
-                                                                                        <a
-                                                                                            href={attachment.url}
-                                                                                            target="_blank"
-                                                                                            rel="noreferrer"
-                                                                                            className="inline-flex size-6 items-center justify-center rounded-md border border-primary/20 text-primary hover:bg-primary/10"
-                                                                                            aria-label={`Abrir anexo ${attachment.name || idx + 1}`}
-                                                                                        >
-                                                                                            <Eye className="size-3" />
-                                                                                        </a>
-                                                                                        <Button
-                                                                                            variant="ghost"
-                                                                                            size="icon-xs"
-                                                                                            type="button"
-                                                                                            onClick={() => void handleCopyAttachmentLink(attachment.url)}
-                                                                                            aria-label={`Copiar link ${attachment.name || idx + 1}`}
-                                                                                        >
-                                                                                            <Copy className="size-3" />
-                                                                                        </Button>
-                                                                                    </>
-                                                                                ) : null}
+                                            {insightsTab === "questions" ? (
+                                                selectedQuestions.length > 0 ? (
+                                                    <div className="space-y-2">
+                                                        {selectedQuestions.map((question, index) => (
+                                                            <div key={question.id || `${selectedActivity.id}-q-${index}`} className="rounded-lg border border-primary/10 bg-background/80 p-2">
+                                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                    <p className="text-[11px] font-semibold">Q{index + 1}</p>
+                                                                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                                        <span className="rounded-full bg-primary/10 px-2 py-0.5 uppercase font-semibold text-primary">
+                                                                            {question.type?.replace("_", " ") || "questão"}
+                                                                        </span>
+                                                                        <span>{question.points ?? 0} pts</span>
+                                                                    </div>
+                                                                </div>
+                                                                <p className="mt-1 wrap-break-word text-xs text-foreground/90">{question.prompt || "Sem enunciado"}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-[11px] text-muted-foreground/70">Sem questões cadastradas nesta atividade.</p>
+                                                )
+                                            ) : null}
+
+                                            {insightsTab === "attachments" ? (
+                                                (selectedActivity.attachments?.length ?? 0) > 0 ? (
+                                                    <div className="space-y-2">
+                                                        {(selectedActivity.attachments ?? []).map((attachment, idx) => (
+                                                            <div key={`${selectedActivity.id}-${idx}`} className="rounded-lg border border-primary/10 bg-background/80 px-2 py-1.5">
+                                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                                    <p className="min-w-0 break-all text-[11px] font-medium">{attachment.name || `Anexo ${idx + 1}`}</p>
+                                                                    <div className="flex items-center gap-1 self-end sm:self-auto">
+                                                                        {attachment.url ? (
+                                                                            <>
+                                                                                <a
+                                                                                    href={attachment.url}
+                                                                                    target="_blank"
+                                                                                    rel="noreferrer"
+                                                                                    className="inline-flex size-6 items-center justify-center rounded-md border border-primary/20 text-primary hover:bg-primary/10"
+                                                                                    aria-label={`Abrir anexo ${attachment.name || idx + 1}`}
+                                                                                >
+                                                                                    <Eye className="size-3" />
+                                                                                </a>
                                                                                 <Button
                                                                                     variant="ghost"
                                                                                     size="icon-xs"
                                                                                     type="button"
-                                                                                    onClick={() => void handleDeleteActivityAttachment(a.id, attachment.url)}
-                                                                                    className="text-destructive/60 hover:text-destructive"
-                                                                                    aria-label={`Excluir anexo ${attachment.name || idx + 1}`}
+                                                                                    onClick={() => void handleCopyAttachmentLink(attachment.url)}
+                                                                                    aria-label={`Copiar link ${attachment.name || idx + 1}`}
                                                                                 >
-                                                                                    <Trash2 className="size-3" />
+                                                                                    <Copy className="size-3" />
                                                                                 </Button>
-                                                                            </div>
-                                                                        </div>
+                                                                            </>
+                                                                        ) : null}
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon-xs"
+                                                                            type="button"
+                                                                            onClick={() => void handleDeleteActivityAttachment(selectedActivity.id, attachment.url)}
+                                                                            className="text-destructive/60 hover:text-destructive"
+                                                                            aria-label={`Excluir anexo ${attachment.name || idx + 1}`}
+                                                                        >
+                                                                            <Trash2 className="size-3" />
+                                                                        </Button>
                                                                     </div>
-                                                                ))}
+                                                                </div>
                                                             </div>
-                                                        ) : (
-                                                            <p className="text-[10px] text-muted-foreground/60">Sem anexos nesta atividade.</p>
-                                                        )}
-                                                    </CollapsibleContent>
-                                                </Collapsible>
-                                            )
-                                        })}
-                                    </div>
-                                )
-                            })
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-[11px] text-muted-foreground/70">Sem anexos nesta atividade.</p>
+                                                )
+                                            ) : null}
+                                        </>
+                                    ) : (
+                                        <p className="text-[11px] text-muted-foreground/70">Selecione uma atividade para visualizar detalhes.</p>
+                                    )}
+                                </div>
+                            </>
                         )}
                     </div>
                 </CardContent>

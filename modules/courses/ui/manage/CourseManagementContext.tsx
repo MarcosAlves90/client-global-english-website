@@ -4,6 +4,7 @@ import * as React from "react"
 import { useParams } from "next/navigation"
 import type {
     Activity,
+    AdminActivityResponse,
     AdminCourseSummary,
     AdminUserSummary,
     Material,
@@ -25,6 +26,7 @@ import {
 } from "@/modules/materials"
 import {
     createAdminActivity,
+    fetchAdminActivityProgress,
     deleteAdminActivity,
     fetchAdminCourseActivities,
 } from "@/modules/activities"
@@ -84,12 +86,14 @@ interface CourseManagementContextType {
     tracks: Track[]
     materials: Material[]
     activities: Activity[]
+    activityResponses: AdminActivityResponse[]
     availableUsers: AdminUserSummary[]
     loading: {
         course: boolean
         tracks: boolean
         materials: boolean
         activities: boolean
+        responses: boolean
         users: boolean
     }
     errors: {
@@ -113,6 +117,7 @@ interface CourseManagementContextType {
 
     // Activity Actions
     loadActivities: (force?: boolean) => Promise<void>
+    loadActivityResponses: (force?: boolean) => Promise<void>
     handleDeleteActivity: (activity: Activity) => Promise<void>
     handleCreateActivity: (form: ActivityForm) => Promise<boolean>
     handleDeleteActivityAttachment: (activityId: string, attachmentUrl: string) => Promise<void>
@@ -129,6 +134,7 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
     const [tracks, setTracks] = React.useState<Track[]>([])
     const [materials, setMaterials] = React.useState<Material[]>([])
     const [activities, setActivities] = React.useState<Activity[]>([])
+    const [activityResponses, setActivityResponses] = React.useState<AdminActivityResponse[]>([])
     const [availableUsers, setAvailableUsers] = React.useState<AdminUserSummary[]>([])
 
     const [loading, setLoading] = React.useState({
@@ -136,6 +142,7 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
         tracks: false,
         materials: false,
         activities: false,
+        responses: false,
         users: false,
     })
 
@@ -207,6 +214,24 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
             setErrors(prev => ({ ...prev, activity: "Erro ao carregar atividades" }))
         } finally {
             setLoading(prev => ({ ...prev, activities: false }))
+        }
+    }, [courseId, user])
+
+    const loadActivityResponses = React.useCallback(async (force?: boolean) => {
+        if (!courseId || !user) return
+        try {
+            setLoading(prev => ({ ...prev, responses: true }))
+            const idToken = await user.getIdToken()
+            const data = await fetchAdminActivityProgress({
+                idToken,
+                courseId,
+                force,
+            })
+            setActivityResponses(data)
+        } catch {
+            setErrors(prev => ({ ...prev, activity: "Erro ao carregar respostas das atividades" }))
+        } finally {
+            setLoading(prev => ({ ...prev, responses: false }))
         }
     }, [courseId, user])
 
@@ -358,6 +383,7 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
             })
             toast.success("Atividade criada")
             void loadActivities(true)
+            void loadActivityResponses(true)
             return true
         } catch {
             toast.error("Erro ao criar atividade")
@@ -372,6 +398,7 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
             await deleteAdminActivity(idToken, activity.id)
             toast.success("Atividade excluída")
             void loadActivities(true)
+            void loadActivityResponses(true)
         } catch {
             toast.error("Erro ao excluir atividade")
         }
@@ -399,9 +426,10 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
             void loadTracks()
             void loadMaterials()
             void loadActivities()
+            void loadActivityResponses()
             void loadUsers()
         }
-    }, [isFirebaseReady, user, loadCourse, loadTracks, loadMaterials, loadActivities, loadUsers])
+    }, [isFirebaseReady, user, loadCourse, loadTracks, loadMaterials, loadActivities, loadActivityResponses, loadUsers])
 
     const value = {
         courseId,
@@ -409,6 +437,7 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
         tracks,
         materials,
         activities,
+        activityResponses,
         availableUsers,
         loading,
         errors,
@@ -424,6 +453,7 @@ export function CourseManagementProvider({ children }: { children: React.ReactNo
         handleDeleteActivity,
         handleCreateActivity,
         handleDeleteActivityAttachment,
+        loadActivityResponses,
     }
 
     return (

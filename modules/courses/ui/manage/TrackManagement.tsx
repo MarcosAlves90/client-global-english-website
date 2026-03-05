@@ -36,6 +36,8 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
         userIds: [],
     })
     const [editingTrackId, setEditingTrackId] = React.useState<string | null>(null)
+    const [selectedTrackId, setSelectedTrackId] = React.useState("")
+    const [trackTab, setTrackTab] = React.useState<"overview" | "students">("overview")
     const [userSearch, setUserSearch] = React.useState("")
     const [localCreating, setLocalCreating] = React.useState(false)
 
@@ -79,6 +81,39 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
             )
             .slice(0, 5)
     }, [availableUsers, form.userIds, userSearch])
+
+    const tracksOrdered = React.useMemo(() => {
+        return [...tracks].sort((a, b) => {
+            const aOrder = a.order ?? Number.MAX_SAFE_INTEGER
+            const bOrder = b.order ?? Number.MAX_SAFE_INTEGER
+            if (aOrder !== bOrder) return aOrder - bOrder
+            return a.title.localeCompare(b.title)
+        })
+    }, [tracks])
+
+    React.useEffect(() => {
+        if (tracksOrdered.length === 0) {
+            setSelectedTrackId("")
+            return
+        }
+        const exists = tracksOrdered.some((track) => track.id === selectedTrackId)
+        if (!exists) {
+            setSelectedTrackId(tracksOrdered[0]?.id ?? "")
+        }
+    }, [tracksOrdered, selectedTrackId])
+
+    React.useEffect(() => {
+        setTrackTab("overview")
+    }, [selectedTrackId])
+
+    const selectedTrack = React.useMemo(() => {
+        return tracksOrdered.find((track) => track.id === selectedTrackId) ?? null
+    }, [tracksOrdered, selectedTrackId])
+
+    const selectedTrackStudents = React.useMemo(() => {
+        if (!selectedTrack) return []
+        return availableUsers.filter((user) => (selectedTrack.userIds ?? []).includes(user.uid))
+    }, [availableUsers, selectedTrack])
 
     return (
         <div className="space-y-6">
@@ -218,64 +253,149 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
                         </Button>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-4">
                             {loading.tracks ? (
-                                <div className="col-span-full h-32 flex items-center justify-center text-muted-foreground animate-pulse text-xs uppercase tracking-widest">Carregando módulos...</div>
+                                <div className="h-32 flex items-center justify-center text-muted-foreground animate-pulse text-xs uppercase tracking-widest">Carregando módulos...</div>
                             ) : tracks.length === 0 ? (
-                                <div className="col-span-full h-32 flex items-center justify-center text-muted-foreground/40 border border-dashed border-primary/5 rounded-2xl text-[10px] uppercase font-bold tracking-widest">Nenhum módulo encontrado</div>
+                                <div className="h-32 flex items-center justify-center text-muted-foreground/40 border border-dashed border-primary/5 rounded-2xl text-[10px] uppercase font-bold tracking-widest">Nenhum módulo encontrado</div>
                             ) : (
-                                tracks.map((track) => (
-                                    <Card key={track.id} className="relative overflow-hidden border-primary/5 bg-card/40 hover:border-primary/20 transition-all group">
-                                        <CardHeader className="pb-3 flex flex-row items-start justify-between">
-                                            <div>
-                                                <div className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Módulo {track.order}</div>
-                                                <CardTitle className="text-sm font-bold tracking-tight group-hover:text-primary transition-colors">{track.title}</CardTitle>
-                                            </div>
-                                            <div className="flex gap-1">
-                                                <Button
-                                                    size="xs"
-                                                    variant="ghost"
-                                                    className="h-7 w-7 p-0"
-                                                    onClick={() => {
-                                                        onRequestOpenCreatePanel()
-                                                        setEditingTrackId(track.id)
-                                                        setForm({
-                                                            title: track.title,
-                                                            description: track.description || "",
-                                                            order: String(track.order || ""),
-                                                            userIds: track.userIds ?? [],
-                                                        })
-                                                    }}
-                                                >
-                                                    <Sparkles className="size-3" />
-                                                </Button>
-                                                <Button
-                                                    size="xs"
-                                                    variant="ghost"
-                                                    className="h-7 w-7 p-0 text-destructive/40 hover:text-destructive hover:bg-destructive/5"
-                                                    onClick={() => handleDeleteTrack(track)}
-                                                >
-                                                    <X className="size-3" />
-                                                </Button>
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <p className="text-[11px] text-muted-foreground/70 line-clamp-2 leading-relaxed">
-                                                {track.description || "Sem descrição disponível."}
-                                            </p>
-                                            <div className="flex items-center justify-between border-t border-primary/5 pt-3">
-                                                <div className="flex items-center gap-1.5 text-muted-foreground/50">
-                                                    <Users2 className="size-3" />
-                                                    <span className="text-[10px] font-bold uppercase tracking-tight">{track.userIds?.length || 0} Alunos</span>
+                                <>
+                                    <div className="grid gap-2 sm:grid-cols-3">
+                                        <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                            <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Módulos</p>
+                                            <p className="text-lg font-bold text-foreground">{tracksOrdered.length}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                            <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Com alunos</p>
+                                            <p className="text-lg font-bold text-foreground">{tracksOrdered.filter((track) => (track.userIds?.length ?? 0) > 0).length}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                            <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Alunos vinculados</p>
+                                            <p className="text-lg font-bold text-foreground">{tracksOrdered.reduce((acc, track) => acc + (track.userIds?.length ?? 0), 0)}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-xl border border-primary/10 bg-background/70 p-3 space-y-3">
+                                        <div className="space-y-1">
+                                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Módulo selecionado</Label>
+                                            <select
+                                                value={selectedTrackId}
+                                                onChange={(event) => setSelectedTrackId(event.target.value)}
+                                                className="h-9 w-full rounded-md border border-primary/20 bg-background/80 px-3 text-xs font-semibold outline-none transition-all focus:border-primary/30"
+                                            >
+                                                {tracksOrdered.map((track) => (
+                                                    <option key={track.id} value={track.id}>
+                                                        Módulo {track.order || "-"} · {track.title}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {selectedTrack ? (
+                                            <>
+                                                <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                        <div className="min-w-0">
+                                                            <div className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Módulo {selectedTrack.order || "-"}</div>
+                                                            <p className="text-sm font-bold tracking-tight wrap-break-word">{selectedTrack.title}</p>
+                                                            <p className="mt-1 text-[11px] text-muted-foreground/70 leading-relaxed wrap-break-word">
+                                                                {selectedTrack.description || "Sem descrição disponível."}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex gap-1 self-end sm:self-auto">
+                                                            <Button
+                                                                size="xs"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                    onRequestOpenCreatePanel()
+                                                                    setEditingTrackId(selectedTrack.id)
+                                                                    setForm({
+                                                                        title: selectedTrack.title,
+                                                                        description: selectedTrack.description || "",
+                                                                        order: String(selectedTrack.order || ""),
+                                                                        userIds: selectedTrack.userIds ?? [],
+                                                                    })
+                                                                }}
+                                                            >
+                                                                Editar
+                                                            </Button>
+                                                            <Button
+                                                                size="icon-xs"
+                                                                variant="ghost"
+                                                                className="text-destructive/40 hover:text-destructive hover:bg-destructive/5"
+                                                                onClick={() => handleDeleteTrack(selectedTrack)}
+                                                                aria-label="Excluir módulo selecionado"
+                                                            >
+                                                                <X className="size-3" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-center gap-1.5 text-muted-foreground/50">
-                                                    <ClipboardList className="size-3" />
-                                                    <span className="text-[10px] font-bold uppercase tracking-tight">Status: OK</span>
+
+                                                <div className="inline-flex items-center gap-1 rounded-xl border border-primary/15 bg-primary/5 p-1">
+                                                    {[
+                                                        { id: "overview", label: "Visão geral" },
+                                                        { id: "students", label: "Alunos" },
+                                                    ].map((tab) => (
+                                                        <Button
+                                                            key={tab.id}
+                                                            type="button"
+                                                            size="xs"
+                                                            variant={trackTab === tab.id ? "default" : "ghost"}
+                                                            className="rounded-lg text-[10px] uppercase tracking-widest font-bold"
+                                                            onClick={() => setTrackTab(tab.id as typeof trackTab)}
+                                                        >
+                                                            {tab.label}
+                                                        </Button>
+                                                    ))}
                                                 </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))
+
+                                                {trackTab === "overview" ? (
+                                                    <div className="grid gap-2 sm:grid-cols-2">
+                                                        <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
+                                                            <div className="flex items-center gap-1.5 text-muted-foreground/60">
+                                                                <Users2 className="size-3" />
+                                                                <p className="text-[10px] uppercase font-bold tracking-widest">Alunos vinculados</p>
+                                                            </div>
+                                                            <p className="mt-1 text-sm font-bold text-foreground">{selectedTrack.userIds?.length || 0}</p>
+                                                        </div>
+                                                        <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
+                                                            <div className="flex items-center gap-1.5 text-muted-foreground/60">
+                                                                <ClipboardList className="size-3" />
+                                                                <p className="text-[10px] uppercase font-bold tracking-widest">Status</p>
+                                                            </div>
+                                                            <p className="mt-1 text-sm font-bold text-foreground">OK</p>
+                                                        </div>
+                                                    </div>
+                                                ) : null}
+
+                                                {trackTab === "students" ? (
+                                                    selectedTrackStudents.length > 0 ? (
+                                                        <div className="space-y-2">
+                                                            {selectedTrackStudents.map((user) => (
+                                                                <div key={user.uid} className="rounded-lg border border-primary/10 bg-background/80 px-2 py-1.5">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                                                                            {user.name?.charAt(0) || user.email?.charAt(0) || "U"}
+                                                                        </div>
+                                                                        <div className="min-w-0">
+                                                                            <p className="text-xs font-semibold truncate">{user.name || "Sem nome"}</p>
+                                                                            <p className="text-[10px] text-muted-foreground truncate">{user.email || "Sem email"}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-[11px] text-muted-foreground/70">Sem alunos vinculados neste módulo.</p>
+                                                    )
+                                                ) : null}
+                                            </>
+                                        ) : (
+                                            <p className="text-[11px] text-muted-foreground/70">Selecione um módulo para visualizar detalhes.</p>
+                                        )}
+                                    </div>
+                                </>
                             )}
                         </div>
                     </CardContent>

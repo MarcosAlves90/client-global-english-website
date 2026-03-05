@@ -100,6 +100,8 @@ export function MaterialManagement({ showCreatePanel }: MaterialManagementProps)
     const [editingMaterialId, setEditingMaterialId] = React.useState<string | null>(null)
     const [editingTitle, setEditingTitle] = React.useState("")
     const [editingMarkdown, setEditingMarkdown] = React.useState("")
+    const [selectedMaterialId, setSelectedMaterialId] = React.useState("")
+    const [materialTab, setMaterialTab] = React.useState<"overview" | "content" | "attachments">("overview")
     const [localUpdating, setLocalUpdating] = React.useState(false)
     const [validationErrors, setValidationErrors] = React.useState<MaterialValidationErrors>({})
 
@@ -363,6 +365,45 @@ export function MaterialManagement({ showCreatePanel }: MaterialManagementProps)
             )
             .slice(0, 5)
     }, [availableUsers, form.userIds, userSearch])
+
+    const trackById = React.useMemo(() => {
+        return new Map(tracks.map((track) => [track.id, track]))
+    }, [tracks])
+
+    const materialsOrdered = React.useMemo(() => {
+        return [...materials].sort((a, b) => {
+            const aTrackOrder = trackById.get(a.trackId)?.order ?? Number.MAX_SAFE_INTEGER
+            const bTrackOrder = trackById.get(b.trackId)?.order ?? Number.MAX_SAFE_INTEGER
+            if (aTrackOrder !== bTrackOrder) return aTrackOrder - bTrackOrder
+
+            const aTrackTitle = trackById.get(a.trackId)?.title ?? ""
+            const bTrackTitle = trackById.get(b.trackId)?.title ?? ""
+            const byTrackTitle = aTrackTitle.localeCompare(bTrackTitle)
+            if (byTrackTitle !== 0) return byTrackTitle
+
+            return a.title.localeCompare(b.title)
+        })
+    }, [materials, trackById])
+
+    React.useEffect(() => {
+        if (materialsOrdered.length === 0) {
+            setSelectedMaterialId("")
+            return
+        }
+
+        const exists = materialsOrdered.some((material) => material.id === selectedMaterialId)
+        if (!exists) {
+            setSelectedMaterialId(materialsOrdered[0]?.id ?? "")
+        }
+    }, [materialsOrdered, selectedMaterialId])
+
+    React.useEffect(() => {
+        setMaterialTab("overview")
+    }, [selectedMaterialId])
+
+    const selectedMaterial = React.useMemo(() => {
+        return materialsOrdered.find((material) => material.id === selectedMaterialId) ?? null
+    }, [materialsOrdered, selectedMaterialId])
 
     return (
         <div className="grid gap-6 lg:grid-cols-[1.5fr,1fr]">
@@ -728,165 +769,234 @@ export function MaterialManagement({ showCreatePanel }: MaterialManagementProps)
                         ) : tracks.length === 0 || materials.length === 0 ? (
                             <p className="text-[10px] text-muted-foreground/40 text-center py-8 font-bold uppercase tracking-widest">Nenhum material cadastrado</p>
                         ) : (
-                            tracks.map(track => {
-                                const trackMaterials = materials.filter(m => m.trackId === track.id)
-                                if (!trackMaterials.length) return null
-                                return (
-                                    <div key={track.id} className="space-y-3">
-                                        <p className="wrap-break-word text-[10px] font-bold uppercase tracking-[0.2em] text-primary/60 border-b border-primary/20 pb-1 mb-3">{track.title}</p>
-                                        {trackMaterials.map((m) => {
-                                            const primaryAtt = m.attachments?.[0]?.type || "link"
-                                            const Icon = MATERIAL_TYPE_ICONS[primaryAtt as keyof typeof MATERIAL_TYPE_ICONS] || FileText
-                                            return (
-                                                <Collapsible key={m.id} className="overflow-hidden rounded-2xl border border-primary/10 bg-background/60 p-3 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
-                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                                                        <div className="flex min-w-0 flex-1 items-start gap-3">
-                                                            <div className="size-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                                                                <Icon className="size-4" />
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <p className="text-xs font-bold tracking-tight wrap-break-word">{m.title}</p>
-                                                                <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-                                                                    <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold uppercase text-primary">{m.visibility}</span>
-                                                                    <span>{m.attachments?.length || 0} anexo(s)</span>
-                                                                    <span>{m.markdown?.trim() ? "com texto" : "sem texto"}</span>
+                            <>
+                                <div className="grid gap-2 sm:grid-cols-3">
+                                    <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Materiais</p>
+                                        <p className="text-lg font-bold text-foreground">{materialsOrdered.length}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Com anexo</p>
+                                        <p className="text-lg font-bold text-foreground">{materialsOrdered.filter((material) => (material.attachments?.length ?? 0) > 0).length}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Com texto</p>
+                                        <p className="text-lg font-bold text-foreground">{materialsOrdered.filter((material) => Boolean(material.markdown?.trim())).length}</p>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-xl border border-primary/10 bg-background/70 p-3 space-y-3">
+                                    <div className="space-y-1">
+                                        <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Material selecionado</Label>
+                                        <select
+                                            value={selectedMaterialId}
+                                            onChange={(event) => setSelectedMaterialId(event.target.value)}
+                                            className="h-9 w-full rounded-md border border-primary/20 bg-background/80 px-3 text-xs font-semibold outline-none transition-all focus:border-primary/30"
+                                        >
+                                            {materialsOrdered.map((material) => {
+                                                const trackTitle = trackById.get(material.trackId)?.title ?? "Sem módulo"
+                                                return (
+                                                    <option key={material.id} value={material.id}>
+                                                        [{trackTitle}] {material.title}
+                                                    </option>
+                                                )
+                                            })}
+                                        </select>
+                                    </div>
+
+                                    {selectedMaterial ? (
+                                        <>
+                                            {(() => {
+                                                const primaryAtt = selectedMaterial.attachments?.[0]?.type || "link"
+                                                const Icon = MATERIAL_TYPE_ICONS[primaryAtt as keyof typeof MATERIAL_TYPE_ICONS] || FileText
+                                                return (
+                                                    <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                            <div className="flex min-w-0 items-start gap-3">
+                                                                <div className="size-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                                                    <Icon className="size-4" />
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <p className="text-sm font-bold leading-tight wrap-break-word">{selectedMaterial.title}</p>
+                                                                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                                                                        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold uppercase text-primary">{selectedMaterial.visibility}</span>
+                                                                        <span>{selectedMaterial.attachments?.length || 0} anexo(s)</span>
+                                                                        <span>{selectedMaterial.markdown?.trim() ? "com texto" : "sem texto"}</span>
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 self-end sm:self-auto">
-                                                            {editingMaterialId === m.id ? (
-                                                                <>
+                                                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                                                                {editingMaterialId === selectedMaterial.id ? (
+                                                                    <>
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            size="xs"
+                                                                            type="button"
+                                                                            disabled={localUpdating}
+                                                                            onClick={() => void saveMaterialEditing()}
+                                                                            className="text-[10px] uppercase font-bold tracking-widest"
+                                                                        >
+                                                                            {localUpdating ? "Salvando..." : "Salvar"}
+                                                                        </Button>
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="xs"
+                                                                            type="button"
+                                                                            disabled={localUpdating}
+                                                                            onClick={cancelMaterialEditing}
+                                                                            className="text-[10px] uppercase font-bold tracking-widest"
+                                                                        >
+                                                                            Cancelar
+                                                                        </Button>
+                                                                    </>
+                                                                ) : (
                                                                     <Button
                                                                         variant="outline"
                                                                         size="xs"
                                                                         type="button"
-                                                                        disabled={localUpdating}
-                                                                        onClick={() => void saveMaterialEditing()}
+                                                                        onClick={() => startMaterialEditing(selectedMaterial)}
                                                                         className="text-[10px] uppercase font-bold tracking-widest"
                                                                     >
-                                                                        {localUpdating ? "Salvando..." : "Salvar"}
+                                                                        Editar
                                                                     </Button>
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="xs"
-                                                                        type="button"
-                                                                        disabled={localUpdating}
-                                                                        onClick={cancelMaterialEditing}
-                                                                        className="text-[10px] uppercase font-bold tracking-widest"
-                                                                    >
-                                                                        Cancelar
-                                                                    </Button>
-                                                                </>
-                                                            ) : (
+                                                                )}
                                                                 <Button
-                                                                    variant="outline"
-                                                                    size="xs"
-                                                                    type="button"
-                                                                    onClick={() => startMaterialEditing(m)}
-                                                                    className="text-[10px] uppercase font-bold tracking-widest"
+                                                                    variant="ghost"
+                                                                    size="icon-xs"
+                                                                    onClick={() => handleDeleteMaterial(selectedMaterial)}
+                                                                    className="text-destructive/60 hover:text-destructive"
+                                                                    aria-label="Excluir material selecionado"
                                                                 >
-                                                                    Editar
+                                                                    <X className="size-3" />
                                                                 </Button>
-                                                            )}
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon-xs"
-                                                                onClick={() => handleDeleteMaterial(m)}
-                                                                className="text-destructive/60 hover:text-destructive"
-                                                                aria-label="Excluir material"
-                                                            >
-                                                                <X className="size-3" />
-                                                            </Button>
-                                                            <CollapsibleTrigger asChild>
-                                                                <Button variant="ghost" size="icon-xs" type="button" aria-label="Expandir material" className="group">
-                                                                    <ChevronDown className="size-3 transition-transform group-data-[state=open]:rotate-180" />
-                                                                </Button>
-                                                            </CollapsibleTrigger>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                    <CollapsibleContent className="mt-3 space-y-3">
-                                                        {editingMaterialId === m.id ? (
-                                                            <div className="space-y-2 rounded-xl border border-primary/15 bg-background/70 p-2">
-                                                                <Input
-                                                                    value={editingTitle}
-                                                                    onChange={(e) => setEditingTitle(e.target.value)}
-                                                                    placeholder="Titulo do material"
-                                                                    className="h-8 text-xs"
-                                                                />
-                                                                <div className="rounded-lg overflow-hidden bg-background/60 p-1">
-                                                                    <MarkdownEditor
-                                                                        value={editingMarkdown}
-                                                                        onChange={(val) => setEditingMarkdown(val || "")}
-                                                                        height={180}
-                                                                        preview="edit"
-                                                                        visibleDragbar={false}
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        ) : (m.markdown?.trim() ? (
-                                                            <div className="max-h-44 overflow-auto text-xs">
-                                                                <MarkdownPreview
-                                                                    source={m.markdown}
-                                                                    style={{ backgroundColor: "transparent", padding: 0, maxWidth: "100%", overflowX: "auto" }}
-                                                                />
-                                                            </div>
-                                                        ) : (
-                                                            <p className="text-[10px] text-muted-foreground/60">Sem texto markdown neste material.</p>
-                                                        ))}
-                                                        {(m.attachments?.length ?? 0) > 0 ? (
-                                                            <div className="grid gap-2">
-                                                                {(m.attachments ?? []).map((attachment, idx) => (
-                                                                    <div key={`${m.id}-${idx}`} className="rounded-lg border border-primary/10 bg-primary/5 px-2 py-1.5">
-                                                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                                                            <p className="min-w-0 break-all text-[11px] font-medium">{attachment.name || `Anexo ${idx + 1}`}</p>
-                                                                            <div className="flex items-center gap-1 self-end sm:self-auto">
-                                                                                {attachment.url ? (
-                                                                                    <>
-                                                                                        <a
-                                                                                            href={attachment.url}
-                                                                                            target="_blank"
-                                                                                            rel="noreferrer"
-                                                                                            className="inline-flex size-6 items-center justify-center rounded-md border border-primary/20 text-primary hover:bg-primary/10"
-                                                                                            aria-label={`Abrir anexo ${attachment.name || idx + 1}`}
-                                                                                        >
-                                                                                            <Eye className="size-3" />
-                                                                                        </a>
-                                                                                        <Button
-                                                                                            variant="ghost"
-                                                                                            size="icon-xs"
-                                                                                            type="button"
-                                                                                            onClick={() => void handleCopyAttachmentLink(attachment.url)}
-                                                                                            aria-label={`Copiar link ${attachment.name || idx + 1}`}
-                                                                                        >
-                                                                                            <Copy className="size-3" />
-                                                                                        </Button>
-                                                                                    </>
-                                                                                ) : null}
+                                                )
+                                            })()}
+
+                                            <div className="inline-flex items-center gap-1 rounded-xl border border-primary/15 bg-primary/5 p-1">
+                                                {[
+                                                    { id: "overview", label: "Visão geral" },
+                                                    { id: "content", label: "Conteúdo" },
+                                                    { id: "attachments", label: "Anexos" },
+                                                ].map((tab) => (
+                                                    <Button
+                                                        key={tab.id}
+                                                        type="button"
+                                                        size="xs"
+                                                        variant={materialTab === tab.id ? "default" : "ghost"}
+                                                        className="rounded-lg text-[10px] uppercase tracking-widest font-bold"
+                                                        onClick={() => setMaterialTab(tab.id as typeof materialTab)}
+                                                    >
+                                                        {tab.label}
+                                                    </Button>
+                                                ))}
+                                            </div>
+
+                                            {materialTab === "overview" ? (
+                                                <div className="grid gap-2 sm:grid-cols-3">
+                                                    <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
+                                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Módulo</p>
+                                                        <p className="text-xs font-bold text-foreground wrap-break-word">{trackById.get(selectedMaterial.trackId)?.title ?? "Sem módulo"}</p>
+                                                    </div>
+                                                    <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
+                                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Visibilidade</p>
+                                                        <p className="text-xs font-bold text-foreground uppercase">{selectedMaterial.visibility}</p>
+                                                    </div>
+                                                    <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
+                                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Data de criação</p>
+                                                        <p className="text-xs font-bold text-foreground">{selectedMaterial.createdAt ? new Date(selectedMaterial.createdAt).toLocaleDateString("pt-BR") : "N/A"}</p>
+                                                    </div>
+                                                </div>
+                                            ) : null}
+
+                                            {materialTab === "content" ? (
+                                                editingMaterialId === selectedMaterial.id ? (
+                                                    <div className="space-y-2 rounded-xl border border-primary/15 bg-background/80 p-2">
+                                                        <Input
+                                                            value={editingTitle}
+                                                            onChange={(e) => setEditingTitle(e.target.value)}
+                                                            placeholder="Titulo do material"
+                                                            className="h-8 text-xs"
+                                                        />
+                                                        <div className="rounded-lg overflow-hidden bg-background/60 p-1">
+                                                            <MarkdownEditor
+                                                                value={editingMarkdown}
+                                                                onChange={(val) => setEditingMarkdown(val || "")}
+                                                                height={220}
+                                                                preview="edit"
+                                                                visibleDragbar={false}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ) : selectedMaterial.markdown?.trim() ? (
+                                                    <div className="max-h-60 overflow-auto rounded-xl border border-primary/10 bg-background/80 p-3 text-xs">
+                                                        <MarkdownPreview
+                                                            source={selectedMaterial.markdown}
+                                                            style={{ backgroundColor: "transparent", padding: 0, maxWidth: "100%", overflowX: "auto" }}
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-[11px] text-muted-foreground/70">Sem texto markdown neste material.</p>
+                                                )
+                                            ) : null}
+
+                                            {materialTab === "attachments" ? (
+                                                (selectedMaterial.attachments?.length ?? 0) > 0 ? (
+                                                    <div className="grid gap-2">
+                                                        {(selectedMaterial.attachments ?? []).map((attachment, idx) => (
+                                                            <div key={`${selectedMaterial.id}-${idx}`} className="rounded-lg border border-primary/10 bg-background/80 px-2 py-1.5">
+                                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                                    <p className="min-w-0 break-all text-[11px] font-medium">{attachment.name || `Anexo ${idx + 1}`}</p>
+                                                                    <div className="flex items-center gap-1 self-end sm:self-auto">
+                                                                        {attachment.url ? (
+                                                                            <>
+                                                                                <a
+                                                                                    href={attachment.url}
+                                                                                    target="_blank"
+                                                                                    rel="noreferrer"
+                                                                                    className="inline-flex size-6 items-center justify-center rounded-md border border-primary/20 text-primary hover:bg-primary/10"
+                                                                                    aria-label={`Abrir anexo ${attachment.name || idx + 1}`}
+                                                                                >
+                                                                                    <Eye className="size-3" />
+                                                                                </a>
                                                                                 <Button
                                                                                     variant="ghost"
                                                                                     size="icon-xs"
                                                                                     type="button"
-                                                                                    onClick={() => void handleDeleteMaterialAttachment(m.id, attachment.url)}
-                                                                                    className="text-destructive/60 hover:text-destructive"
-                                                                                    aria-label={`Excluir anexo ${attachment.name || idx + 1}`}
+                                                                                    onClick={() => void handleCopyAttachmentLink(attachment.url)}
+                                                                                    aria-label={`Copiar link ${attachment.name || idx + 1}`}
                                                                                 >
-                                                                                    <Trash2 className="size-3" />
+                                                                                    <Copy className="size-3" />
                                                                                 </Button>
-                                                                            </div>
-                                                                        </div>
+                                                                            </>
+                                                                        ) : null}
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon-xs"
+                                                                            type="button"
+                                                                            onClick={() => void handleDeleteMaterialAttachment(selectedMaterial.id, attachment.url)}
+                                                                            className="text-destructive/60 hover:text-destructive"
+                                                                            aria-label={`Excluir anexo ${attachment.name || idx + 1}`}
+                                                                        >
+                                                                            <Trash2 className="size-3" />
+                                                                        </Button>
                                                                     </div>
-                                                                ))}
+                                                                </div>
                                                             </div>
-                                                        ) : (
-                                                            <p className="text-[10px] text-muted-foreground/60">Sem anexos neste material.</p>
-                                                        )}
-                                                    </CollapsibleContent>
-                                                </Collapsible>
-                                            )
-                                        })}
-                                    </div>
-                                )
-                            })
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-[11px] text-muted-foreground/70">Sem anexos neste material.</p>
+                                                )
+                                            ) : null}
+                                        </>
+                                    ) : (
+                                        <p className="text-[11px] text-muted-foreground/70">Selecione um material para visualizar detalhes.</p>
+                                    )}
+                                </div>
+                            </>
                         )}
                     </div>
                 </CardContent>
