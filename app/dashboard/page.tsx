@@ -225,7 +225,7 @@ export default function Page() {
                     <StudentActivityCard
                       activity={{
                         ...activity,
-                        status: activity.status,
+                        status: activity.status as "pending" | "completed" | "in_progress",
                       }}
                       variant="compact"
                       onOpen={(id) => router.push(`/dashboard/activities/${id}`)}

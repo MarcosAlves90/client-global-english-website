@@ -4,7 +4,6 @@ import * as React from "react"
 import dynamic from "next/dynamic"
 import {
     AlertCircle,
-    ChevronDown,
     CheckCircle2,
     Copy,
     Eye,
@@ -23,7 +22,6 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useCourseManagement, MaterialForm } from "./CourseManagementContext"
@@ -372,12 +370,12 @@ export function MaterialManagement({ showCreatePanel }: MaterialManagementProps)
 
     const materialsOrdered = React.useMemo(() => {
         return [...materials].sort((a, b) => {
-            const aTrackOrder = trackById.get(a.trackId)?.order ?? Number.MAX_SAFE_INTEGER
-            const bTrackOrder = trackById.get(b.trackId)?.order ?? Number.MAX_SAFE_INTEGER
+            const aTrackOrder = a.trackId ? (trackById.get(a.trackId)?.order ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
+            const bTrackOrder = b.trackId ? (trackById.get(b.trackId)?.order ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
             if (aTrackOrder !== bTrackOrder) return aTrackOrder - bTrackOrder
 
-            const aTrackTitle = trackById.get(a.trackId)?.title ?? ""
-            const bTrackTitle = trackById.get(b.trackId)?.title ?? ""
+            const aTrackTitle = a.trackId ? (trackById.get(a.trackId)?.title ?? "") : ""
+            const bTrackTitle = b.trackId ? (trackById.get(b.trackId)?.title ?? "") : ""
             const byTrackTitle = aTrackTitle.localeCompare(bTrackTitle)
             if (byTrackTitle !== 0) return byTrackTitle
 
@@ -794,7 +792,7 @@ export function MaterialManagement({ showCreatePanel }: MaterialManagementProps)
                                             className="h-9 w-full rounded-md border border-primary/20 bg-background/80 px-3 text-xs font-semibold outline-none transition-all focus:border-primary/30"
                                         >
                                             {materialsOrdered.map((material) => {
-                                                const trackTitle = trackById.get(material.trackId)?.title ?? "Sem módulo"
+                                                const trackTitle = material.trackId ? (trackById.get(material.trackId)?.title ?? "Sem módulo") : "Sem módulo"
                                                 return (
                                                     <option key={material.id} value={material.id}>
                                                         [{trackTitle}] {material.title}
@@ -898,15 +896,15 @@ export function MaterialManagement({ showCreatePanel }: MaterialManagementProps)
                                                 <div className="grid gap-2 sm:grid-cols-3">
                                                     <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
                                                         <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Módulo</p>
-                                                        <p className="text-xs font-bold text-foreground wrap-break-word">{trackById.get(selectedMaterial.trackId)?.title ?? "Sem módulo"}</p>
+                                                        <p className="text-xs font-bold text-foreground wrap-break-word">{selectedMaterial.trackId ? (trackById.get(selectedMaterial.trackId)?.title ?? "Sem módulo") : "Sem módulo"}</p>
                                                     </div>
                                                     <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
                                                         <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Visibilidade</p>
                                                         <p className="text-xs font-bold text-foreground uppercase">{selectedMaterial.visibility}</p>
                                                     </div>
                                                     <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
-                                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Data de criação</p>
-                                                        <p className="text-xs font-bold text-foreground">{selectedMaterial.createdAt ? new Date(selectedMaterial.createdAt).toLocaleDateString("pt-BR") : "N/A"}</p>
+                                                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Disponível em</p>
+                                                        <p className="text-xs font-bold text-foreground">{selectedMaterial.releaseAt ? new Date(selectedMaterial.releaseAt).toLocaleDateString("pt-BR") : "Agora"}</p>
                                                     </div>
                                                 </div>
                                             ) : null}

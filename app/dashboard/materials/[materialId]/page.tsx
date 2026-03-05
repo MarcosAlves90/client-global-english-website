@@ -87,7 +87,6 @@ export default function MaterialDetailPage() {
   }, [user, isFirebaseReady, params.materialId])
 
   const primaryType = material ? resolvePrimaryType(material) : "pdf"
-  const TypeIcon = typeIcons[primaryType] ?? FileText
   const attachments = material?.attachments ?? []
   const hasMarkdown = Boolean(material?.markdown?.trim())
 
