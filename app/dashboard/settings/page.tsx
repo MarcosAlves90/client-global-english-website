@@ -23,9 +23,11 @@ export default function Page() {
   const [showPassword, setShowPassword] = React.useState(false)
   const [showConfirm, setShowConfirm] = React.useState(false)
   const [isUploading, setIsUploading] = React.useState(false)
+  const avatarInputId = React.useId()
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const inputElement = event.currentTarget
     const file = event.target.files?.[0]
     if (!file || !user) return
 
@@ -62,6 +64,7 @@ export default function Page() {
       toast.error("Falha ao atualizar foto.")
     } finally {
       setIsUploading(false)
+      inputElement.value = ""
     }
   }
 
@@ -98,9 +101,13 @@ export default function Page() {
                       {displayName.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <button className="absolute bottom-0 right-0 p-2 bg-primary text-primary-foreground rounded-full shadow-lg hover:scale-110 transition-all opacity-0 group-hover/avatar:opacity-100">
+                  <label
+                    htmlFor={avatarInputId}
+                    className="absolute bottom-0 right-0 cursor-pointer p-2 bg-primary text-primary-foreground rounded-full shadow-lg transition-all hover:scale-110 opacity-100 sm:opacity-0 sm:group-hover/avatar:opacity-100"
+                    aria-label="Selecionar nova foto de perfil"
+                  >
                     <Camera className="size-4" />
-                  </button>
+                  </label>
                 </div>
                 <div className="text-center sm:text-left space-y-1">
                   <h2 className="text-2xl font-bold tracking-tight">{displayName}</h2>
@@ -112,20 +119,23 @@ export default function Page() {
               </div>
               <div className="flex flex-wrap gap-3 justify-center">
                 <input
+                  id={avatarInputId}
                   type="file"
                   ref={fileInputRef}
-                  className="hidden"
+                  className="sr-only"
                   accept="image/*"
                   onChange={handleAvatarUpload}
                 />
                 <Button
+                  asChild
                   variant="outline"
                   className="rounded-full px-6 border-primary/20 hover:bg-primary/5 transition-all"
-                  onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
                 >
-                  {isUploading ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
-                  {isUploading ? "Enviando..." : "Alterar Foto"}
+                  <label htmlFor={avatarInputId} className="cursor-pointer">
+                    {isUploading ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+                    {isUploading ? "Enviando..." : "Alterar Foto"}
+                  </label>
                 </Button>
                 <Button
                   variant="ghost"
