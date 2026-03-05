@@ -254,9 +254,13 @@ export default function Page() {
 
   async function handleSaveDraft() {
     if (!activity) return
+    if (isCompleted) {
+      toast.error("Esta atividade já foi enviada e não pode ser alterada.")
+      return
+    }
     setIsSaving(true)
     try {
-      await persistProgress(isCompleted ? "completed" : "in_progress")
+      await persistProgress("in_progress")
       toast.success("Rascunho salvo.")
     } catch (saveError) {
       toast.error(
@@ -272,6 +276,10 @@ export default function Page() {
 
   async function handleSubmit() {
     if (!activity) return
+    if (isCompleted) {
+      toast.error("Esta atividade já foi enviada e não pode ser alterada.")
+      return
+    }
     if (!progressStats.canSubmit) {
       toast.error("Responda todas as questões antes de finalizar.")
       return
@@ -294,10 +302,16 @@ export default function Page() {
   }
 
   function updateSingleAnswer(questionKey: string, value: ActivityAnswerValue) {
+    if (isCompleted) {
+      return
+    }
     setAnswers((prev) => ({ ...prev, [questionKey]: value }))
   }
 
   function toggleMultiChoice(questionKey: string, option: string) {
+    if (isCompleted) {
+      return
+    }
     setAnswers((prev) => {
       const current = Array.isArray(prev[questionKey]) ? [...prev[questionKey]] : []
       const index = current.findIndex((item) => normalizeText(item) === normalizeText(option))
@@ -354,11 +368,6 @@ export default function Page() {
                     <span className="rounded-full border border-primary/10 bg-primary/5 px-3 py-1 uppercase tracking-widest font-semibold">
                       {activity.courseTitle}
                     </span>
-                    {activity.trackTitle ? (
-                      <span className="rounded-full border border-primary/10 bg-primary/5 px-3 py-1 uppercase tracking-widest font-semibold">
-                        {activity.trackTitle}
-                      </span>
-                    ) : null}
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/10 bg-primary/5 px-3 py-1 uppercase tracking-widest font-semibold">
                       <Clock3 className="size-3.5 text-primary" />
                       {activity.estimatedMinutes || 15} min
@@ -422,6 +431,7 @@ export default function Page() {
                             {(question.type === "essay" || question.type === "short_answer") && (
                               <textarea
                                 value={typeof value === "string" ? value : ""}
+                                disabled={isCompleted}
                                 onChange={(event) =>
                                   updateSingleAnswer(questionKey, event.target.value)
                                 }
@@ -445,6 +455,7 @@ export default function Page() {
                                         id={optionId}
                                         type="radio"
                                         name={questionKey}
+                                        disabled={isCompleted}
                                         checked={value === option}
                                         onChange={() => updateSingleAnswer(questionKey, option)}
                                         className="size-4 accent-primary"
@@ -474,6 +485,7 @@ export default function Page() {
                                       <input
                                         id={optionId}
                                         type="checkbox"
+                                        disabled={isCompleted}
                                         checked={selected}
                                         onChange={() => toggleMultiChoice(questionKey, option)}
                                         className="size-4 accent-primary"
@@ -502,6 +514,7 @@ export default function Page() {
                                         id={optionId}
                                         type="radio"
                                         name={questionKey}
+                                        disabled={isCompleted}
                                         checked={value === option.value}
                                         onChange={() =>
                                           updateSingleAnswer(questionKey, option.value)
@@ -569,7 +582,7 @@ export default function Page() {
                       variant="outline"
                       className="rounded-full"
                       onClick={() => void handleSaveDraft()}
-                      disabled={isSaving || isSubmitting}
+                      disabled={isSaving || isSubmitting || isCompleted}
                     >
                       {isSaving ? (
                         <Loader2 className="mr-2 size-4 animate-spin" />
@@ -586,6 +599,7 @@ export default function Page() {
                       disabled={
                         isSubmitting ||
                         isSaving ||
+                        isCompleted ||
                         !progressStats.canSubmit ||
                         (questions.length === 0 && isCompleted)
                       }
@@ -595,7 +609,7 @@ export default function Page() {
                       ) : (
                         <Send className="mr-2 size-4" />
                       )}
-                      {isCompleted ? "Atualizar envio" : "Finalizar atividade"}
+                      {isCompleted ? "Atividade enviada" : "Finalizar atividade"}
                     </Button>
                   </div>
 

@@ -13,6 +13,7 @@ import {
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSectionHeader } from "@/components/dashboard-section-header"
 import { DashboardStatCard } from "@/components/dashboard-stat-card"
+import { Button } from "@/components/ui/button"
 import { StudentActivityCard } from "@/modules/activities/ui/student-activity-card"
 import { useAuth } from "@/hooks/use-auth"
 import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
@@ -37,6 +38,7 @@ export default function Page() {
   const router = useRouter()
   const { user, isFirebaseReady } = useAuth()
   const [activities, setActivities] = React.useState<ActivityView[]>([])
+  const [statusFilter, setStatusFilter] = React.useState<"pending" | "completed">("pending")
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -115,9 +117,22 @@ export default function Page() {
     () => activities.filter((activity) => activity.status === "completed").length,
     [activities]
   )
+  const pendingCount = React.useMemo(
+    () => activities.filter((activity) => activity.status !== "completed").length,
+    [activities]
+  )
   const inProgressCount = React.useMemo(
     () => activities.filter((activity) => activity.status === "in_progress").length,
     [activities]
+  )
+  const filteredActivities = React.useMemo(
+    () =>
+      activities.filter((activity) =>
+        statusFilter === "completed"
+          ? activity.status === "completed"
+          : activity.status !== "completed"
+      ),
+    [activities, statusFilter]
   )
 
   return (
@@ -169,6 +184,27 @@ export default function Page() {
           icon={ClipboardCheck}
         />
 
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={statusFilter === "pending" ? "default" : "outline"}
+            className="rounded-full"
+            onClick={() => setStatusFilter("pending")}
+          >
+            Pendentes ({pendingCount})
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={statusFilter === "completed" ? "default" : "outline"}
+            className="rounded-full"
+            onClick={() => setStatusFilter("completed")}
+          >
+            Concluídas ({completedCount})
+          </Button>
+        </div>
+
         {loading ? (
           <div className="flex h-64 items-center justify-center text-muted-foreground animate-pulse">
             Preparando suas tarefas...
@@ -187,9 +223,23 @@ export default function Page() {
               </p>
             </div>
           </div>
+        ) : filteredActivities.length === 0 ? (
+          <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-primary/20 bg-primary/5 p-12 text-center backdrop-blur-sm">
+            <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <FolderOpen className="size-8" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-lg font-bold tracking-tight text-foreground">
+                Nenhuma atividade {statusFilter === "completed" ? "concluída" : "pendente"}
+              </p>
+              <p className="text-sm text-muted-foreground/60">
+                Use os filtros para alternar entre atividades pendentes e concluídas.
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {activities.map((activity) => (
+            {filteredActivities.map((activity) => (
               <StudentActivityCard
                 key={activity.id}
                 activity={{

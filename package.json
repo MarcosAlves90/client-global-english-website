@@ -10,7 +10,8 @@
     "type": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e:course-activity-smoke": "node scripts/e2e-course-activity-smoke.mjs"
   },
   "dependencies": {
     "@uiw/react-markdown-preview": "^5.1.5",
