@@ -164,14 +164,14 @@ export function ActivityManagement({ showCreatePanel }: ActivityManagementProps)
         if (!form.trackId.trim()) errors.trackId = "Selecione o modulo de destino."
         if (!form.title.trim()) errors.title = "Informe o titulo da atividade."
         if (!Number.isFinite(estimated) || estimated <= 0) {
-            errors.estimatedMinutes = "Informe uma duracao valida em minutos."
+            errors.estimatedMinutes = "Informe uma duração valida em minutos."
         }
         if (form.visibility === "users" && form.userIds.length === 0) {
             errors.users = "Selecione ao menos um aluno para visibilidade restrita."
         }
         if (Object.keys(errors).length > 0) {
             setValidationErrors(errors)
-            toast.error("Revise os campos obrigatorios antes de salvar.")
+            toast.error("Revise os campos obrigatórios antes de salvar.")
             return
         }
 
@@ -258,9 +258,9 @@ export function ActivityManagement({ showCreatePanel }: ActivityManagementProps)
             finishProgressSimulation(index)
             setUploadFeedback((prev) => ({
                 ...prev,
-                [index]: { status: "success", message: "Upload concluido. Arquivo pronto para visualizacao." },
+                [index]: { status: "success", message: "Upload concluído. Arquivo pronto para visualização." },
             }))
-            toast.success(`Upload concluido: ${file.name}`)
+            toast.success(`Upload concluído: ${file.name}`)
         } catch (error) {
             clearInterval(uploadIntervalsRef.current[index])
             delete uploadIntervalsRef.current[index]
@@ -357,7 +357,7 @@ export function ActivityManagement({ showCreatePanel }: ActivityManagementProps)
             await navigator.clipboard.writeText(url)
             toast.success("Link do anexo copiado")
         } catch {
-            toast.error("Nao foi possivel copiar o link")
+            toast.error("Nao foi possível copiar o link")
         }
     }
 
@@ -610,7 +610,7 @@ export function ActivityManagement({ showCreatePanel }: ActivityManagementProps)
                                     </div>
                                     <div className="space-y-1">
                                         <p className="text-xs font-bold uppercase tracking-wider">Arraste e solte arquivos aqui</p>
-                                        <p className="text-xs text-muted-foreground">Ou clique para selecionar. Upload automatico com feedback em tempo real.</p>
+                                        <p className="text-xs text-muted-foreground">Ou clique para selecionar. Upload automático com feedback em tempo real.</p>
                                     </div>
                                 </div>
                             </div>
@@ -663,7 +663,7 @@ export function ActivityManagement({ showCreatePanel }: ActivityManagementProps)
                                                                         ))}
                                                                 </select>
                                                                 <Input
-                                                                    placeholder="Nome amigavel do anexo"
+                                                                    placeholder="Nome amigável do anexo"
                                                                     value={att.name}
                                                                     onChange={(e) =>
                                                                         setForm((p) => {
@@ -697,7 +697,7 @@ export function ActivityManagement({ showCreatePanel }: ActivityManagementProps)
                                                                 ) : (
                                                                     <Sparkles className="size-3" />
                                                                 )}
-                                                                {feedback?.message ?? (att.url ? "Anexo pronto para visualizacao" : "Aguardando upload")}
+                                                                {feedback?.message ?? (att.url ? "Anexo pronto para visualização" : "Aguardando upload")}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -992,7 +992,7 @@ export function ActivityManagement({ showCreatePanel }: ActivityManagementProps)
                                     <div className="flex items-center justify-between rounded-lg border border-primary/15 bg-primary/5 px-2 py-1.5">
                                         <div>
                                             <p className="text-[10px] font-bold uppercase tracking-widest text-primary/80">Acesso Restrito</p>
-                                            <p className="text-[11px] text-muted-foreground">Somente alunos selecionados poderao visualizar.</p>
+                                            <p className="text-[11px] text-muted-foreground">Somente alunos selecionados poderão visualizar.</p>
                                         </div>
                                         <span className="text-[10px] font-bold text-primary px-2 py-0.5 rounded-full bg-primary/10">{form.userIds.length} selecionados</span>
                                     </div>
@@ -1024,7 +1024,7 @@ export function ActivityManagement({ showCreatePanel }: ActivityManagementProps)
                                     </div>
                                     {suggestedUsers.length > 0 && (
                                         <div className="space-y-1 rounded-lg border border-primary/10 bg-background/70 p-2">
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Sugestoes</p>
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Sugestões</p>
                                             {suggestedUsers.map((u) => (
                                                 <button
                                                     key={u.uid}

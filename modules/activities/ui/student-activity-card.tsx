@@ -61,7 +61,7 @@ const statusConfigByKey: Record<string, StatusConfig> = {
     icon: Play,
   },
   completed: {
-    label: "Concluida",
+    label: "Concluída",
     chipClass: "border-emerald-500/25 bg-emerald-500/10 text-emerald-500",
     icon: CheckCircle2,
   },
@@ -188,7 +188,7 @@ export function StudentActivityCard({
             title={isCompleteActionDisabled ? completeDisabledReason : undefined}
           >
             <CheckCircle2 className="mr-2 size-4" />
-            {status === "completed" ? "Concluida" : "Marcar concluida"}
+            {status === "completed" ? "Concluída" : "Marcar concluída"}
           </Button>
         </div>
       </CardContent>

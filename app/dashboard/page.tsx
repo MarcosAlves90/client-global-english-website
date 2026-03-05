@@ -98,15 +98,22 @@ export default function Page() {
         .flatMap((course) =>
           course.activities.map((activity) => ({
             ...activity,
+            status:
+              progressByActivityId.get(activity.id) === "completed"
+                ? "completed"
+                : progressByActivityId.get(activity.id) === "in_progress"
+                  ? "in_progress"
+                  : "pending",
             courseTitle: course.title,
             trackTitle:
               course.tracks.find((track) => track.id === activity.trackId)
                 ?.title ?? "",
           }))
         )
+        .filter((activity) => activity.status !== "completed")
         .sort((a, b) => a.order - b.order)
         .slice(0, 4),
-    [courses]
+    [courses, progressByActivityId]
   )
 
   return (
@@ -207,12 +214,7 @@ export default function Page() {
                     key={activity.id}
                     activity={{
                       ...activity,
-                      status:
-                        progressByActivityId.get(activity.id) === "completed"
-                          ? "completed"
-                          : progressByActivityId.get(activity.id) === "in_progress"
-                            ? "in_progress"
-                            : "pending",
+                      status: activity.status,
                     }}
                     variant="compact"
                     onOpen={(id) => router.push(`/dashboard/activities/${id}`)}

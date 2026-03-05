@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import {
   BookOpen,
   ExternalLink,
@@ -104,18 +105,18 @@ export function StudentMaterialCard({ material, className }: StudentMaterialCard
         </div>
 
         <div className="mt-auto flex items-center gap-2 border-t border-primary/10 pt-4">
+          <Button className="w-full rounded-full font-semibold" asChild>
+            <Link href={`/dashboard/materials/${material.id}`}>
+              Ver material completo
+            </Link>
+          </Button>
           {primaryLink ? (
-            <Button className="w-full rounded-full font-semibold" asChild>
-              <a href={primaryLink} target="_blank" rel="noreferrer">
-                Acessar material
-                <ExternalLink className="ml-2 size-4" />
+            <Button variant="outline" size="icon" className="rounded-full shrink-0" asChild>
+              <a href={primaryLink} target="_blank" rel="noreferrer" aria-label="Abrir link principal do material">
+                <ExternalLink className="size-4" />
               </a>
             </Button>
-          ) : (
-            <Button className="w-full rounded-full font-semibold" disabled>
-              Material sem link
-            </Button>
-          )}
+          ) : null}
         </div>
       </CardContent>
     </Card>

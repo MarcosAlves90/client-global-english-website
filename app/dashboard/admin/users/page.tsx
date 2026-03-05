@@ -368,7 +368,7 @@ export default function Page() {
                   <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
                   <Input
                     placeholder="Buscar usuários..."
-                    className="h-9 w-full pl-9 lg:w-[300px] bg-card/40 backdrop-blur-sm border-primary/20 transition-all focus:border-primary/30"
+                    className="h-9 w-full pl-9 lg:w-75 bg-card/40 backdrop-blur-sm border-primary/20 transition-all focus:border-primary/30"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
