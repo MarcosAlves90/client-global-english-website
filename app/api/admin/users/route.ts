@@ -13,6 +13,7 @@ interface RequestBody {
   role?: "user" | "admin"
   team?: string | null
   disabled?: boolean
+  isRobot?: boolean
 }
 
 interface PaginatedUsersResponse {
@@ -121,6 +122,11 @@ export async function GET(req: NextRequest) {
         role: (data?.role as UserRole) ?? "user",
         team: (data?.team as string) ?? null,
         disabled: authUser?.disabled ?? Boolean(data?.disabled),
+        isRobot: Boolean(data?.isRobot),
+        photoURL:
+          (typeof authUser?.photoURL === "string" && authUser.photoURL.trim())
+            ? authUser.photoURL
+            : (data?.photoURL as string | null) ?? null,
         createdAt: data?.createdAt?.toDate?.() ?? null,
         updatedAt: data?.updatedAt?.toDate?.() ?? null,
       }
@@ -179,6 +185,7 @@ export async function POST(req: NextRequest) {
       email: body.email,
       role,
       team: body.team ?? null,
+      isRobot: Boolean(body.isRobot),
       mustChangePassword: true,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -197,6 +204,8 @@ export async function POST(req: NextRequest) {
       role,
       team: body.team ?? null,
       disabled: false,
+      isRobot: Boolean(body.isRobot),
+      photoURL: null,
       createdAt: null,
       updatedAt: null,
     }
@@ -233,7 +242,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "uid is required" }, { status: 400 })
   }
 
-  const { uid, name, email, role: roleStr, team, disabled } = body
+  const { uid, name, email, role: roleStr, team, disabled, isRobot } = body
 
   try {
     const authUpdates: Record<string, unknown> = {}
@@ -256,6 +265,9 @@ export async function PATCH(req: NextRequest) {
     if (team !== undefined) firestoreUpdates.team = team
     if (disabled !== undefined) {
       firestoreUpdates.disabled = disabled
+    }
+    if (isRobot !== undefined) {
+      firestoreUpdates.isRobot = Boolean(isRobot)
     }
     firestoreUpdates.updatedAt = admin.firestore.FieldValue.serverTimestamp()
 

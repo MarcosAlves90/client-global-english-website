@@ -74,7 +74,7 @@ function formatType(type: string) {
 
 function getPrimaryActionLabel(status: "pending" | "completed" | "in_progress") {
   if (status === "completed") return "Revisar atividade"
-  if (status === "pending") return "Comecar atividade"
+  if (status === "pending") return "Começar atividade"
   return "Continuar atividade"
 }
 

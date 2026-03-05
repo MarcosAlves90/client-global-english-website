@@ -1,5 +1,5 @@
 import Image from "next/image"
-import { Edit, Eye, Flame, ShieldCheck, Snowflake, Trash2, User } from "lucide-react"
+import { Bot, Edit, Eye, Flame, ShieldCheck, Snowflake, Trash2, User } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { optimizeCloudinaryUrl } from "@/lib/cloudinary-url"
@@ -38,7 +38,7 @@ export function AdminUserCard({
             <div className="mb-2 flex items-start gap-3">
                 <div
                     className={cn(
-                        "flex size-8 shrink-0 items-center justify-center rounded-full overflow-hidden transition-colors duration-500",
+                        "relative flex size-8 shrink-0 items-center justify-center rounded-full overflow-hidden transition-colors duration-500",
                         isAdmin ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
                         isSelected && "bg-primary text-primary-foreground"
                     )}
@@ -98,6 +98,13 @@ export function AdminUserCard({
                         Ativo
                     </span>
                 )}
+
+                {item.isRobot ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-500">
+                        <Bot className="size-2.5" />
+                        Robô
+                    </span>
+                ) : null}
             </div>
 
             <div className="mt-4 flex items-center justify-between gap-1 border-t border-dashed border-primary/20 pt-4 group-hover:border-primary/20">

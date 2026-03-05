@@ -975,7 +975,7 @@ export function ActivityManagement() {
                                 if (!trackActivities.length) return null
                                 return (
                                     <div key={track.id} className="space-y-3">
-                                        <p className="break-words text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500/60 border-b border-blue-500/10 pb-1 mb-3">{track.title}</p>
+                                        <p className="wrap-break-word text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500/60 border-b border-blue-500/10 pb-1 mb-3">{track.title}</p>
                                         {trackActivities.map((a) => {
                                             const Icon = ACTIVITY_TYPE_ICONS[a.type as keyof typeof ACTIVITY_TYPE_ICONS] || FileText
                                             const questions = Array.isArray(a.questions) ? a.questions : []
@@ -987,7 +987,7 @@ export function ActivityManagement() {
                                                                 <Icon className="size-4" />
                                                             </div>
                                                             <div className="min-w-0">
-                                                                <p className="text-xs font-bold tracking-tight break-words">{a.title}</p>
+                                                                <p className="text-xs font-bold tracking-tight wrap-break-word">{a.title}</p>
                                                                 <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
                                                                     <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold uppercase text-primary">
                                                                         {ACTIVITY_TYPE_LABELS[a.type as keyof typeof ACTIVITY_TYPE_LABELS]}
@@ -1033,7 +1033,7 @@ export function ActivityManagement() {
                                                                                 <span>{q.points ?? 0} pts</span>
                                                                             </div>
                                                                         </div>
-                                                                        <p className="mt-1 break-words text-xs text-foreground/90">{q.prompt || "Sem enunciado"}</p>
+                                                                        <p className="mt-1 wrap-break-word text-xs text-foreground/90">{q.prompt || "Sem enunciado"}</p>
                                                                         {(q.options?.length ?? 0) > 0 ? (
                                                                             <ul className="mt-2 space-y-1">
                                                                                 {(q.options ?? []).map((option, optionIdx) => {
@@ -1041,7 +1041,7 @@ export function ActivityManagement() {
                                                                                     return (
                                                                                         <li
                                                                                             key={`${a.id}-${idx}-opt-${optionIdx}`}
-                                                                                            className={`break-words rounded-md px-2 py-1 text-[11px] ${isCorrect
+                                                                                            className={`wrap-break-word rounded-md px-2 py-1 text-[11px] ${isCorrect
                                                                                                 ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-700"
                                                                                                 : "bg-primary/5 text-muted-foreground"
                                                                                                 }`}

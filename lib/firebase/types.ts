@@ -7,6 +7,7 @@ export type UserProfile = {
   role: UserRole
   team?: string | null
   disabled?: boolean
+  isRobot?: boolean
   mustChangePassword?: boolean
   photoURL?: string | null
   createdAt: Date | null

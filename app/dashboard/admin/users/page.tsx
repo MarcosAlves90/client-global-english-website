@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import * as React from "react"
-import { Mail, UserCheck, Users2, UserPlus, Search, AlertCircle, X } from "lucide-react"
+import { Mail, UserCheck, Users2, UserPlus, Search, AlertCircle, X, Bot } from "lucide-react"
 
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardStatCard } from "@/components/dashboard-stat-card"
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import type { AdminUserSummary } from "@/lib/firebase/types"
 import {
@@ -33,6 +34,7 @@ type EditableUser = {
   role: "admin" | "user"
   team: string
   disabled?: boolean
+  isRobot: boolean
 }
 
 const selectClassName =
@@ -53,6 +55,7 @@ export default function Page() {
     role: "user",
     team: "",
     disabled: false,
+    isRobot: false,
   })
   const [saving, setSaving] = React.useState(false)
   const [formError, setFormError] = React.useState<string | null>(null)
@@ -106,6 +109,7 @@ export default function Page() {
         role: "user",
         team: "",
         disabled: false,
+        isRobot: false,
       })
       setFormError(null)
       setGeneratedPassword(null)
@@ -161,6 +165,7 @@ export default function Page() {
       role: u.role,
       team: u.team ?? "",
       disabled: u.disabled,
+      isRobot: Boolean(u.isRobot),
     })
     setShowForm(true)
   }
@@ -223,6 +228,7 @@ export default function Page() {
           email: form.email.trim(),
           role: form.role,
           team: form.team.trim() || null,
+          isRobot: form.isRobot,
         })
 
         setUsers((prev) =>
@@ -234,6 +240,7 @@ export default function Page() {
                 email: form.email.trim(),
                 role: form.role,
                 team: form.team.trim() || null,
+                isRobot: form.isRobot,
               }
               : u
           )
@@ -246,6 +253,7 @@ export default function Page() {
           email: form.email.trim(),
           role: form.role,
           team: form.team.trim() || null,
+          isRobot: form.isRobot,
         })) as CreateAdminUserResponse | undefined
 
         if (created?.initialPassword) {
@@ -262,6 +270,7 @@ export default function Page() {
           role: "user",
           team: "",
           disabled: false,
+          isRobot: false,
         })
       }
     } catch {
@@ -472,6 +481,25 @@ export default function Page() {
                       <option key={opt} value={opt} />
                     ))}
                   </datalist>
+                </div>
+
+                <div className="md:col-span-2 flex items-center justify-between gap-4 rounded-lg border border-primary/10 bg-background/40 p-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Conta de testes (robô)</p>
+                    <p className="text-xs text-muted-foreground">
+                      Marque para identificar usuários automatizados ou usados apenas em QA.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Bot className="size-4 text-muted-foreground" />
+                    <Switch
+                      checked={form.isRobot}
+                      onCheckedChange={(checked) =>
+                        setForm((prev) => ({ ...prev, isRobot: checked }))
+                      }
+                      aria-label="Marcar usuário como conta de testes"
+                    />
+                  </div>
                 </div>
 
                 {formError && (

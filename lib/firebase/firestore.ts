@@ -357,6 +357,7 @@ export async function fetchUserProfile(uid: string): Promise<UserProfile | null>
     role: (data.role ?? "user") as UserRole,
     team: data.team ?? null,
     disabled: data.disabled ?? false,
+    isRobot: data.isRobot ?? false,
     mustChangePassword: data.mustChangePassword ?? false,
     createdAt: data.createdAt?.toDate?.() ?? null,
     updatedAt: data.updatedAt?.toDate?.() ?? null,
@@ -694,6 +695,7 @@ export async function fetchAdminUsers(): Promise<AdminUserSummary[]> {
         email: data.email ?? "",
         role: (data.role ?? "user") as UserRole,
         team: data.team ?? null,
+        isRobot: data.isRobot ?? false,
         createdAt: data.createdAt?.toDate?.() ?? null,
         updatedAt: data.updatedAt?.toDate?.() ?? null,
       } satisfies AdminUserSummary
@@ -707,6 +709,7 @@ export async function updateAdminUser(params: {
   email: string
   role: UserRole
   team?: string | null
+  isRobot?: boolean
 }) {
   const firestore = getDbOrThrow()
   const userRef = doc(firestore, COLLECTIONS.users, params.uid)
@@ -719,6 +722,7 @@ export async function updateAdminUser(params: {
       email: params.email,
       role: params.role,
       team: params.team ?? null,
+      isRobot: params.isRobot ?? false,
       updatedAt: serverTimestamp(),
     },
     { merge: true }

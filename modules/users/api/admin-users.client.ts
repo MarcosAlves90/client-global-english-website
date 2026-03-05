@@ -17,6 +17,7 @@ type UpsertUserPayload = {
   email: string
   role: "admin" | "user"
   team: string | null
+  isRobot?: boolean
 }
 
 export async function fetchAdminUsersPage(params: {

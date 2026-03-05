@@ -184,12 +184,22 @@ export default function Page() {
           icon={ClipboardCheck}
         />
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div
+          role="tablist"
+          aria-label="Filtrar atividades por status"
+          className="inline-flex w-fit items-center rounded-xl border border-dashed border-primary/15 bg-primary/5 p-1"
+        >
           <Button
             type="button"
             size="sm"
-            variant={statusFilter === "pending" ? "default" : "outline"}
-            className="rounded-full"
+            role="tab"
+            aria-selected={statusFilter === "pending"}
+            variant="ghost"
+            className={`rounded-xl px-4 transition-colors ${
+              statusFilter === "pending"
+                ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
             onClick={() => setStatusFilter("pending")}
           >
             Pendentes ({pendingCount})
@@ -197,8 +207,14 @@ export default function Page() {
           <Button
             type="button"
             size="sm"
-            variant={statusFilter === "completed" ? "default" : "outline"}
-            className="rounded-full"
+            role="tab"
+            aria-selected={statusFilter === "completed"}
+            variant="ghost"
+            className={`rounded-xl px-4 transition-colors ${
+              statusFilter === "completed"
+                ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
             onClick={() => setStatusFilter("completed")}
           >
             Concluídas ({completedCount})
