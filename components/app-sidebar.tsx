@@ -15,6 +15,7 @@ import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
 import { useAuth } from "@/hooks/use-auth"
+import { fetchUserActivities, fetchUserActivityProgressList } from "@/lib/firebase/firestore"
 import Link from "next/link"
 import { Logo } from "@/components/ui/logo"
 import {
@@ -29,8 +30,9 @@ import {
 import { usePathname } from "next/navigation"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { user, role, profile } = useAuth()
+  const { user, role, profile, isFirebaseReady } = useAuth()
   const isAdmin = role === "admin"
+  const [pendingActivitiesCount, setPendingActivitiesCount] = React.useState(0)
   const displayName = React.useMemo(
     () => profile?.name || user?.displayName || "Usuário",
     [profile?.name, user?.displayName]
@@ -39,6 +41,46 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const avatar = React.useMemo(() => user?.photoURL || "", [user?.photoURL])
 
   const pathname = usePathname()
+
+  React.useEffect(() => {
+    let isMounted = true
+
+    async function loadPendingActivitiesCount() {
+      if (!user?.uid || !isFirebaseReady) {
+        if (isMounted) setPendingActivitiesCount(0)
+        return
+      }
+
+      try {
+        const [activities, progressList] = await Promise.all([
+          fetchUserActivities(user.uid),
+          fetchUserActivityProgressList(user.uid),
+        ])
+
+        const progressByActivityId = new Map(
+          progressList.map((item) => [item.activityId, item.status] as const)
+        )
+
+        const pendingCount = activities.filter(
+          (activity) => progressByActivityId.get(activity.id) !== "completed"
+        ).length
+
+        if (isMounted) {
+          setPendingActivitiesCount(pendingCount)
+        }
+      } catch {
+        if (isMounted) {
+          setPendingActivitiesCount(0)
+        }
+      }
+    }
+
+    void loadPendingActivitiesCount()
+
+    return () => {
+      isMounted = false
+    }
+  }, [user?.uid, isFirebaseReady])
 
   const navMain = React.useMemo(() => {
     const items = [
@@ -59,6 +101,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         url: "/dashboard/activities",
         icon: ClipboardCheck,
         isActive: pathname.startsWith("/dashboard/activities"),
+        badgeCount: pendingActivitiesCount,
       },
       {
         title: "Materiais",
@@ -78,7 +121,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
 
     return items
-  }, [isAdmin, pathname])
+  }, [isAdmin, pathname, pendingActivitiesCount])
 
   const navSecondary = React.useMemo(
     () => [
