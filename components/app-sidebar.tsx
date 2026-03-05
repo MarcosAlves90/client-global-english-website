@@ -114,7 +114,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         <NavUser
           user={{ name: displayName, email, avatar }}
-          role={role}
         />
       </SidebarFooter>
     </Sidebar>

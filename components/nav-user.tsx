@@ -5,7 +5,6 @@ import {
   BadgeCheck,
   ChevronsUpDown,
   LogOut,
-  ShieldCheck,
 } from "lucide-react"
 
 import {
@@ -23,7 +22,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { signOutUser } from "@/lib/firebase/auth"
-import type { UserRole } from "@/lib/firebase/types"
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -34,14 +32,12 @@ import { useRouter } from "next/navigation"
 
 export const NavUser = React.memo(function NavUser({
   user,
-  role,
 }: {
   user: {
     name: string
     email: string
     avatar: string
   }
-  role?: UserRole | null
 }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
@@ -109,15 +105,6 @@ export const NavUser = React.memo(function NavUser({
                 <BadgeCheck />
                 Minha conta
               </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              {role === "admin" ? (
-                <DropdownMenuItem>
-                  <ShieldCheck />
-                  Admin
-                </DropdownMenuItem>
-              ) : null}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>
