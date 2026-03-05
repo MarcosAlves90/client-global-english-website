@@ -65,7 +65,11 @@ function reindexRecordByRemovedIndex<T>(record: Record<number, T>, removedIndex:
     return Object.fromEntries(entries)
 }
 
-export function ActivityManagement() {
+type ActivityManagementProps = {
+    showCreatePanel: boolean
+}
+
+export function ActivityManagement({ showCreatePanel }: ActivityManagementProps) {
     const {
         tracks,
         activities,
@@ -365,6 +369,8 @@ export function ActivityManagement() {
         <div className="grid gap-6 lg:grid-cols-[1.5fr,1fr]">
             {/* Creation and Form Card */}
             <div className="flex flex-col gap-6">
+                {showCreatePanel ? (
+                    <>
                 <Card className="border-primary/20 bg-card/40 backdrop-blur-sm">
                     <CardHeader>
                         <CardTitle className="text-base font-bold">Estrutura da Atividade</CardTitle>
@@ -949,6 +955,8 @@ export function ActivityManagement() {
                         </div>
                     </CardContent>
                 </Card>
+                    </>
+                ) : null}
             </div>
 
             {/* List Card */}

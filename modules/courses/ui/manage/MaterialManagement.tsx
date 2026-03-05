@@ -61,7 +61,11 @@ function reindexRecordByRemovedIndex<T>(record: Record<number, T>, removedIndex:
     return Object.fromEntries(entries)
 }
 
-export function MaterialManagement() {
+type MaterialManagementProps = {
+    showCreatePanel: boolean
+}
+
+export function MaterialManagement({ showCreatePanel }: MaterialManagementProps) {
     const {
         tracks,
         materials,
@@ -364,6 +368,8 @@ export function MaterialManagement() {
         <div className="grid gap-6 lg:grid-cols-[1.5fr,1fr]">
             {/* Creation and Form Card */}
             <div className="flex flex-col gap-6">
+                {showCreatePanel ? (
+                    <>
                 <Card className="border-primary/20 bg-card/40 backdrop-blur-sm">
                     <CardHeader>
                         <CardTitle className="text-base font-bold">Conteúdo do Material</CardTitle>
@@ -702,6 +708,8 @@ export function MaterialManagement() {
                         </div>
                     </CardContent>
                 </Card>
+                    </>
+                ) : null}
             </div>
 
             {/* List Card */}
@@ -725,7 +733,7 @@ export function MaterialManagement() {
                                 if (!trackMaterials.length) return null
                                 return (
                                     <div key={track.id} className="space-y-3">
-                                        <p className="break-words text-[10px] font-bold uppercase tracking-[0.2em] text-primary/60 border-b border-primary/20 pb-1 mb-3">{track.title}</p>
+                                        <p className="wrap-break-word text-[10px] font-bold uppercase tracking-[0.2em] text-primary/60 border-b border-primary/20 pb-1 mb-3">{track.title}</p>
                                         {trackMaterials.map((m) => {
                                             const primaryAtt = m.attachments?.[0]?.type || "link"
                                             const Icon = MATERIAL_TYPE_ICONS[primaryAtt as keyof typeof MATERIAL_TYPE_ICONS] || FileText
@@ -737,7 +745,7 @@ export function MaterialManagement() {
                                                                 <Icon className="size-4" />
                                                             </div>
                                                             <div className="min-w-0">
-                                                                <p className="text-xs font-bold tracking-tight break-words">{m.title}</p>
+                                                                <p className="text-xs font-bold tracking-tight wrap-break-word">{m.title}</p>
                                                                 <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
                                                                     <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold uppercase text-primary">{m.visibility}</span>
                                                                     <span>{m.attachments?.length || 0} anexo(s)</span>

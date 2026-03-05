@@ -14,7 +14,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useCourseManagement, TrackForm } from "./CourseManagementContext"
 
-export function TrackManagement() {
+type TrackManagementProps = {
+    showCreatePanel: boolean
+    onRequestOpenCreatePanel: () => void
+}
+
+export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: TrackManagementProps) {
     const {
         tracks,
         availableUsers,
@@ -79,7 +84,8 @@ export function TrackManagement() {
         <div className="space-y-6">
             <div className="grid gap-6 lg:grid-cols-[1.2fr,2fr]">
                 {/* Form Card */}
-                <Card className="border-primary/20 bg-card/40 backdrop-blur-sm">
+                {showCreatePanel ? (
+                    <Card className="border-primary/20 bg-card/40 backdrop-blur-sm">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-base">
                             <Sparkles className="size-4 text-primary" />
@@ -197,7 +203,8 @@ export function TrackManagement() {
                             </Button>
                         </div>
                     </CardContent>
-                </Card>
+                    </Card>
+                ) : null}
 
                 {/* List Card */}
                 <Card className="border-primary/20 bg-card/20 backdrop-blur-sm">
@@ -230,6 +237,7 @@ export function TrackManagement() {
                                                     variant="ghost"
                                                     className="h-7 w-7 p-0"
                                                     onClick={() => {
+                                                        onRequestOpenCreatePanel()
                                                         setEditingTrackId(track.id)
                                                         setForm({
                                                             title: track.title,

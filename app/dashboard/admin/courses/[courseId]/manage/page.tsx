@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ArrowLeft, Layers3, FileText, ClipboardList, BookOpen, AlertCircle } from "lucide-react"
+import { ArrowLeft, Layers3, FileText, ClipboardList, BookOpen, AlertCircle, Plus } from "lucide-react"
 
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
@@ -23,6 +23,9 @@ export default function Page() {
   const courseId = Array.isArray(params?.courseId) ? params.courseId[0] : params?.courseId
 
   const [activeSection, setActiveSection] = React.useState<SectionId>("overview")
+  const [showCreateTrackPanel, setShowCreateTrackPanel] = React.useState(false)
+  const [showCreateMaterialPanel, setShowCreateMaterialPanel] = React.useState(false)
+  const [showCreateActivityPanel, setShowCreateActivityPanel] = React.useState(false)
 
   const breadcrumbItems = React.useMemo(() => [
     { label: "Admin", href: "/dashboard/admin" },
@@ -64,6 +67,30 @@ export default function Page() {
   ] as const
   const activeSectionMeta = sections.find((section) => section.id === activeSection) ?? sections[0]
   const ActiveSectionIcon = activeSectionMeta.icon
+  const isModulesSection = activeSection === "modules"
+  const isMaterialsSection = activeSection === "materials"
+  const isActivitiesSection = activeSection === "activities"
+  const isCreatePanelOpen = isModulesSection
+    ? showCreateTrackPanel
+    : isMaterialsSection
+      ? showCreateMaterialPanel
+      : isActivitiesSection
+        ? showCreateActivityPanel
+        : false
+
+  const handleToggleCreatePanel = () => {
+    if (isModulesSection) {
+      setShowCreateTrackPanel((prev) => !prev)
+      return
+    }
+    if (isMaterialsSection) {
+      setShowCreateMaterialPanel((prev) => !prev)
+      return
+    }
+    if (isActivitiesSection) {
+      setShowCreateActivityPanel((prev) => !prev)
+    }
+  }
 
   return (
     <CourseManagementProvider>
@@ -73,12 +100,31 @@ export default function Page() {
           breadcrumbItems={breadcrumbItems}
           description="Estruture o conteúdo, defina trilhas e acompanhe o engajamento."
           action={
-            <Button asChild variant="ghost" size="sm" className="hidden sm:flex hover:bg-primary/5">
-              <Link href={courseId ? `/dashboard/admin/courses/${courseId}` : "/dashboard/admin/courses"}>
-                <ArrowLeft className="mr-2 size-4" />
-                Voltar
-              </Link>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button asChild variant="ghost" size="sm" className="hidden sm:flex hover:bg-primary/5">
+                <Link href={courseId ? `/dashboard/admin/courses/${courseId}` : "/dashboard/admin/courses"}>
+                  <ArrowLeft className="mr-2 size-4" />
+                  Voltar
+                </Link>
+              </Button>
+              {(isModulesSection || isMaterialsSection || isActivitiesSection) ? (
+                <Button
+                  size="sm"
+                  onClick={handleToggleCreatePanel}
+                  className="shadow-lg shadow-primary/10"
+                  variant={isCreatePanelOpen ? "outline" : "default"}
+                >
+                  <Plus className="mr-2 size-4" />
+                  {isCreatePanelOpen
+                    ? "Fechar criação"
+                    : isModulesSection
+                      ? "Criar módulo"
+                      : isMaterialsSection
+                      ? "Criar material"
+                      : "Criar atividade"}
+                </Button>
+              ) : null}
+            </div>
           }
         />
 
@@ -164,7 +210,12 @@ export default function Page() {
               aria-labelledby="course-manage-tab-modules"
               hidden={activeSection !== "modules"}
             >
-              {activeSection === "modules" && <TrackManagement />}
+              {activeSection === "modules" && (
+                <TrackManagement
+                  showCreatePanel={showCreateTrackPanel}
+                  onRequestOpenCreatePanel={() => setShowCreateTrackPanel(true)}
+                />
+              )}
             </div>
             <div
               id="course-manage-panel-materials"
@@ -172,7 +223,9 @@ export default function Page() {
               aria-labelledby="course-manage-tab-materials"
               hidden={activeSection !== "materials"}
             >
-              {activeSection === "materials" && <MaterialManagement />}
+              {activeSection === "materials" && (
+                <MaterialManagement showCreatePanel={showCreateMaterialPanel} />
+              )}
             </div>
             <div
               id="course-manage-panel-activities"
@@ -180,7 +233,9 @@ export default function Page() {
               aria-labelledby="course-manage-tab-activities"
               hidden={activeSection !== "activities"}
             >
-              {activeSection === "activities" && <ActivityManagement />}
+              {activeSection === "activities" && (
+                <ActivityManagement showCreatePanel={showCreateActivityPanel} />
+              )}
             </div>
           </div>
         </div>
