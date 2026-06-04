@@ -4,6 +4,10 @@ import { NextResponse } from "next/server"
 import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
 import { deleteCloudinaryAssetsByUrls } from "@/lib/cloudinary-admin"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import {
+  normalizeCloudinaryUrlValue,
+  isCloudinaryUrl,
+} from "@/lib/cloudinary-url"
 import type { AdminCourseSummary } from "@/lib/firebase/types"
 
 const COURSE_STATUS_OPTIONS = [
@@ -157,7 +161,7 @@ export async function GET(req: NextRequest) {
             ((data.level as "Beginner" | "Intermediate" | "Advanced") ??
               "Beginner"),
           durationWeeks: Number(data.durationWeeks ?? 0),
-          coverUrl: (data.coverUrl as string | null) ?? null,
+          coverUrl: normalizeCloudinaryUrlValue(data.coverUrl ?? null) ?? null,
           status: (data.status as string) ?? "Inscrições abertas",
           modulesCount: tracksSnapshot.size,
           studentsCount,
@@ -191,7 +195,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const title = body.title?.trim() ?? ""
+    const title = body.title?.trim() ?? ""
   const description = body.description?.trim() ?? ""
   const level = body.level ?? "Beginner"
   const durationWeeks = Number(body.durationWeeks)
@@ -209,12 +213,16 @@ export async function POST(req: NextRequest) {
   try {
     const ref = adminDb.collection(COLLECTIONS.courses).doc()
 
+    const coverUrl = body.coverUrl && isCloudinaryUrl(body.coverUrl.trim())
+      ? normalizeCloudinaryUrlValue(body.coverUrl) ?? null
+      : body.coverUrl?.trim() || null
+
     await ref.set({
       title,
       description,
       level,
       durationWeeks,
-      coverUrl: body.coverUrl?.trim() || null,
+      coverUrl,
       status,
       createdAt: now,
       updatedAt: now,
@@ -227,7 +235,7 @@ export async function POST(req: NextRequest) {
       description,
       level,
       durationWeeks,
-      coverUrl: body.coverUrl?.trim() || null,
+      coverUrl,
       status,
       modulesCount: 0,
       studentsCount: 0,
@@ -263,9 +271,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }
 
-  const updates: Record<string, unknown> = {
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }
+    const updates: Record<string, unknown> = {
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }
 
   if (body.title !== undefined) {
     const title = body.title.trim()
@@ -302,7 +310,10 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (body.coverUrl !== undefined) {
-    updates.coverUrl = body.coverUrl?.trim() || null
+    const trimmedCoverUrl = body.coverUrl?.trim() || ""
+    updates.coverUrl = isCloudinaryUrl(trimmedCoverUrl)
+      ? normalizeCloudinaryUrlValue(trimmedCoverUrl) ?? null
+      : trimmedCoverUrl || null
   }
 
   if (body.status !== undefined) {

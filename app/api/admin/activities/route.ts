@@ -2,7 +2,13 @@
 import { NextResponse } from "next/server"
 
 import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
-import { deleteCloudinaryAssetsByUrls, isCloudinaryUrl } from "@/lib/cloudinary-admin"
+import {
+  deleteCloudinaryAssetsByUrls,
+  isCloudinaryUrl,
+} from "@/lib/cloudinary-admin"
+import {
+  normalizeCloudinaryUrlItems,
+} from "@/lib/cloudinary-url"
 import { COLLECTIONS } from "@/lib/firebase/collections"
 import type { Activity } from "@/lib/firebase/types"
 
@@ -100,7 +106,9 @@ function normalizeAttachments(input?: unknown) {
     .map((item) => item.url)
 
   return {
-    attachments: mapped.filter((item) => isCloudinaryUrl(item.url)),
+    attachments: normalizeCloudinaryUrlItems(
+      mapped.filter((item) => isCloudinaryUrl(item.url))
+    ),
     invalidUrls,
   }
 }
@@ -220,7 +228,9 @@ export async function GET(req: NextRequest) {
         visibility: data.visibility ?? "private",
         userIds: Array.isArray(data.userIds) ? data.userIds : [],
         releaseAt: data.releaseAt?.toDate?.() ?? null,
-        attachments: Array.isArray(data.attachments) ? data.attachments : [],
+        attachments: normalizeCloudinaryUrlItems(
+          Array.isArray(data.attachments) ? data.attachments : []
+        ),
         questions: Array.isArray(data.questions) ? data.questions : [],
       }
     })

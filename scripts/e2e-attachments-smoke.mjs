@@ -42,6 +42,67 @@ function assertEnv(name) {
   return value
 }
 
+function getCloudinaryCloudName() {
+  return (
+    process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim() ||
+    process.env.CLOUDINARY_CLOUD_NAME?.trim() ||
+    "demo"
+  )
+}
+
+function cloudinaryRawUrl(assetPath) {
+  return `https://res.cloudinary.com/${getCloudinaryCloudName()}/raw/upload/v1/${assetPath}`
+}
+
+function assertOkResponse(resp, label) {
+  if (!resp.ok || !resp.data?.id) {
+    throw new Error(`${label} failed: ${resp.status}`)
+  }
+
+  return resp.data.id
+}
+
+function assertStatus(resp, expectedStatus, label) {
+  if (resp.status !== expectedStatus) {
+    throw new Error(`${label} failed: ${resp.status}`)
+  }
+}
+
+async function createResource(baseUrl, path, idToken, body, label) {
+  const resp = await api(baseUrl, path, "POST", idToken, body)
+  return assertOkResponse(resp, label)
+}
+
+async function deleteAttachmentAndVerify(baseUrl, idToken, entityType, entityId, attachmentUrl, label) {
+  const resp = await api(baseUrl, "/api/admin/attachments", "DELETE", idToken, {
+    entityType,
+    entityId,
+    attachmentUrl,
+  })
+
+  if (!resp.ok) {
+    throw new Error(`${label} failed: ${resp.status}`)
+  }
+}
+
+async function fetchCollectionByCourseId(db, collectionName, courseId) {
+  return db.collection(collectionName).where("courseId", "==", courseId).get()
+}
+
+async function cleanupCourseData(db, courseId) {
+  if (!courseId) {
+    return
+  }
+
+  const collections = ["materials", "activities", "tracks"]
+  for (const collectionName of collections) {
+    const snapshot = await fetchCollectionByCourseId(db, collectionName, courseId)
+    await Promise.all(snapshot.docs.map((doc) => doc.ref.delete().catch(() => {})))
+  }
+
+  await db.collection("courses").doc(courseId).delete().catch(() => {})
+}
+
 async function api(baseUrl, path, method, idToken, body) {
   const resp = await fetch(`${baseUrl}${path}`, {
     method,
@@ -66,7 +127,7 @@ async function run() {
 
   const projectId = assertEnv("FIREBASE_PROJECT_ID")
   const clientEmail = assertEnv("FIREBASE_CLIENT_EMAIL")
-  const privateKey = assertEnv("FIREBASE_PRIVATE_KEY").replace(/\\n/g, "\n")
+  const privateKey = assertEnv("FIREBASE_PRIVATE_KEY").replaceAll(String.raw`\n`, "\n")
   const apiKey = assertEnv("NEXT_PUBLIC_FIREBASE_API_KEY")
 
   if (!admin.apps.length) {
@@ -122,31 +183,23 @@ async function run() {
       throw new Error("Missing idToken from Identity Toolkit")
     }
 
-    const createCourse = await api(baseUrl, "/api/admin/courses", "POST", idToken, {
+    courseId = await createResource(baseUrl, "/api/admin/courses", idToken, {
       title: `E2E Course ${ts}`,
       description: "Smoke test attachments",
       level: "Beginner",
       durationWeeks: 4,
       status: "Pausado",
-    })
-    if (!createCourse.ok || !createCourse.data?.id) {
-      throw new Error(`create course failed: ${createCourse.status}`)
-    }
-    courseId = createCourse.data.id
+    }, "create course")
 
-    const createTrack = await api(baseUrl, "/api/admin/tracks", "POST", idToken, {
+    const trackId = await createResource(baseUrl, "/api/admin/tracks", idToken, {
       courseId,
       title: "Modulo E2E",
       description: "Modulo para smoke test",
       order: 1,
       userIds: [],
-    })
-    if (!createTrack.ok || !createTrack.data?.id) {
-      throw new Error(`create track failed: ${createTrack.status}`)
-    }
-    const trackId = createTrack.data.id
+    }, "create track")
 
-    const createMaterial = await api(baseUrl, "/api/admin/materials", "POST", idToken, {
+    materialId = await createResource(baseUrl, "/api/admin/materials", idToken, {
       courseId,
       trackId,
       title: "Material E2E",
@@ -155,14 +208,10 @@ async function run() {
         {
           name: "PDF Teste",
           type: "pdf",
-          url: "https://res.cloudinary.com/demo/raw/upload/v1/global-english/materials/e2e-file.pdf",
+          url: cloudinaryRawUrl("global-english/materials/e2e-file.pdf"),
         },
       ],
-    })
-    if (!createMaterial.ok || !createMaterial.data?.id) {
-      throw new Error(`create material failed: ${createMaterial.status}`)
-    }
-    materialId = createMaterial.data.id
+    }, "create material")
 
     const invalidMaterial = await api(baseUrl, "/api/admin/materials", "POST", idToken, {
       courseId,
@@ -177,11 +226,9 @@ async function run() {
         },
       ],
     })
-    if (invalidMaterial.status !== 400) {
-      throw new Error(`cloudinary validation failed for material: ${invalidMaterial.status}`)
-    }
+    assertStatus(invalidMaterial, 400, "cloudinary validation for material")
 
-    const createActivity = await api(baseUrl, "/api/admin/activities", "POST", idToken, {
+    activityId = await createResource(baseUrl, "/api/admin/activities", idToken, {
       courseId,
       trackId,
       title: "Atividade E2E",
@@ -192,31 +239,20 @@ async function run() {
         {
           name: "Audio Teste",
           type: "audio",
-          url: "https://res.cloudinary.com/demo/raw/upload/v1/global-english/activities/e2e-audio.mp3",
+          url: cloudinaryRawUrl("global-english/activities/e2e-audio.mp3"),
         },
       ],
       questions: [],
-    })
-    if (!createActivity.ok || !createActivity.data?.id) {
-      throw new Error(`create activity failed: ${createActivity.status}`)
-    }
-    activityId = createActivity.data.id
+    }, "create activity")
 
-    const deleteMaterialAttachment = await api(
+    await deleteAttachmentAndVerify(
       baseUrl,
-      "/api/admin/attachments",
-      "DELETE",
       idToken,
-      {
-        entityType: "material",
-        entityId: materialId,
-        attachmentUrl:
-          "https://res.cloudinary.com/demo/raw/upload/v1/global-english/materials/e2e-file.pdf",
-      }
+      "material",
+      materialId,
+      cloudinaryRawUrl("global-english/materials/e2e-file.pdf"),
+      "delete material attachment"
     )
-    if (!deleteMaterialAttachment.ok) {
-      throw new Error(`delete material attachment failed: ${deleteMaterialAttachment.status}`)
-    }
 
     const materials = await api(
       baseUrl,
@@ -229,21 +265,14 @@ async function run() {
       throw new Error("material attachment was not removed")
     }
 
-    const deleteActivityAttachment = await api(
+    await deleteAttachmentAndVerify(
       baseUrl,
-      "/api/admin/attachments",
-      "DELETE",
       idToken,
-      {
-        entityType: "activity",
-        entityId: activityId,
-        attachmentUrl:
-          "https://res.cloudinary.com/demo/raw/upload/v1/global-english/activities/e2e-audio.mp3",
-      }
+      "activity",
+      activityId,
+      "https://res.cloudinary.com/demo/raw/upload/v1/global-english/activities/e2e-audio.mp3",
+      "delete activity attachment"
     )
-    if (!deleteActivityAttachment.ok) {
-      throw new Error(`delete activity attachment failed: ${deleteActivityAttachment.status}`)
-    }
 
     const activities = await api(
       baseUrl,
@@ -256,10 +285,9 @@ async function run() {
       throw new Error("activity attachment was not removed")
     }
 
-    const createMaterialCascade = await api(
+    await createResource(
       baseUrl,
       "/api/admin/materials",
-      "POST",
       idToken,
       {
         courseId,
@@ -270,19 +298,16 @@ async function run() {
           {
             name: "Cascade PDF",
             type: "pdf",
-            url: "https://res.cloudinary.com/demo/raw/upload/v1/global-english/materials/e2e-cascade.pdf",
+            url: cloudinaryRawUrl("global-english/materials/e2e-cascade.pdf"),
           },
         ],
-      }
+      },
+      "create material cascade"
     )
-    if (!createMaterialCascade.ok) {
-      throw new Error(`create material cascade failed: ${createMaterialCascade.status}`)
-    }
 
-    const createActivityCascade = await api(
+    await createResource(
       baseUrl,
       "/api/admin/activities",
-      "POST",
       idToken,
       {
         courseId,
@@ -295,15 +320,13 @@ async function run() {
           {
             name: "Cascade Audio",
             type: "audio",
-            url: "https://res.cloudinary.com/demo/raw/upload/v1/global-english/activities/e2e-cascade.mp3",
+            url: cloudinaryRawUrl("global-english/activities/e2e-cascade.mp3"),
           },
         ],
         questions: [],
-      }
+      },
+      "create activity cascade"
     )
-    if (!createActivityCascade.ok) {
-      throw new Error(`create activity cascade failed: ${createActivityCascade.status}`)
-    }
 
     const deleteCourse = await api(baseUrl, "/api/admin/courses", "DELETE", idToken, {
       id: courseId,
@@ -312,18 +335,11 @@ async function run() {
       throw new Error(`delete course failed: ${deleteCourse.status}`)
     }
 
-    const tracksLeft = await db
-      .collection("tracks")
-      .where("courseId", "==", courseId)
-      .get()
-    const materialsLeft = await db
-      .collection("materials")
-      .where("courseId", "==", courseId)
-      .get()
-    const activitiesLeft = await db
-      .collection("activities")
-      .where("courseId", "==", courseId)
-      .get()
+    const [tracksLeft, materialsLeft, activitiesLeft] = await Promise.all([
+      fetchCollectionByCourseId(db, "tracks", courseId),
+      fetchCollectionByCourseId(db, "materials", courseId),
+      fetchCollectionByCourseId(db, "activities", courseId),
+    ])
 
     if (!tracksLeft.empty || !materialsLeft.empty || !activitiesLeft.empty) {
       throw new Error("cascade delete left related docs")
@@ -332,23 +348,7 @@ async function run() {
     console.log("E2E smoke test: PASS")
     console.log("Checked: Cloudinary-only validation, attachment delete endpoint, course cascade delete")
   } finally {
-    try {
-      if (courseId) {
-        const mats = await db
-          .collection("materials")
-          .where("courseId", "==", courseId)
-          .get()
-        await Promise.all(mats.docs.map((d) => d.ref.delete().catch(() => {})))
-        const acts = await db
-          .collection("activities")
-          .where("courseId", "==", courseId)
-          .get()
-        await Promise.all(acts.docs.map((d) => d.ref.delete().catch(() => {})))
-        const trs = await db.collection("tracks").where("courseId", "==", courseId).get()
-        await Promise.all(trs.docs.map((d) => d.ref.delete().catch(() => {})))
-        await db.collection("courses").doc(courseId).delete().catch(() => {})
-      }
-    } catch {}
+    await cleanupCourseData(db, courseId).catch(() => {})
 
     await db.collection("users").doc(testUid).delete().catch(() => {})
     await auth.deleteUser(testUid).catch(() => {})
@@ -359,8 +359,10 @@ async function run() {
   }
 }
 
-run().catch((error) => {
+try {
+  await run()
+} catch (error) {
   console.error("E2E smoke test: FAIL")
   console.error(error?.stack || error?.message || error)
   process.exit(1)
-})
+}

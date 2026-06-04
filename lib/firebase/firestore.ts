@@ -10,6 +10,10 @@
 } from "firebase/firestore"
 import { db, hasFirebaseConfig } from "@/lib/firebase/client"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import {
+  normalizeCloudinaryUrlItems,
+  normalizeCloudinaryUrlValue,
+} from "@/lib/cloudinary-url"
 import type {
   Activity,
   ActivityAnswerValue,
@@ -51,6 +55,10 @@ function isFirestorePermissionDenied(error: unknown) {
       ? String((error as { code?: string }).code)
       : ""
   return code.toLowerCase().replace("firestore/", "") === "permission-denied"
+}
+
+function readStringField(value: unknown) {
+  return typeof value === "string" ? value : ""
 }
 
 async function fetchEnrollmentsWithTrackFallback(
@@ -211,7 +219,9 @@ async function fetchActivitiesVisibleToUserByCourseIds(
           visibility: data.visibility ?? "module",
           userIds: Array.isArray(data.userIds) ? data.userIds : [],
           releaseAt: data.releaseAt?.toDate?.() ?? null,
-          attachments: Array.isArray(data.attachments) ? data.attachments : [],
+          attachments: normalizeCloudinaryUrlItems(
+            Array.isArray(data.attachments) ? data.attachments : []
+          ),
           questions: Array.isArray(data.questions) ? data.questions : [],
         })
       })
@@ -243,7 +253,9 @@ async function fetchActivitiesVisibleToUserByCourseIds(
           visibility: data.visibility ?? "module",
           userIds: Array.isArray(data.userIds) ? data.userIds : [],
           releaseAt: data.releaseAt?.toDate?.() ?? null,
-          attachments: Array.isArray(data.attachments) ? data.attachments : [],
+          attachments: normalizeCloudinaryUrlItems(
+            Array.isArray(data.attachments) ? data.attachments : []
+          ),
           questions: Array.isArray(data.questions) ? data.questions : [],
         })
       })
@@ -285,12 +297,14 @@ async function fetchMaterialsVisibleToUserByCourseIds(
           trackId: data.trackId ?? undefined,
           title: data.title ?? "",
           type: data.type ?? undefined,
-          url: data.url ?? "",
+          url: normalizeCloudinaryUrlValue(data.url ?? null) ?? "",
           visibility: data.visibility ?? "module",
           userIds: Array.isArray(data.userIds) ? data.userIds : [],
           releaseAt: data.releaseAt?.toDate?.() ?? null,
           markdown: data.markdown ?? "",
-          attachments: Array.isArray(data.attachments) ? data.attachments : [],
+          attachments: normalizeCloudinaryUrlItems(
+            Array.isArray(data.attachments) ? data.attachments : []
+          ),
         })
       })
     } catch (error) {
@@ -317,12 +331,14 @@ async function fetchMaterialsVisibleToUserByCourseIds(
           trackId: data.trackId ?? undefined,
           title: data.title ?? "",
           type: data.type ?? undefined,
-          url: data.url ?? "",
+          url: normalizeCloudinaryUrlValue(data.url ?? null) ?? "",
           visibility: data.visibility ?? "module",
           userIds: Array.isArray(data.userIds) ? data.userIds : [],
           releaseAt: data.releaseAt?.toDate?.() ?? null,
           markdown: data.markdown ?? "",
-          attachments: Array.isArray(data.attachments) ? data.attachments : [],
+          attachments: normalizeCloudinaryUrlItems(
+            Array.isArray(data.attachments) ? data.attachments : []
+          ),
         })
       })
     } catch (error) {
@@ -361,7 +377,7 @@ export async function fetchUserProfile(uid: string): Promise<UserProfile | null>
     mustChangePassword: data.mustChangePassword ?? false,
     createdAt: data.createdAt?.toDate?.() ?? null,
     updatedAt: data.updatedAt?.toDate?.() ?? null,
-    photoURL: data.photoURL ?? null,
+    photoURL: normalizeCloudinaryUrlValue(data.photoURL ?? null) ?? null,
   } satisfies UserProfile
 }
 
@@ -428,7 +444,7 @@ export async function fetchUserDashboard(uid: string): Promise<DashboardCourse[]
           description: data.description ?? "",
           level: data.level ?? "Beginner",
           durationWeeks: data.durationWeeks ?? 0,
-          coverUrl: data.coverUrl ?? undefined,
+          coverUrl: normalizeCloudinaryUrlValue(data.coverUrl ?? null) ?? undefined,
         } satisfies Course
       })
     )
@@ -567,10 +583,10 @@ export async function fetchUserActivities(uid: string): Promise<Activity[]> {
 function mapActivityProgress(docId: string, data: Record<string, unknown>): ActivityProgress {
   return {
     id: docId,
-    userId: String(data.userId ?? ""),
-    activityId: String(data.activityId ?? ""),
-    courseId: String(data.courseId ?? ""),
-    trackId: String(data.trackId ?? ""),
+    userId: readStringField(data.userId),
+    activityId: readStringField(data.activityId),
+    courseId: readStringField(data.courseId),
+    trackId: readStringField(data.trackId),
     status: (data.status ?? "not_started") as ActivityProgressStatus,
     answers:
       data.answers && typeof data.answers === "object"
@@ -743,7 +759,7 @@ export async function fetchAdminCourses(): Promise<AdminCourseSummary[]> {
       description: data.description ?? "",
       level: (data.level ?? "Beginner") as "Beginner" | "Intermediate" | "Advanced",
       durationWeeks: data.durationWeeks ?? 0,
-      coverUrl: data.coverUrl ?? null,
+      coverUrl: normalizeCloudinaryUrlValue(data.coverUrl ?? null) ?? null,
       status: data.status ?? "Inscrições abertas",
     }
   })

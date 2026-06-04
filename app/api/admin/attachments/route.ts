@@ -3,9 +3,11 @@ import { NextResponse } from "next/server"
 
 import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
 import {
+  cloudinaryAssetUrlsMatch,
   deleteCloudinaryAssetsByUrls,
   isCloudinaryUrl,
 } from "@/lib/cloudinary-admin"
+import { normalizeCloudinaryUrlItems } from "@/lib/cloudinary-url"
 import { COLLECTIONS } from "@/lib/firebase/collections"
 
 type DeleteAttachmentBody = {
@@ -92,8 +94,11 @@ export async function DELETE(req: NextRequest) {
       ? data.attachments
       : []
 
-    const nextAttachments = currentAttachments.filter(
-      (item: { url?: unknown }) => item?.url !== attachmentUrl
+    const nextAttachments = normalizeCloudinaryUrlItems(
+      currentAttachments.filter((item: { url?: unknown }) => {
+      const currentUrl = typeof item?.url === "string" ? item.url : ""
+      return !cloudinaryAssetUrlsMatch(currentUrl, attachmentUrl)
+      })
     )
 
     if (nextAttachments.length === currentAttachments.length) {

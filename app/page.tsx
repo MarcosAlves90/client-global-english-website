@@ -11,6 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarGroup, AvatarImage } from "@/components/ui/avatar"
 import { Logo } from "@/components/ui/logo"
 import { DashboardMockup } from "@/components/landing/dashboard-mockup"
+import { buildCloudinaryUrl } from "@/lib/cloudinary-url"
 import { buildPageMetadata } from "@/lib/seo"
 
 export const metadata: Metadata = buildPageMetadata({
@@ -42,6 +43,13 @@ const featuresList = [
     title: "100% Seguro",
     description: "Uma conta única, segura e exclusiva com todo o histórico do seu desempenho salvo na nuvem."
   },
+]
+
+const socialProofAvatars = [
+  buildCloudinaryUrl("v1772409384/av2_mtm7rr.jpg"),
+  buildCloudinaryUrl("v1772409366/av1_tysyxv.jpg"),
+  buildCloudinaryUrl("v1772409364/av4_qu7awa.jpg"),
+  buildCloudinaryUrl("v1772409364/av3_wuknvs.jpg"),
 ]
 
 export default function Home() {
@@ -107,19 +115,19 @@ export default function Home() {
               <div className="flex items-center gap-4 pt-6 border-t border-border/50">
                 <AvatarGroup>
                   <Avatar className="ring-background border-2 border-background">
-                    <AvatarImage src="https://res.cloudinary.com/dflvo098t/image/upload/v1772409384/av2_mtm7rr.jpg" />
+                    <AvatarImage src={socialProofAvatars[0]} />
                     <AvatarFallback>A1</AvatarFallback>
                   </Avatar>
                   <Avatar className="ring-background border-2 border-background">
-                    <AvatarImage src="https://res.cloudinary.com/dflvo098t/image/upload/v1772409366/av1_tysyxv.jpg" />
+                    <AvatarImage src={socialProofAvatars[1]} />
                     <AvatarFallback>A2</AvatarFallback>
                   </Avatar>
                   <Avatar className="ring-background border-2 border-background">
-                    <AvatarImage src="https://res.cloudinary.com/dflvo098t/image/upload/v1772409364/av4_qu7awa.jpg" />
+                    <AvatarImage src={socialProofAvatars[2]} />
                     <AvatarFallback>A3</AvatarFallback>
                   </Avatar>
                   <Avatar className="ring-background border-2 border-background">
-                    <AvatarImage src="https://res.cloudinary.com/dflvo098t/image/upload/v1772409364/av3_wuknvs.jpg" />
+                    <AvatarImage src={socialProofAvatars[3]} />
                     <AvatarFallback>A4</AvatarFallback>
                   </Avatar>
                 </AvatarGroup>

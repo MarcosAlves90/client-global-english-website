@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
 import { COLLECTIONS } from "@/lib/firebase/collections"
 import { resolveUserRole } from "@/lib/firebase/roles"
+import { normalizeCloudinaryUrlValue } from "@/lib/cloudinary-url"
 import type { AdminUserSummary, UserRole } from "@/lib/firebase/types"
 
 // body type used by both create and update handlers
@@ -114,6 +115,10 @@ export async function GET(req: NextRequest) {
     const items: AdminUserSummary[] = userDocs.map((docSnap) => {
       const data = docSnap.data()
       const authUser = authUsersByUid.get(docSnap.id)
+      const rawPhotoURL =
+        (typeof authUser?.photoURL === "string" && authUser.photoURL.trim())
+          ? authUser.photoURL
+          : (data?.photoURL as string | null) ?? null
 
       return {
         uid: docSnap.id,
@@ -123,17 +128,14 @@ export async function GET(req: NextRequest) {
         team: (data?.team as string) ?? null,
         disabled: authUser?.disabled ?? Boolean(data?.disabled),
         isRobot: Boolean(data?.isRobot),
-        photoURL:
-          (typeof authUser?.photoURL === "string" && authUser.photoURL.trim())
-            ? authUser.photoURL
-            : (data?.photoURL as string | null) ?? null,
+        photoURL: normalizeCloudinaryUrlValue(rawPhotoURL) ?? null,
         createdAt: data?.createdAt?.toDate?.() ?? null,
         updatedAt: data?.updatedAt?.toDate?.() ?? null,
       }
     })
 
     const nextCursor = hasMore
-      ? ((userDocs[userDocs.length - 1]?.id ?? null) as string | null)
+      ? (userDocs.at(-1)?.id ?? null)
       : null
 
     const payload: PaginatedUsersResponse = {
@@ -259,7 +261,7 @@ export async function PATCH(req: NextRequest) {
     if (roleStr) {
       firestoreUpdates.role = resolveUserRole({
         email: email ?? undefined,
-        existingRole: roleStr as UserRole,
+        existingRole: roleStr,
       })
     }
     if (team !== undefined) firestoreUpdates.team = team

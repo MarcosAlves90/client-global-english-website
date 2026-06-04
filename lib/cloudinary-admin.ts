@@ -1,7 +1,10 @@
 import { v2 as cloudinary } from "cloudinary"
-
-const CLOUDINARY_HOST_PATTERN = /(^|\.)cloudinary\.com$/i
-const UPLOAD_SEGMENT = "/upload/"
+import {
+  cloudinaryUrlsMatch as areCloudinaryUrlsEquivalent,
+  getCloudinaryPublicIdFromUrl as extractCloudinaryPublicIdFromUrl,
+  isCloudinaryUrl as checkIsCloudinaryUrl,
+  requireCloudinaryCloudName,
+} from "@/lib/cloudinary-url"
 
 let isConfigured = false
 
@@ -10,7 +13,7 @@ function ensureCloudinaryConfig() {
     return
   }
 
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME
+  const cloudName = requireCloudinaryCloudName()
   const apiKey = process.env.CLOUDINARY_API_KEY
   const apiSecret = process.env.CLOUDINARY_API_SECRET
 
@@ -28,32 +31,11 @@ function ensureCloudinaryConfig() {
 }
 
 export function isCloudinaryUrl(url: string) {
-  if (!url) return false
-
-  try {
-    const parsed = new URL(url)
-    return CLOUDINARY_HOST_PATTERN.test(parsed.hostname)
-  } catch {
-    return false
-  }
+  return checkIsCloudinaryUrl(url)
 }
 
 export function getCloudinaryPublicIdFromUrl(url: string): string | null {
-  if (!isCloudinaryUrl(url)) return null
-
-  const uploadIndex = url.indexOf(UPLOAD_SEGMENT)
-  if (uploadIndex === -1) return null
-
-  const afterUpload = url.slice(uploadIndex + UPLOAD_SEGMENT.length)
-  const segments = afterUpload.split("/").filter(Boolean)
-  if (!segments.length) return null
-
-  const versionIndex = segments.findIndex((segment) => /^v\d+$/.test(segment))
-  const publicIdSegments = versionIndex >= 0 ? segments.slice(versionIndex + 1) : segments
-  if (!publicIdSegments.length) return null
-
-  const publicIdWithExt = publicIdSegments.join("/")
-  return publicIdWithExt.replace(/\.[^/.]+$/, "")
+  return extractCloudinaryPublicIdFromUrl(url)
 }
 
 export async function deleteCloudinaryPublicId(publicId: string) {
@@ -86,4 +68,8 @@ export async function deleteCloudinaryAssetsByUrls(urls: string[]) {
   )
 
   await Promise.all(publicIds.map((publicId) => deleteCloudinaryPublicId(publicId)))
+}
+
+export function cloudinaryAssetUrlsMatch(left: string, right: string) {
+  return areCloudinaryUrlsEquivalent(left, right)
 }

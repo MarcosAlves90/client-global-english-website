@@ -92,11 +92,18 @@ Como você já possui `.env.local`, mantenha nele as variáveis abaixo (ajustada
 
 ### Cloudinary
 
+- `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`
 - `CLOUDINARY_CLOUD_NAME`
 - `CLOUDINARY_API_KEY`
 - `CLOUDINARY_API_SECRET`
 
 Referência de exemplo: `.env.local.example`.
+
+Se você trocar de conta Cloudinary e mantiver os mesmos arquivos, atualize os envs acima e rode a migração de URLs do banco para reescrever imagens antigas para o cloud novo.
+
+Para validar antes de gravar:
+
+`npm run migrate:cloudinary-cloud-name -- --dry-run`
 
 ## Instalação e execução
 
@@ -120,8 +127,11 @@ Aplicação disponível em:
 - `npm run lint`: executa análise estática com ESLint.
 - `npm run type`: valida tipagem TypeScript (`tsc --noEmit`).
 - `npm run test`: executa testes com Vitest.
+- `npm run test:e2e:attachments-smoke`: executa o smoke de anexos.
+- `npm run test:e2e:course-activity-smoke`: executa o smoke de curso/atividade.
 - `npm run test:watch`: executa testes em modo observação.
 - `npm run test:coverage`: gera relatório de cobertura.
+- `npm run ci`: roda lint, type, Vitest e os dois smokes em sequência.
 
 ## Estrutura funcional (resumo)
 

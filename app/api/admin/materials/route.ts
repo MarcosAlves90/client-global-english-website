@@ -2,7 +2,14 @@
 import { NextResponse } from "next/server"
 
 import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
-import { deleteCloudinaryAssetsByUrls, isCloudinaryUrl } from "@/lib/cloudinary-admin"
+import {
+  deleteCloudinaryAssetsByUrls,
+  isCloudinaryUrl,
+} from "@/lib/cloudinary-admin"
+import {
+  normalizeCloudinaryUrlItems,
+  normalizeCloudinaryUrlValue,
+} from "@/lib/cloudinary-url"
 import { COLLECTIONS } from "@/lib/firebase/collections"
 import type { Material } from "@/lib/firebase/types"
 
@@ -78,6 +85,16 @@ function resolveReleaseAt(input?: string | null) {
 const ATTACHMENT_TYPES = new Set(["pdf", "video", "link", "audio"])
 const MATERIAL_TYPES = new Set(["pdf", "video", "link", "audio", "markdown"])
 
+function isMaterialType(value: unknown): value is NonNullable<Material["type"]> {
+  return typeof value === "string" && MATERIAL_TYPES.has(value)
+}
+
+function isMaterialVisibility(
+  value: unknown
+): value is NonNullable<Material["visibility"]> {
+  return value === "module" || value === "users" || value === "private"
+}
+
 function normalizeAttachments(input?: unknown) {
   if (!Array.isArray(input)) {
     return {
@@ -102,9 +119,229 @@ function normalizeAttachments(input?: unknown) {
     .map((item) => item.url)
 
   return {
-    attachments: mapped.filter((item) => isCloudinaryUrl(item.url)),
+    attachments: normalizeCloudinaryUrlItems(
+      mapped.filter((item) => isCloudinaryUrl(item.url))
+    ),
     invalidUrls,
   }
+}
+
+function mapMaterialDoc(docSnap: {
+  id: string
+  data: () => Record<string, unknown> | undefined
+}): Material {
+  const data = docSnap.data() ?? {}
+  const type = isMaterialType(data.type) ? data.type : undefined
+  const visibility = isMaterialVisibility(data.visibility) ? data.visibility : "private"
+
+  return {
+    id: docSnap.id,
+    activityId: typeof data.activityId === "string" ? data.activityId : undefined,
+    courseId: typeof data.courseId === "string" ? data.courseId : undefined,
+    trackId: typeof data.trackId === "string" ? data.trackId : undefined,
+    title: typeof data.title === "string" ? data.title : "",
+    type,
+    url:
+      normalizeCloudinaryUrlValue(
+        typeof data.url === "string" ? data.url : null
+      ) ?? undefined,
+    visibility,
+    userIds: Array.isArray(data.userIds) ? data.userIds : [],
+    releaseAt: data.releaseAt && typeof data.releaseAt === "object" && "toDate" in data.releaseAt
+      ? (data.releaseAt as { toDate: () => Date }).toDate()
+      : null,
+    markdown: typeof data.markdown === "string" ? data.markdown : "",
+    attachments: normalizeCloudinaryUrlItems(
+      Array.isArray(data.attachments) ? data.attachments : []
+    ),
+  }
+}
+
+function normalizeMaterialUrl(url?: string | null) {
+  const trimmed = url?.trim() ?? ""
+  if (!trimmed) return ""
+  return isCloudinaryUrl(trimmed) ? normalizeCloudinaryUrlValue(trimmed) ?? "" : trimmed
+}
+
+function resolveMaterialType(params: {
+  type?: CreateMaterialBody["type"]
+  markdown: string
+  attachments: { type?: string }[]
+  url: string
+}): Material["type"] | undefined {
+  const { type, markdown, attachments, url } = params
+
+  if (isMaterialType(type)) {
+    return type
+  }
+
+  if (markdown.trim()) {
+    return "markdown"
+  }
+
+  const attachmentType = attachments[0]?.type
+  if (isMaterialType(attachmentType)) {
+    return attachmentType
+  }
+
+  if (url) {
+    return "link"
+  }
+
+  return undefined
+}
+
+function buildCreateMaterialContext(body: CreateMaterialBody) {
+  const courseId = body.courseId?.trim()
+  const trackId = body.trackId?.trim()
+  const title = body.title?.trim() ?? ""
+  const rawUrl = body.url?.trim() ?? ""
+  const url = normalizeMaterialUrl(rawUrl)
+  const visibility = body.visibility ?? "private"
+  const markdown = typeof body.markdown === "string" ? body.markdown : ""
+  const { attachments, invalidUrls } = normalizeAttachments(body.attachments)
+  const type = resolveMaterialType({
+    type: body.type,
+    markdown,
+    attachments,
+    url,
+  })
+  const releaseAt = visibility === "private" ? null : resolveReleaseAt(body.releaseAt)
+  const userIds = normalizeUserIds(body.userIds)
+
+  if (!courseId || !trackId || !title) {
+    return {
+      error: "courseId, trackId and title are required",
+      status: 400,
+    } as const
+  }
+
+  if (invalidUrls.length > 0) {
+    return {
+      error: "attachments must use Cloudinary URLs",
+      status: 400,
+    } as const
+  }
+
+  if (!url && !markdown.trim() && attachments.length === 0) {
+    return {
+      error: "url, markdown or attachments are required",
+      status: 400,
+    } as const
+  }
+
+  if (visibility === "users" && userIds.length === 0) {
+    return {
+      error: "userIds are required for users visibility",
+      status: 400,
+    } as const
+  }
+
+  return {
+    courseId,
+    trackId,
+    title,
+    type,
+    url,
+    visibility,
+    markdown,
+    attachments,
+    releaseAt,
+    userIds,
+  } as const
+}
+
+function addPatchStringField(
+  patch: Record<string, unknown>,
+  key: string,
+  value: unknown,
+  options?: { required?: boolean }
+) {
+  if (typeof value !== "string") {
+    return null
+  }
+
+  const normalized = value.trim()
+  if (!normalized && options?.required) {
+    return `${key} cannot be empty`
+  }
+
+  patch[key] = normalized
+  return null
+}
+
+function applyMaterialVisibilityPatch(
+  patch: Record<string, unknown>,
+  visibility: string,
+  userIds?: string[]
+) {
+  if (!["module", "users", "private"].includes(visibility)) {
+    return "invalid visibility"
+  }
+
+  patch.visibility = visibility
+  if (visibility === "users") {
+    const normalizedUserIds = normalizeUserIds(userIds)
+    if (!normalizedUserIds.length) {
+      return "userIds are required for users visibility"
+    }
+    patch.userIds = normalizedUserIds
+  } else {
+    patch.userIds = []
+  }
+
+  return null
+}
+
+function applyMaterialMarkdownPatch(
+  patch: Record<string, unknown>,
+  markdown?: string
+) {
+  if (typeof markdown !== "string") {
+    return
+  }
+
+  patch.markdown = markdown
+  if (markdown.trim()) {
+    patch.type = "markdown"
+  }
+}
+
+function buildUpdateMaterialPatch(body: UpdateMaterialBody) {
+  const patch: Record<string, unknown> = {
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }
+
+  const titleError = addPatchStringField(patch, "title", body.title, { required: true })
+  if (titleError) {
+    return { error: titleError, status: 400 } as const
+  }
+
+  const trackIdError = addPatchStringField(patch, "trackId", body.trackId, { required: true })
+  if (trackIdError) {
+    return { error: trackIdError, status: 400 } as const
+  }
+
+  if (typeof body.visibility === "string") {
+    const visibilityError = applyMaterialVisibilityPatch(patch, body.visibility, body.userIds)
+    if (visibilityError) {
+      return { error: visibilityError, status: 400 } as const
+    }
+  } else if (Array.isArray(body.userIds)) {
+    patch.userIds = normalizeUserIds(body.userIds)
+  }
+
+  if (body.releaseAt !== undefined) {
+    patch.releaseAt = resolveReleaseAt(body.releaseAt)
+  }
+
+  applyMaterialMarkdownPatch(patch, body.markdown)
+
+  return { patch } as const
+}
+
+function hasMeaningfulPatch(patch: Record<string, unknown>) {
+  return Object.keys(patch).length > 2
 }
 
 export async function GET(req: NextRequest) {
@@ -138,12 +375,14 @@ export async function GET(req: NextRequest) {
         trackId: data.trackId ?? undefined,
         title: data.title ?? "",
         type: data.type ?? undefined,
-        url: data.url ?? undefined,
+        url: normalizeCloudinaryUrlValue(data.url ?? null) ?? undefined,
         visibility: data.visibility ?? "private",
         userIds: Array.isArray(data.userIds) ? data.userIds : [],
         releaseAt: data.releaseAt?.toDate?.() ?? null,
         markdown: data.markdown ?? "",
-        attachments: Array.isArray(data.attachments) ? data.attachments : [],
+        attachments: normalizeCloudinaryUrlItems(
+          Array.isArray(data.attachments) ? data.attachments : []
+        ),
       }
     })
 
@@ -175,67 +414,27 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
-
-  const courseId = body.courseId?.trim()
-  const trackId = body.trackId?.trim()
-  const title = body.title?.trim() ?? ""
-  const type = body.type
-  const url = body.url?.trim() ?? ""
-  const visibility = body.visibility ?? "private"
-  const markdown = typeof body.markdown === "string" ? body.markdown : ""
-  const { attachments, invalidUrls } = normalizeAttachments(body.attachments)
-  const resolvedType = MATERIAL_TYPES.has(String(type))
-    ? (type as CreateMaterialBody["type"])
-    : markdown.trim()
-    ? "markdown"
-    : attachments[0]?.type ?? (url ? "link" : undefined)
-
-  if (!courseId || !trackId || !title) {
-    return NextResponse.json(
-      { error: "courseId, trackId and title are required" },
-      { status: 400 }
-    )
+  const context = buildCreateMaterialContext(body)
+  if ("error" in context) {
+    return NextResponse.json({ error: context.error }, { status: context.status })
   }
 
-  if (invalidUrls.length > 0) {
-    return NextResponse.json(
-      { error: "attachments must use Cloudinary URLs" },
-      { status: 400 }
-    )
-  }
-
-  if (!url && !markdown.trim() && attachments.length === 0) {
-    return NextResponse.json(
-      { error: "url, markdown or attachments are required" },
-      { status: 400 }
-    )
-  }
-
-  const userIds = normalizeUserIds(body.userIds)
-  if (visibility === "users" && userIds.length === 0) {
-    return NextResponse.json(
-      { error: "userIds are required for users visibility" },
-      { status: 400 }
-    )
-  }
-
-  const releaseAt = visibility === "private" ? null : resolveReleaseAt(body.releaseAt)
   const now = admin.firestore.FieldValue.serverTimestamp()
 
   try {
     const ref = adminDb.collection(COLLECTIONS.materials).doc()
 
     await ref.set({
-      courseId,
-      trackId,
-      title,
-      type: resolvedType ?? null,
-      url: url || null,
-      visibility,
-      userIds: visibility === "users" ? userIds : [],
-      releaseAt,
-      markdown,
-      attachments,
+      courseId: context.courseId,
+      trackId: context.trackId,
+      title: context.title,
+      type: context.type ?? null,
+      url: context.url || null,
+      visibility: context.visibility,
+      userIds: context.visibility === "users" ? context.userIds : [],
+      releaseAt: context.releaseAt,
+      markdown: context.markdown,
+      attachments: context.attachments,
       createdAt: now,
       updatedAt: now,
       createdBy: authCheck.uid,
@@ -243,16 +442,16 @@ export async function POST(req: NextRequest) {
 
     const result: Material = {
       id: ref.id,
-      courseId,
-      trackId,
-      title,
-      type: resolvedType ?? undefined,
-      url: url || undefined,
-      visibility,
-      userIds: visibility === "users" ? userIds : [],
-      releaseAt: releaseAt ? releaseAt.toDate() : null,
-      markdown,
-      attachments,
+      courseId: context.courseId,
+      trackId: context.trackId,
+      title: context.title,
+      type: context.type ?? undefined,
+      url: context.url || undefined,
+      visibility: context.visibility,
+      userIds: context.visibility === "users" ? context.userIds : [],
+      releaseAt: context.releaseAt ? context.releaseAt.toDate() : null,
+      markdown: context.markdown,
+      attachments: context.attachments,
     }
 
     return NextResponse.json(result, { status: 201 })
@@ -334,61 +533,17 @@ export async function PATCH(req: NextRequest) {
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }
+  const patchContext = buildUpdateMaterialPatch(body)
+  if ("error" in patchContext) {
+    return NextResponse.json({ error: patchContext.error }, { status: patchContext.status })
+  }
 
-  const patch: Record<string, unknown> = {
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  const patch = {
+    ...patchContext.patch,
     updatedBy: authCheck.uid,
   }
 
-  if (typeof body.title === "string") {
-    const normalizedTitle = body.title.trim()
-    if (!normalizedTitle) {
-      return NextResponse.json({ error: "title cannot be empty" }, { status: 400 })
-    }
-    patch.title = normalizedTitle
-  }
-
-  if (typeof body.trackId === "string") {
-    const normalizedTrackId = body.trackId.trim()
-    if (!normalizedTrackId) {
-      return NextResponse.json({ error: "trackId cannot be empty" }, { status: 400 })
-    }
-    patch.trackId = normalizedTrackId
-  }
-
-  if (typeof body.visibility === "string") {
-    if (!["module", "users", "private"].includes(body.visibility)) {
-      return NextResponse.json({ error: "invalid visibility" }, { status: 400 })
-    }
-    patch.visibility = body.visibility
-    if (body.visibility === "users") {
-      const userIds = normalizeUserIds(body.userIds)
-      if (!userIds.length) {
-        return NextResponse.json(
-          { error: "userIds are required for users visibility" },
-          { status: 400 }
-        )
-      }
-      patch.userIds = userIds
-    } else {
-      patch.userIds = []
-    }
-  } else if (Array.isArray(body.userIds)) {
-    patch.userIds = normalizeUserIds(body.userIds)
-  }
-
-  if (body.releaseAt !== undefined) {
-    patch.releaseAt = resolveReleaseAt(body.releaseAt)
-  }
-
-  if (typeof body.markdown === "string") {
-    patch.markdown = body.markdown
-    if (body.markdown.trim()) {
-      patch.type = "markdown"
-    }
-  }
-
-  if (Object.keys(patch).length <= 2) {
+  if (!hasMeaningfulPatch(patch)) {
     return NextResponse.json({ error: "no fields to update" }, { status: 400 })
   }
 
@@ -401,24 +556,7 @@ export async function PATCH(req: NextRequest) {
 
     await ref.update(patch)
     const updatedSnap = await ref.get()
-    const data = updatedSnap.data()
-
-    const result: Material = {
-      id: updatedSnap.id,
-      activityId: data?.activityId ?? undefined,
-      courseId: data?.courseId ?? undefined,
-      trackId: data?.trackId ?? undefined,
-      title: data?.title ?? "",
-      type: data?.type ?? undefined,
-      url: data?.url ?? undefined,
-      visibility: data?.visibility ?? "private",
-      userIds: Array.isArray(data?.userIds) ? data?.userIds : [],
-      releaseAt: data?.releaseAt?.toDate?.() ?? null,
-      markdown: data?.markdown ?? "",
-      attachments: Array.isArray(data?.attachments) ? data?.attachments : [],
-    }
-
-    return NextResponse.json(result)
+    return NextResponse.json(mapMaterialDoc(updatedSnap))
   } catch (err) {
     console.error("update material failed", err)
     return NextResponse.json(

@@ -11,7 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e:course-activity-smoke": "node scripts/e2e-course-activity-smoke.mjs"
+    "test:e2e:attachments-smoke": "node scripts/e2e-attachments-smoke.mjs",
+    "test:e2e:course-activity-smoke": "node scripts/e2e-course-activity-smoke.mjs",
+    "ci": "npm run lint && npm run type && npm run test && npm run test:e2e:attachments-smoke && npm run test:e2e:course-activity-smoke",
+    "migrate:cloudinary-cloud-name": "node scripts/migrate-cloudinary-cloud-name.mjs"
   },
   "dependencies": {
     "@uiw/react-markdown-preview": "^5.1.5",
