@@ -96,10 +96,16 @@ Como você já possui `.env.local`, mantenha nele as variáveis abaixo (ajustada
 - `CLOUDINARY_CLOUD_NAME`
 - `CLOUDINARY_API_KEY`
 - `CLOUDINARY_API_SECRET`
+- `NEXT_PUBLIC_LOGIN_HERO_PUBLIC_ID`
+- `NEXT_PUBLIC_LOGIN_AVATAR_PUBLIC_ID`
+- `NEXT_PUBLIC_SIGNUP_HERO_PUBLIC_ID`
+- `NEXT_PUBLIC_HOME_AVATAR_PUBLIC_IDS`
 
 Referência de exemplo: `.env.local.example`.
 
 O projeto lê o `cloud_name` tanto no servidor quanto no cliente. Se você trocar de conta Cloudinary e mantiver os mesmos arquivos, atualize os envs acima e rode a migração de URLs do banco para reescrever imagens antigas para o cloud novo.
+
+As imagens fixas da home/login/signup dependem destes envs de `public_id` sem a versão do Cloudinary. Eles são obrigatórios no ambiente e precisam apontar para os assets corretos da conta atual do Cloudinary.
 
 Para validar antes de gravar:
 

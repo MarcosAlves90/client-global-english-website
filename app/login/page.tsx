@@ -7,8 +7,16 @@ import { LoginForm } from "@/components/login-form"
 import { useRedirectIfAuthenticated } from "@/hooks/use-redirect-if-authenticated"
 import { buildCloudinaryUrl, optimizeCloudinaryUrl } from "@/lib/cloudinary-url"
 
-const LOGIN_HERO_IMAGE = buildCloudinaryUrl("v1772349852/toronto-canada_glefp0.jpg")
-const LOGIN_AVATAR_IMAGE = buildCloudinaryUrl("v1772409364/av3_wuknvs.jpg")
+const LOGIN_HERO_PUBLIC_ID = process.env.NEXT_PUBLIC_LOGIN_HERO_PUBLIC_ID?.trim()
+if (!LOGIN_HERO_PUBLIC_ID) {
+  throw new Error("Missing env: NEXT_PUBLIC_LOGIN_HERO_PUBLIC_ID")
+}
+const LOGIN_HERO_IMAGE = buildCloudinaryUrl(LOGIN_HERO_PUBLIC_ID)
+const LOGIN_AVATAR_PUBLIC_ID = process.env.NEXT_PUBLIC_LOGIN_AVATAR_PUBLIC_ID?.trim()
+if (!LOGIN_AVATAR_PUBLIC_ID) {
+  throw new Error("Missing env: NEXT_PUBLIC_LOGIN_AVATAR_PUBLIC_ID")
+}
+const LOGIN_AVATAR_IMAGE = buildCloudinaryUrl(LOGIN_AVATAR_PUBLIC_ID)
 
 export default function LoginPage() {
   const { isChecking } = useRedirectIfAuthenticated()

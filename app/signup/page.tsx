@@ -9,7 +9,11 @@ import { buildCloudinaryUrl } from "@/lib/cloudinary-url"
 
 const isSignupDisabled = process.env.NEXT_PUBLIC_SIGNUP_ENABLED === "false"
 const isSignupUnderConstruction = true
-const SIGNUP_HERO_IMAGE = buildCloudinaryUrl("v1772349852/ghent-belgica_nkpima.jpg")
+const SIGNUP_HERO_PUBLIC_ID = process.env.NEXT_PUBLIC_SIGNUP_HERO_PUBLIC_ID?.trim()
+if (!SIGNUP_HERO_PUBLIC_ID) {
+  throw new Error("Missing env: NEXT_PUBLIC_SIGNUP_HERO_PUBLIC_ID")
+}
+const SIGNUP_HERO_IMAGE = buildCloudinaryUrl(SIGNUP_HERO_PUBLIC_ID)
 
 export default function SignupPage() {
   const { isChecking } = useRedirectIfAuthenticated()

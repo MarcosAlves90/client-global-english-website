@@ -103,6 +103,18 @@ export function buildCloudinaryUrl(
   return `https://${CLOUDINARY_HOSTNAME}/${cloudName}/${resourceType}/upload/${normalizedUploadPath}`
 }
 
+export function readCloudinaryPublicIdsEnv(envName: string) {
+  const rawValue = process.env[envName]?.trim()
+  if (!rawValue) {
+    throw new Error(`Missing env: ${envName}`)
+  }
+
+  return rawValue
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+}
+
 export function isCloudinaryUrl(src: string) {
   if (!src) return false
 

@@ -11,7 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarGroup, AvatarImage } from "@/components/ui/avatar"
 import { Logo } from "@/components/ui/logo"
 import { DashboardMockup } from "@/components/landing/dashboard-mockup"
-import { buildCloudinaryUrl } from "@/lib/cloudinary-url"
+import { buildCloudinaryUrl, readCloudinaryPublicIdsEnv } from "@/lib/cloudinary-url"
 import { buildPageMetadata } from "@/lib/seo"
 
 export const metadata: Metadata = buildPageMetadata({
@@ -45,12 +45,13 @@ const featuresList = [
   },
 ]
 
-const socialProofAvatars = [
-  buildCloudinaryUrl("v1772409384/av2_mtm7rr.jpg"),
-  buildCloudinaryUrl("v1772409366/av1_tysyxv.jpg"),
-  buildCloudinaryUrl("v1772409364/av4_qu7awa.jpg"),
-  buildCloudinaryUrl("v1772409364/av3_wuknvs.jpg"),
-]
+const socialProofAvatarPublicIds = readCloudinaryPublicIdsEnv(
+  "NEXT_PUBLIC_HOME_AVATAR_PUBLIC_IDS"
+)
+
+const socialProofAvatars = socialProofAvatarPublicIds.map((publicId) =>
+  buildCloudinaryUrl(publicId)
+)
 
 export default function Home() {
   return (
