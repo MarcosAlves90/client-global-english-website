@@ -99,11 +99,23 @@ Como você já possui `.env.local`, mantenha nele as variáveis abaixo (ajustada
 
 Referência de exemplo: `.env.local.example`.
 
-Se você trocar de conta Cloudinary e mantiver os mesmos arquivos, atualize os envs acima e rode a migração de URLs do banco para reescrever imagens antigas para o cloud novo.
+O projeto lê o `cloud_name` tanto no servidor quanto no cliente. Se você trocar de conta Cloudinary e mantiver os mesmos arquivos, atualize os envs acima e rode a migração de URLs do banco para reescrever imagens antigas para o cloud novo.
 
 Para validar antes de gravar:
 
 `npm run migrate:cloudinary-cloud-name -- --dry-run`
+
+Para aplicar a migração:
+
+`npm run migrate:cloudinary-cloud-name`
+
+O script atualiza URLs antigas em:
+
+- `users.photoURL`
+- `courses.coverUrl`
+- `materials.url`
+- `materials.attachments[].url`
+- `activities.attachments[].url`
 
 ## Instalação e execução
 
@@ -132,6 +144,8 @@ Aplicação disponível em:
 - `npm run test:watch`: executa testes em modo observação.
 - `npm run test:coverage`: gera relatório de cobertura.
 - `npm run ci`: roda lint, type, Vitest e os dois smokes em sequência.
+
+Os comandos `test:e2e:*` dependem do Firebase local e do Cloudinary configurado no `.env`.
 
 ## Estrutura funcional (resumo)
 
