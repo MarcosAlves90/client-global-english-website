@@ -9,6 +9,11 @@ import {
   normalizeCloudinaryUrlValue,
   isCloudinaryUrl,
 } from "@/lib/cloudinary-url"
+import {
+  createCourseBodySchema,
+  deleteCourseBodySchema,
+  updateCourseBodySchema,
+} from "@/lib/contracts/admin"
 import type { AdminCourseSummary } from "@/lib/firebase/types"
 
 const COURSE_STATUS_OPTIONS = [
@@ -165,15 +170,22 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: CreateCourseBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-    const title = body.title?.trim() ?? ""
+  const parsedBody = createCourseBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
+
+  const title = body.title?.trim() ?? ""
   const description = body.description?.trim() ?? ""
   const level = body.level ?? "Beginner"
   const durationWeeks = Number(body.durationWeeks)
@@ -236,22 +248,29 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
-  let body: CreateCourseBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = updateCourseBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const id = body.id?.trim()
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }
 
-    const updates: Record<string, unknown> = {
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }
+  const updates: Record<string, unknown> = {
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }
 
   if (body.title !== undefined) {
     const title = body.title.trim()
@@ -319,15 +338,20 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  let body: { id?: string }
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const id = body.id?.trim()
+  const parsedBody = deleteCourseBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const id = parsedBody.data.id.trim()
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }

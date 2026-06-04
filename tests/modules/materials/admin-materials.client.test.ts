@@ -18,15 +18,23 @@ describe("admin materials client", () => {
       "@/modules/materials/api/admin-materials.client"
     )
 
-    mockFetchOnce([{ id: "m1" }])
+    mockFetchOnce([
+      {
+        id: "m1",
+        title: "Material 1",
+      },
+    ])
     const first = await fetchAdminCourseMaterials("token", "course-1")
     const cached = await fetchAdminCourseMaterials("token", "course-1")
 
-    expect(first).toEqual([{ id: "m1" }])
-    expect(cached).toEqual([{ id: "m1" }])
+    expect(first).toEqual([{ id: "m1", title: "Material 1" }])
+    expect(cached).toEqual([{ id: "m1", title: "Material 1" }])
     expect(fetch).toHaveBeenCalledTimes(1)
 
-    mockFetchOnce({ id: "m2" })
+    mockFetchOnce({
+      id: "m2",
+      title: "Material 2",
+    })
     await createAdminMaterial("token", {
       courseId: "course-1",
       trackId: "track-1",
@@ -34,9 +42,14 @@ describe("admin materials client", () => {
       visibility: "module",
     })
 
-    mockFetchOnce([{ id: "m3" }])
+    mockFetchOnce([
+      {
+        id: "m3",
+        title: "Material 3",
+      },
+    ])
     const refreshed = await fetchAdminCourseMaterials("token", "course-1")
-    expect(refreshed).toEqual([{ id: "m3" }])
+    expect(refreshed).toEqual([{ id: "m3", title: "Material 3" }])
     expect(fetch).toHaveBeenCalledTimes(3)
   })
 

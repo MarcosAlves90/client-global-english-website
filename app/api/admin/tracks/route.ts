@@ -5,6 +5,11 @@ import admin, { adminDb } from "@/lib/firebase/admin"
 import { assertIsAdmin } from "@/lib/firebase/admin-request"
 import { deleteCloudinaryAssetsByUrls } from "@/lib/cloudinary-admin"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import {
+  createTrackBodySchema,
+  deleteTrackBodySchema,
+  updateTrackBodySchema,
+} from "@/lib/contracts/admin"
 import type { Track } from "@/lib/firebase/types"
 
 type CreateTrackBody = {
@@ -284,13 +289,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: CreateTrackBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = createTrackBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const courseId = body.courseId?.trim()
   const title = body.title?.trim() ?? ""
@@ -367,13 +379,20 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
-  let body: CreateTrackBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = updateTrackBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const id = body.id?.trim()
   if (!id) {
@@ -473,15 +492,20 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  let body: { id?: string }
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const id = body.id?.trim()
+  const parsedBody = deleteTrackBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const id = parsedBody.data.id.trim()
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }

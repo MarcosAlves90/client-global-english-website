@@ -6,6 +6,10 @@ import { assertIsAdmin } from "@/lib/firebase/admin-request"
 import { COLLECTIONS } from "@/lib/firebase/collections"
 import { resolveUserRole } from "@/lib/firebase/roles"
 import { normalizeCloudinaryUrlValue } from "@/lib/cloudinary-url"
+import {
+  deleteAdminUserBodySchema,
+  upsertAdminUserBodySchema,
+} from "@/lib/contracts/admin"
 import type { AdminUserSummary, UserRole } from "@/lib/firebase/types"
 
 // body type used by both create and update handlers
@@ -153,13 +157,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: authCheck.message }, { status: authCheck.status })
   }
 
-  let body: RequestBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = upsertAdminUserBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   if (!body.name || !body.email) {
     return NextResponse.json({ error: "Name and email are required" }, { status: 400 })
@@ -230,12 +241,19 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: authCheck.message }, { status: authCheck.status })
   }
 
-  let body: RequestBody & { uid?: string }
+  let rawBody: unknown
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = upsertAdminUserBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   if (!body.uid) {
     return NextResponse.json({ error: "uid is required" }, { status: 400 })
@@ -286,19 +304,20 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: authCheck.message }, { status: authCheck.status })
   }
 
-  let body: { uid?: string }
+  let rawBody: unknown
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  if (!body.uid) {
-    return NextResponse.json({ error: "uid is required" }, { status: 400 })
+  const parsedBody = deleteAdminUserBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
 
   try {
-    const uid = body.uid
+    const uid = parsedBody.data.uid
     const batch = adminDb.batch()
 
     const enrollmentsSnapshot = await adminDb
@@ -345,8 +364,8 @@ export async function DELETE(req: NextRequest) {
 
     await batch.commit()
 
-    await adminAuth.deleteUser(body.uid)
-    await adminDb.collection(COLLECTIONS.users).doc(body.uid).delete()
+    await adminAuth.deleteUser(uid)
+    await adminDb.collection(COLLECTIONS.users).doc(uid).delete()
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error("failed to delete user", err)

@@ -12,6 +12,11 @@ import {
   normalizeCloudinaryUrlValue,
 } from "@/lib/cloudinary-url"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import {
+  createMaterialBodySchema,
+  deleteMaterialBodySchema,
+  updateMaterialBodySchema,
+} from "@/lib/contracts/admin"
 import type { Material } from "@/lib/firebase/types"
 
 type CreateMaterialBody = {
@@ -385,13 +390,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: CreateMaterialBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = createMaterialBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
   const context = buildCreateMaterialContext(body)
   if ("error" in context) {
     return NextResponse.json({ error: context.error }, { status: context.status })
@@ -451,15 +463,20 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  let body: { id?: string }
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const id = body.id?.trim()
+  const parsedBody = deleteMaterialBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const id = parsedBody.data.id.trim()
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }
@@ -500,12 +517,19 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
-  let body: UpdateMaterialBody
+  let rawBody: unknown
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = updateMaterialBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const id = body.id?.trim()
   if (!id) {

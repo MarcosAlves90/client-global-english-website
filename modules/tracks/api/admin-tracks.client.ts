@@ -1,4 +1,5 @@
 import type { Track } from "@/lib/firebase/types"
+import { trackSchema } from "@/lib/contracts/admin"
 import {
   adminJsonRequest,
   getFreshCacheEntry,
@@ -41,6 +42,7 @@ export async function fetchAdminCourseTracks(
     {
       idToken,
       errorMessage: "failed to load tracks",
+      schema: trackSchema.array(),
     }
   )
   tracksCache.set(cacheKey, setCacheEntry(data))
@@ -57,6 +59,7 @@ export async function createAdminCourseTrack(
     body: payload,
     errorMessage: (response) =>
       response.status === 409 ? "USER_CONFLICT" : "create failed",
+    schema: trackSchema,
   })
 
   tracksCache.clear()

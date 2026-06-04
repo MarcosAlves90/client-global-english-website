@@ -1,5 +1,9 @@
 import type { AdminUserSummary } from "@/lib/firebase/types"
 import {
+  adminUsersPageResponseSchema,
+  createAdminUserResponseSchema,
+} from "@/lib/contracts/admin"
+import {
   adminJsonRequest,
   getFreshCacheEntry,
   setCacheEntry,
@@ -51,6 +55,7 @@ export async function fetchAdminUsersPage(params: {
     {
       idToken: params.idToken,
       errorMessage: "failed to load",
+      schema: adminUsersPageResponseSchema,
     }
   )
   usersCache.set(cacheKey, setCacheEntry(data))
@@ -82,6 +87,7 @@ export async function upsertAdminUser(
     method: "POST",
     body: payload,
     errorMessage: "failed to create",
+    schema: createAdminUserResponseSchema,
   })
 
   usersCache.clear()

@@ -11,6 +11,10 @@ import {
   normalizeCloudinaryUrlItems,
 } from "@/lib/cloudinary-url"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import {
+  createActivityBodySchema,
+  deleteActivityBodySchema,
+} from "@/lib/contracts/admin"
 import type { Activity } from "@/lib/firebase/types"
 
 type CreateActivityBody = {
@@ -234,13 +238,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: CreateActivityBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = createActivityBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const courseId = body.courseId?.trim()
   const trackId = body.trackId?.trim()
@@ -335,15 +346,20 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  let body: { id?: string }
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const id = body.id?.trim()
+  const parsedBody = deleteActivityBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const id = parsedBody.data.id.trim()
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }

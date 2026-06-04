@@ -1,4 +1,5 @@
 import type { AdminCourseSummary } from "@/lib/firebase/types"
+import { adminCourseSummarySchema } from "@/lib/contracts/admin"
 import {
   adminJsonRequest,
   getFreshCacheEntry,
@@ -30,6 +31,7 @@ export async function fetchAdminCourses(
   const data = await adminJsonRequest<AdminCourseSummary[]>("/api/admin/courses", {
     idToken,
     errorMessage: "failed to load",
+    schema: adminCourseSummarySchema.array(),
   })
   coursesCache = setCacheEntry(data)
   return data

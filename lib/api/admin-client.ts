@@ -1,8 +1,11 @@
+import { z } from "zod"
+
 type AdminJsonRequestOptions = {
   idToken: string | null
   method?: "GET" | "POST" | "PATCH" | "DELETE"
   body?: unknown
   errorMessage: string | ((response: Response) => string)
+  schema?: z.ZodTypeAny
 }
 
 export type TtlCacheEntry<T> = {
@@ -55,5 +58,6 @@ export async function adminJsonRequest<T>(
     return undefined as T
   }
 
-  return (await resp.json()) as T
+  const json = await resp.json()
+  return (options.schema ? options.schema.parse(json) : json) as T
 }

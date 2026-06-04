@@ -719,6 +719,7 @@ function MaterialLibraryPanel(props: Readonly<MaterialLibraryPanelProps>) {
                         localUpdating,
                         materialTab,
                         onMaterialTabChange,
+                        onLoadMaterials,
                         onStartEditing,
                         onCancelEditing,
                         onSaveEditing,
@@ -750,6 +751,7 @@ type MaterialLibraryBodyProps = Readonly<{
     localUpdating: boolean
     materialTab: "overview" | "content" | "attachments"
     onMaterialTabChange: (value: "overview" | "content" | "attachments") => void
+    onLoadMaterials: () => void
     onStartEditing: (material: Pick<Material, "id" | "title" | "markdown">) => void
     onCancelEditing: () => void
     onSaveEditing: () => void

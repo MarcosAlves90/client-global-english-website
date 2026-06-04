@@ -10,6 +10,7 @@ import {
 } from "@/lib/cloudinary-admin"
 import { normalizeCloudinaryUrlItems } from "@/lib/cloudinary-url"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import { adminAttachmentDeleteBodySchema } from "@/lib/contracts/admin"
 
 type DeleteAttachmentBody = {
   entityType?: "material" | "activity"
@@ -33,7 +34,7 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  let body: DeleteAttachmentBody
+  let body: unknown
 
   try {
     body = await req.json()
@@ -41,9 +42,14 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const entityType = body.entityType
-  const entityId = body.entityId?.trim()
-  const attachmentUrl = body.attachmentUrl?.trim()
+  const parsedBody = adminAttachmentDeleteBodySchema.safeParse(body)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const entityType = parsedBody.data.entityType
+  const entityId = parsedBody.data.entityId?.trim()
+  const attachmentUrl = parsedBody.data.attachmentUrl?.trim()
 
   if (
     (entityType !== "material" && entityType !== "activity") ||

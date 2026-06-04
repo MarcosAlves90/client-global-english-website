@@ -1,4 +1,5 @@
 import type { Activity } from "@/lib/firebase/types"
+import { activitySchema } from "@/lib/contracts/admin"
 import {
   adminJsonRequest,
   getFreshCacheEntry,
@@ -51,6 +52,7 @@ export async function fetchAdminCourseActivities(
     {
       idToken,
       errorMessage: "failed to load activities",
+      schema: activitySchema.array(),
     }
   )
   activitiesCache.set(cacheKey, setCacheEntry(data))
@@ -66,6 +68,7 @@ export async function createAdminActivity(
     method: "POST",
     body: payload,
     errorMessage: "create failed",
+    schema: activitySchema,
   })
 
   clearAdminActivitiesCache()

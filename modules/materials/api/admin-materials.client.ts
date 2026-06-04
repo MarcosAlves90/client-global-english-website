@@ -1,4 +1,5 @@
 import type { Material } from "@/lib/firebase/types"
+import { materialSchema } from "@/lib/contracts/admin"
 import {
   adminJsonRequest,
   getFreshCacheEntry,
@@ -52,6 +53,7 @@ export async function fetchAdminCourseMaterials(
     {
       idToken,
       errorMessage: "failed to load materials",
+      schema: materialSchema.array(),
     }
   )
   materialsCache.set(cacheKey, setCacheEntry(data))
@@ -67,6 +69,7 @@ export async function createAdminMaterial(
     method: "POST",
     body: payload,
     errorMessage: "create failed",
+    schema: materialSchema,
   })
 
   clearAdminMaterialsCache()
@@ -93,6 +96,7 @@ export async function updateAdminMaterial(
     method: "PATCH",
     body: payload,
     errorMessage: "update failed",
+    schema: materialSchema,
   })
 
   clearAdminMaterialsCache()
