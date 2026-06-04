@@ -64,10 +64,14 @@ export default function Home() {
       <div className="mx-auto flex w-full max-w-6xl flex-col px-6 py-6 md:py-10 flex-1">
         {/* Header */}
         <header className="flex items-center justify-between z-10 relative">
-          <div className="flex items-center gap-3 text-sm font-bold tracking-tight">
+          <Link
+            className="flex items-center gap-3 text-sm font-bold tracking-tight transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-background rounded-full"
+            href="/"
+            aria-label="Ir para a página inicial da Global English"
+          >
             <Logo className="size-10 text-primary" />
             <span className="text-xl">Global English</span>
-          </div>
+          </Link>
           <div className="flex items-center gap-4 text-sm font-medium">
             <Link
               className="hidden md:inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"

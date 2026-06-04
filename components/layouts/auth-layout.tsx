@@ -1,4 +1,5 @@
 import React from "react"
+import Link from "next/link"
 import Image from "next/image"
 import { Logo } from "@/components/ui/logo"
 import { optimizeCloudinaryUrl } from "@/lib/cloudinary-url"
@@ -66,11 +67,18 @@ export function AuthLayout({
                 </div>
 
                 <div className={cn("relative z-10 flex", reverseLayout ? "justify-end" : "justify-start")}>
-                    <div className={cn("flex items-center gap-3 text-sm font-semibold tracking-tight", primaryColorTheme && "text-white")}>
+                    <Link
+                        href="/"
+                        aria-label="Ir para a página inicial da Global English"
+                        className={cn(
+                            "flex items-center gap-3 text-sm font-semibold tracking-tight transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-4 focus-visible:ring-offset-transparent rounded-full",
+                            primaryColorTheme && "text-white",
+                        )}
+                    >
                         {!reverseLayout && <Logo className="size-10" />}
                         <span className="text-xl">Global English</span>
                         {reverseLayout && <Logo className="size-10" />}
-                    </div>
+                    </Link>
                 </div>
 
                 <div className="relative z-10 space-y-8 max-w-lg mt-24">
@@ -103,10 +111,14 @@ export function AuthLayout({
                 {!primaryColorTheme && <div className="absolute inset-0 lg:hidden -z-10 bg-linear-to-b from-primary/5 to-transparent"></div>}
 
                 <div className="w-full max-w-105 space-y-8 relative z-10">
-                    <div className="flex items-center justify-center gap-3 text-sm font-bold tracking-tight lg:hidden">
+                    <Link
+                        href="/"
+                        aria-label="Ir para a página inicial da Global English"
+                        className="flex items-center justify-center gap-3 text-sm font-bold tracking-tight lg:hidden transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-background rounded-full"
+                    >
                         <Logo className="size-10 text-primary" />
                         <span className="text-xl">Global English</span>
-                    </div>
+                    </Link>
                     {children}
                 </div>
             </div>
