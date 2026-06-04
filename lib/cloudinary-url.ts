@@ -155,6 +155,46 @@ export function normalizeCloudinaryUrl(src: string) {
   }
 }
 
+function stripCloudinaryVersionFromPathname(pathname: string) {
+  const segments = pathname.split("/")
+  const uploadIndex = segments.indexOf("upload")
+  if (uploadIndex === -1) {
+    return pathname
+  }
+
+  const versionIndex = segments
+    .slice(uploadIndex + 1)
+    .findIndex((segment) => /^v\d+$/.test(segment))
+
+  if (versionIndex === -1) {
+    return pathname
+  }
+
+  segments.splice(uploadIndex + 1 + versionIndex, 1)
+  return segments.join("/")
+}
+
+export function normalizeCloudinaryUrlWithoutVersion(src: string) {
+  if (!src || !isCloudinaryUrl(src)) {
+    return src
+  }
+
+  const normalizedSrc = normalizeCloudinaryUrl(src)
+
+  try {
+    const parsedUrl = new URL(normalizedSrc)
+    const pathnameWithoutVersion = stripCloudinaryVersionFromPathname(parsedUrl.pathname)
+    if (pathnameWithoutVersion === parsedUrl.pathname) {
+      return normalizedSrc
+    }
+
+    parsedUrl.pathname = pathnameWithoutVersion
+    return parsedUrl.toString()
+  } catch {
+    return normalizedSrc
+  }
+}
+
 export function normalizeCloudinaryUrlValue(url?: string | null) {
   const trimmed = url?.trim()
   if (!trimmed) {

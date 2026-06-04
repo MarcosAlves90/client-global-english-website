@@ -115,7 +115,7 @@ Para aplicar a migração:
 
 `npm run migrate:cloudinary-cloud-name`
 
-O script atualiza URLs antigas em:
+O script atualiza URLs antigas e remove a versão de imagem em:
 
 - `users.photoURL`
 - `courses.coverUrl`

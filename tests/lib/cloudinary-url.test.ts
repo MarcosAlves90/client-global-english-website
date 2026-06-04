@@ -4,6 +4,7 @@ import {
   buildCloudinaryUrl,
   cloudinaryUrlsMatch,
   normalizeCloudinaryUrl,
+  normalizeCloudinaryUrlWithoutVersion,
   optimizeCloudinaryUrl,
 } from "@/lib/cloudinary-url"
 
@@ -66,6 +67,16 @@ describe("optimizeCloudinaryUrl", () => {
 
     expect(normalizeCloudinaryUrl(input)).toBe(
       "https://res.cloudinary.com/new-cloud/image/upload/v12345/folder/photo.jpg"
+    )
+  })
+
+  it("remove a versão do Cloudinary quando solicitado", () => {
+    vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", "new-cloud")
+
+    const input = "https://res.cloudinary.com/old-cloud/image/upload/v12345/folder/photo.jpg"
+
+    expect(normalizeCloudinaryUrlWithoutVersion(input)).toBe(
+      "https://res.cloudinary.com/new-cloud/image/upload/folder/photo.jpg"
     )
   })
 

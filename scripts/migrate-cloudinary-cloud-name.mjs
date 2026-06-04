@@ -103,6 +103,45 @@ function normalizeCloudinaryUrl(url) {
   }
 }
 
+function stripCloudinaryVersionFromPathname(pathname) {
+  const segments = pathname.split("/")
+  const uploadIndex = segments.indexOf("upload")
+  if (uploadIndex === -1) {
+    return pathname
+  }
+
+  const versionIndex = segments
+    .slice(uploadIndex + 1)
+    .findIndex((segment) => /^v\d+$/.test(segment))
+
+  if (versionIndex === -1) {
+    return pathname
+  }
+
+  segments.splice(uploadIndex + 1 + versionIndex, 1)
+  return segments.join("/")
+}
+
+function normalizeCloudinaryUrlWithoutVersion(url) {
+  const normalizedUrl = normalizeCloudinaryUrl(url)
+  if (!normalizedUrl || !isCloudinaryUrl(normalizedUrl)) {
+    return normalizedUrl
+  }
+
+  try {
+    const parsed = new URL(normalizedUrl)
+    const pathnameWithoutVersion = stripCloudinaryVersionFromPathname(parsed.pathname)
+    if (pathnameWithoutVersion === parsed.pathname) {
+      return normalizedUrl
+    }
+
+    parsed.pathname = pathnameWithoutVersion
+    return parsed.toString()
+  } catch {
+    return normalizedUrl
+  }
+}
+
 function normalizeAttachmentList(attachments) {
   if (!Array.isArray(attachments)) {
     return { value: [], changed: false }
@@ -140,7 +179,7 @@ function normalizeDocument(collectionName, data) {
   if (collectionName === "users") {
     const photoURL = typeof data.photoURL === "string" ? data.photoURL.trim() : ""
     if (photoURL) {
-      const normalizedPhotoURL = normalizeCloudinaryUrl(photoURL)
+      const normalizedPhotoURL = normalizeCloudinaryUrlWithoutVersion(photoURL)
       if (normalizedPhotoURL !== photoURL) {
         updates.photoURL = normalizedPhotoURL
       }
@@ -150,7 +189,7 @@ function normalizeDocument(collectionName, data) {
   if (collectionName === "courses") {
     const coverUrl = typeof data.coverUrl === "string" ? data.coverUrl.trim() : ""
     if (coverUrl) {
-      const normalizedCoverUrl = normalizeCloudinaryUrl(coverUrl)
+      const normalizedCoverUrl = normalizeCloudinaryUrlWithoutVersion(coverUrl)
       if (normalizedCoverUrl !== coverUrl) {
         updates.coverUrl = normalizedCoverUrl
       }
