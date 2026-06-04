@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useCourseManagement, TrackForm } from "./CourseManagementContext"
+import { UserAssignmentPicker } from "./UserAssignmentPicker"
 
 type TrackManagementProps = {
     showCreatePanel: boolean
@@ -170,64 +171,16 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
                             </div>
                         </div>
 
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Alunos no Módulo</Label>
-                                <span className="text-[10px] font-bold text-primary px-2 py-0.5 rounded-full bg-primary/5">{form.userIds.length} selecionado(s)</span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
-                                Alunos adicionados em qualquer módulo são matriculados automaticamente no curso.
-                            </p>
-
-                            <Input
-                                placeholder="Buscar por nome ou email..."
-                                value={userSearch}
-                                onChange={(e) => setUserSearch(e.target.value)}
-                                className="bg-background/50 border-primary/20"
-                            />
-
-                            <div className="rounded-xl border border-dashed border-primary/20 p-3 space-y-3">
-                                <div className="flex flex-wrap gap-2">
-                                    {selectedUsers.length === 0 ? (
-                                        <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/40 p-1">Nenhum aluno selecionado</span>
-                                    ) : (
-                                        selectedUsers.map((user) => (
-                                            <span key={user.uid} className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-[10px] font-bold text-foreground">
-                                                {user.name}
-                                                <button onClick={() => toggleUserSelection(user.uid)} className="hover:text-primary transition-colors">
-                                                    <X className="size-3" />
-                                                </button>
-                                            </span>
-                                        ))
-                                    )}
-                                </div>
-
-                                {suggestedUsers.length > 0 && (
-                                    <div className="space-y-1 pt-2 border-t border-primary/5">
-                                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">Sugestões</p>
-                                        {suggestedUsers.map((user) => (
-                                            <button
-                                                key={user.uid}
-                                                type="button"
-                                                onClick={() => toggleUserSelection(user.uid)}
-                                                className="flex w-full items-center justify-between p-2 rounded-lg hover:bg-primary/5 transition-colors text-left"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <div className="size-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
-                                                        {user.name?.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs font-bold leading-none">{user.name}</p>
-                                                        <p className="text-[10px] text-muted-foreground leading-tight">{user.email}</p>
-                                                    </div>
-                                                </div>
-                                                <span className="text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 uppercase tracking-widest">+ Add</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                        <UserAssignmentPicker
+                            label="Alunos no Módulo"
+                            helperText="Alunos adicionados em qualquer módulo são matriculados automaticamente no curso."
+                            searchValue={userSearch}
+                            onSearchValueChange={setUserSearch}
+                            selectedUsers={selectedUsers}
+                            suggestedUsers={suggestedUsers}
+                            selectedCount={form.userIds.length}
+                            onToggleUser={toggleUserSelection}
+                        />
 
                         <div className="flex gap-2 pt-4">
                             <Button onClick={onSubmit} disabled={localCreating} className="flex-1 shadow-lg shadow-primary/10">
