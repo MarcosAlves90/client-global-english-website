@@ -1,7 +1,8 @@
 ﻿import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
-import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
+import admin, { adminDb } from "@/lib/firebase/admin"
+import { assertIsAdmin } from "@/lib/firebase/admin-request"
 import {
   deleteCloudinaryAssetsByUrls,
   isCloudinaryUrl,
@@ -32,29 +33,6 @@ type CreateActivityBody = {
     points?: number
     required?: boolean
   }[]
-}
-
-async function assertIsAdmin(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.split(" ")[1]
-  if (!token) {
-    return { ok: false, status: 401, message: "Missing auth token" }
-  }
-
-  try {
-    const decoded = await adminAuth.verifyIdToken(token)
-    const doc = await adminDb.collection(COLLECTIONS.users).doc(decoded.uid).get()
-    const data = doc.data()
-
-    if (data?.role === "admin") {
-      return { ok: true, uid: decoded.uid }
-    }
-
-    return { ok: false, status: 403, message: "Admin access required" }
-  } catch (err) {
-    console.error("token verification failed", err)
-    return { ok: false, status: 401, message: "Invalid auth token" }
-  }
 }
 
 function normalizeUserIds(input?: unknown) {

@@ -1,4 +1,9 @@
-﻿import type { Material } from "@/lib/firebase/types"
+import type { Material } from "@/lib/firebase/types"
+import {
+  adminJsonRequest,
+  getFreshCacheEntry,
+  setCacheEntry,
+} from "@/lib/api/admin-client"
 
 const MATERIALS_CACHE_TTL = 60_000
 const materialsCache = new Map<string, { data: Material[]; ts: number }>()
@@ -36,27 +41,20 @@ export async function fetchAdminCourseMaterials(
   options?: { force?: boolean }
 ) {
   const cacheKey = courseId
-  const now = Date.now()
   const cached = materialsCache.get(cacheKey)
-  if (!options?.force && cached && now - cached.ts < MATERIALS_CACHE_TTL) {
-    return cached.data
+  const fresh = options?.force ? null : getFreshCacheEntry(cached, MATERIALS_CACHE_TTL)
+  if (fresh) {
+    return fresh.data
   }
 
-  const resp = await fetch(
+  const data = await adminJsonRequest<Material[]>(
     `/api/admin/materials?courseId=${encodeURIComponent(courseId)}`,
     {
-      headers: {
-        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-      },
+      idToken,
+      errorMessage: "failed to load materials",
     }
   )
-
-  if (!resp.ok) {
-    throw new Error("failed to load materials")
-  }
-
-  const data = (await resp.json()) as Material[]
-  materialsCache.set(cacheKey, { data, ts: now })
+  materialsCache.set(cacheKey, setCacheEntry(data))
   return data
 }
 
@@ -64,36 +62,24 @@ export async function createAdminMaterial(
   idToken: string | null,
   payload: CreateAdminMaterialPayload
 ) {
-  const resp = await fetch("/api/admin/materials", {
+  const result = await adminJsonRequest<Material>("/api/admin/materials", {
+    idToken,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-    },
-    body: JSON.stringify(payload),
+    body: payload,
+    errorMessage: "create failed",
   })
 
-  if (!resp.ok) {
-    throw new Error("create failed")
-  }
-
   clearAdminMaterialsCache()
-  return (await resp.json()) as Material
+  return result
 }
 
 export async function deleteAdminMaterial(idToken: string | null, id: string) {
-  const resp = await fetch("/api/admin/materials", {
+  await adminJsonRequest<void>("/api/admin/materials", {
+    idToken,
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-    },
-    body: JSON.stringify({ id }),
+    body: { id },
+    errorMessage: "delete failed",
   })
-
-  if (!resp.ok) {
-    throw new Error("delete failed")
-  }
 
   clearAdminMaterialsCache()
 }
@@ -102,20 +88,13 @@ export async function updateAdminMaterial(
   idToken: string | null,
   payload: UpdateAdminMaterialPayload
 ) {
-  const resp = await fetch("/api/admin/materials", {
+  const result = await adminJsonRequest<Material>("/api/admin/materials", {
+    idToken,
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-    },
-    body: JSON.stringify(payload),
+    body: payload,
+    errorMessage: "update failed",
   })
 
-  if (!resp.ok) {
-    throw new Error("update failed")
-  }
-
   clearAdminMaterialsCache()
-  return (await resp.json()) as Material
+  return result
 }
-

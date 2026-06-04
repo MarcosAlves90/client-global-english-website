@@ -2,31 +2,9 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
 import { adminAuth, adminDb } from "@/lib/firebase/admin"
+import { assertIsAdmin } from "@/lib/firebase/admin-request"
 import { COLLECTIONS } from "@/lib/firebase/collections"
 import type { AdminActivityResponse } from "@/lib/firebase/types"
-
-async function assertIsAdmin(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.split(" ")[1]
-  if (!token) {
-    return { ok: false, status: 401, message: "Missing auth token" }
-  }
-
-  try {
-    const decoded = await adminAuth.verifyIdToken(token)
-    const doc = await adminDb.collection(COLLECTIONS.users).doc(decoded.uid).get()
-    const data = doc.data()
-
-    if (data?.role === "admin") {
-      return { ok: true, uid: decoded.uid }
-    }
-
-    return { ok: false, status: 403, message: "Admin access required" }
-  } catch (err) {
-    console.error("token verification failed", err)
-    return { ok: false, status: 401, message: "Invalid auth token" }
-  }
-}
 
 export async function GET(req: NextRequest) {
   const authCheck = await assertIsAdmin(req)
@@ -75,7 +53,17 @@ export async function GET(req: NextRequest) {
       ),
       userIds.length > 0
         ? adminAuth.getUsers(userIds.map((uid) => ({ uid })))
-        : Promise.resolve({ users: [] } as { users: Array<{ uid: string; displayName?: string | null; email?: string | null; photoURL?: string | null }> }),
+        : Promise.resolve({
+            users: [],
+          } as {
+            users: Array<{
+              uid: string
+              displayName?: string | null
+              email?: string | null
+              photoURL?: string | null
+              disabled?: boolean
+            }>
+          }),
     ])
 
     const authByUid = new Map(
@@ -90,7 +78,7 @@ export async function GET(req: NextRequest) {
 
     const userById = new Map(
       userIds.map((uid) => {
-        const firestoreUser = firestoreByUid.get(uid) ?? {}
+        const firestoreUser = firestoreByUid.get(uid) ?? ({} as Record<string, unknown>)
         const authUser = authByUid.get(uid)
 
         const nameFromAuth = typeof authUser?.displayName === "string" ? authUser.displayName.trim() : ""

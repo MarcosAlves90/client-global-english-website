@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
 import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
+import { assertIsAdmin } from "@/lib/firebase/admin-request"
 import { COLLECTIONS } from "@/lib/firebase/collections"
 import { resolveUserRole } from "@/lib/firebase/roles"
 import { normalizeCloudinaryUrlValue } from "@/lib/cloudinary-url"
@@ -49,32 +50,6 @@ function generateInitialPassword() {
   return picks.join("")
 }
 
-// helpers
-async function assertIsAdmin(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.split(" ")[1]
-  if (!token) {
-    return { ok: false, status: 401, message: "Missing auth token" }
-  }
-
-  try {
-    const decoded = await adminAuth.verifyIdToken(token)
-    // check the user's role in firestore
-    const doc = await adminDb
-      .collection(COLLECTIONS.users)
-      .doc(decoded.uid)
-      .get()
-    const data = doc.data()
-    if (data?.role === "admin") {
-      return { ok: true, uid: decoded.uid }
-    }
-    return { ok: false, status: 403, message: "Admin access required" }
-  } catch (err) {
-    console.error("token verification failed", err)
-    return { ok: false, status: 401, message: "Invalid auth token" }
-  }
-}
-
 // list all admin users; name comes from auth
 export async function GET(req: NextRequest) {
   const authCheck = await assertIsAdmin(req)
@@ -104,33 +79,55 @@ export async function GET(req: NextRequest) {
     const userDocs = usersSnapshot.docs.slice(0, pageSize)
     const hasMore = usersSnapshot.docs.length > pageSize
 
-    const authUsersResult = await adminAuth.getUsers(
-      userDocs.map((docSnap) => ({ uid: docSnap.id }))
-    )
+    const authUsersResult: {
+      users: Array<{
+        uid: string
+        displayName?: string | null
+        email?: string | null
+        photoURL?: string | null
+        disabled?: boolean
+      }>
+    } = await adminAuth.getUsers(userDocs.map((docSnap) => ({ uid: docSnap.id })))
 
     const authUsersByUid = new Map(
       authUsersResult.users.map((u) => [u.uid, u])
     )
 
     const items: AdminUserSummary[] = userDocs.map((docSnap) => {
-      const data = docSnap.data()
+      const data = docSnap.data() as Record<string, unknown>
       const authUser = authUsersByUid.get(docSnap.id)
       const rawPhotoURL =
-        (typeof authUser?.photoURL === "string" && authUser.photoURL.trim())
+        typeof authUser?.photoURL === "string" && authUser.photoURL.trim()
           ? authUser.photoURL
-          : (data?.photoURL as string | null) ?? null
+          : typeof data.photoURL === "string"
+            ? data.photoURL
+            : null
 
       return {
         uid: docSnap.id,
-        name: authUser?.displayName ?? (data?.name as string) ?? "",
-        email: authUser?.email ?? (data?.email as string) ?? "",
-        role: (data?.role as UserRole) ?? "user",
-        team: (data?.team as string) ?? null,
-        disabled: authUser?.disabled ?? Boolean(data?.disabled),
-        isRobot: Boolean(data?.isRobot),
+        name:
+          authUser?.displayName ??
+          (typeof data.name === "string" ? data.name : ""),
+        email:
+          authUser?.email ??
+          (typeof data.email === "string" ? data.email : ""),
+        role: (data.role as UserRole) ?? "user",
+        team: typeof data.team === "string" ? data.team : null,
+        disabled: authUser?.disabled ?? Boolean(data.disabled),
+        isRobot: Boolean(data.isRobot),
         photoURL: normalizeCloudinaryUrlValue(rawPhotoURL) ?? null,
-        createdAt: data?.createdAt?.toDate?.() ?? null,
-        updatedAt: data?.updatedAt?.toDate?.() ?? null,
+        createdAt:
+          typeof data.createdAt === "object" &&
+          data.createdAt !== null &&
+          "toDate" in data.createdAt
+            ? (data.createdAt as { toDate: () => Date }).toDate()
+            : null,
+        updatedAt:
+          typeof data.updatedAt === "object" &&
+          data.updatedAt !== null &&
+          "toDate" in data.updatedAt
+            ? (data.updatedAt as { toDate: () => Date }).toDate()
+            : null,
       }
     })
 
