@@ -5,14 +5,10 @@ import { useParams } from "next/navigation"
 
 import { useCourseManagementActions } from "./use-course-management-actions"
 import { useCourseManagementState } from "./use-course-management-state"
-import type {
-  CourseManagementProviderChildren,
-  CourseManagementProviderValue,
-  TrackForm,
-  MaterialForm,
-  UpdateMaterialForm,
-  ActivityForm,
-} from "./courseManagement.types"
+import type { CourseManagementProviderChildren } from "./courseManagement.types"
+
+type CourseManagementProviderValue = ReturnType<typeof useCourseManagementState> &
+  ReturnType<typeof useCourseManagementActions>
 
 const CourseManagementContext = React.createContext<CourseManagementProviderValue | undefined>(
   undefined
@@ -41,6 +37,7 @@ export function CourseManagementProvider({ children }: CourseManagementProviderC
       activities: state.activities,
       activityResponses: state.activityResponses,
       availableUsers: state.availableUsers,
+      user: state.user,
       loading: state.loading,
       errors: state.errors,
       loadTracks: state.loadTracks,
@@ -66,7 +63,5 @@ export function useCourseManagement() {
 export type {
   TrackForm,
   MaterialForm,
-  UpdateMaterialForm,
   ActivityForm,
-  CourseManagementProviderValue,
 } from "./courseManagement.types"

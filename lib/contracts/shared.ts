@@ -1,19 +1,12 @@
 import { z } from "zod"
 
-export const attachmentSchema = z
+const attachmentSchema = z
   .object({
     name: z.string(),
     url: z.string(),
     type: z.enum(["pdf", "video", "link", "audio"]).optional(),
   })
   .strict()
-
-export const answerValueSchema = z.union([
-  z.string(),
-  z.array(z.string()),
-  z.boolean(),
-  z.null(),
-])
 
 export const serializedDateSchema = z.union([z.string(), z.date()]).nullable()
 
@@ -52,4 +45,3 @@ export const userSummarySchema = z
   .strict()
 
 export const attachmentListSchema = z.array(attachmentSchema)
-

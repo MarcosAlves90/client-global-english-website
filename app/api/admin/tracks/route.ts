@@ -12,15 +12,6 @@ import {
 } from "@/lib/contracts/admin"
 import type { Track } from "@/lib/firebase/types"
 
-type CreateTrackBody = {
-  id?: string
-  courseId?: string
-  title?: string
-  description?: string
-  order?: number
-  userIds?: string[]
-}
-
 function parseOrder(input?: number) {
   if (input === undefined || input === null) {
     return null

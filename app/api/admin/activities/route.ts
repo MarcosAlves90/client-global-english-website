@@ -17,28 +17,6 @@ import {
 } from "@/lib/contracts/admin"
 import type { Activity } from "@/lib/firebase/types"
 
-type CreateActivityBody = {
-  courseId?: string
-  trackId?: string
-  title?: string
-  type?: "lesson" | "quiz" | "assignment" | "project"
-  order?: number
-  estimatedMinutes?: number
-  visibility?: "module" | "users" | "private"
-  userIds?: string[]
-  releaseAt?: string | null
-  attachments?: { name?: string; url?: string; type?: string }[]
-  questions?: {
-    id?: string
-    type?: "essay" | "single_choice" | "multiple_choice" | "true_false" | "short_answer"
-    prompt?: string
-    options?: string[]
-    correctAnswers?: string[]
-    points?: number
-    required?: boolean
-  }[]
-}
-
 function normalizeUserIds(input?: unknown) {
   if (!Array.isArray(input)) {
     return []

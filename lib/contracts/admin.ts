@@ -1,7 +1,6 @@
 import { z } from "zod"
 
 import {
-  answerValueSchema,
   attachmentListSchema,
   questionSchema,
   serializedDateSchema,
@@ -12,11 +11,6 @@ const courseLevelSchema = z.enum(["Beginner", "Intermediate", "Advanced"])
 const visibilitySchema = z.enum(["module", "users", "private"])
 const activityTypeSchema = z.enum(["lesson", "quiz", "assignment", "project"])
 const materialTypeSchema = z.enum(["pdf", "video", "link", "audio", "markdown"])
-const activityProgressStatusSchema = z.enum([
-  "not_started",
-  "in_progress",
-  "completed",
-])
 
 export const adminCourseSummarySchema = z
   .object({
@@ -78,35 +72,6 @@ export const activitySchema = z
   })
   .strict()
 
-export const adminActivityResponseSchema = z
-  .object({
-    id: z.string(),
-    userId: z.string(),
-    activityId: z.string(),
-    courseId: z.string(),
-    trackId: z.string(),
-    status: activityProgressStatusSchema,
-    answers: z.record(z.string(), answerValueSchema),
-    answeredCount: z.number(),
-    totalQuestions: z.number(),
-    completionPercent: z.number(),
-    scorePercent: z.number().nullable(),
-    submittedAt: serializedDateSchema,
-    createdAt: serializedDateSchema,
-    updatedAt: serializedDateSchema,
-    user: z
-      .object({
-        uid: z.string(),
-        name: z.string(),
-        email: z.string(),
-        photoURL: z.string().nullable().optional(),
-        isRobot: z.boolean().optional(),
-      })
-      .strict()
-      .optional(),
-  })
-  .strict()
-
 export const adminUsersPageResponseSchema = z
   .object({
     items: z.array(userSummarySchema),
@@ -117,13 +82,6 @@ export const adminUsersPageResponseSchema = z
 export const createAdminUserResponseSchema = userSummarySchema
   .extend({
     initialPassword: z.string().optional(),
-  })
-  .strict()
-
-export const adminOverviewSchema = z
-  .object({
-    usersCount: z.number(),
-    coursesCount: z.number(),
   })
   .strict()
 
@@ -263,24 +221,11 @@ export const deleteActivityBodySchema = z
   })
   .strict()
 
-export const deleteAttachmentBodySchema = z
-  .object({
-    id: z.string(),
-  })
-  .strict()
-
 export const adminAttachmentDeleteBodySchema = z
   .object({
     entityType: z.enum(["material", "activity"]).optional(),
     entityId: z.string().optional(),
     attachmentUrl: z.string().optional(),
-  })
-  .strict()
-
-export const adminUsersQuerySchema = z
-  .object({
-    pageSize: z.number(),
-    cursor: z.string().nullable().optional(),
   })
   .strict()
 
@@ -293,13 +238,6 @@ export const upsertAdminUserBodySchema = z
     team: z.string().nullable().optional(),
     disabled: z.boolean().optional(),
     isRobot: z.boolean().optional(),
-  })
-  .strict()
-
-export const toggleAdminUserDisabledBodySchema = z
-  .object({
-    uid: z.string(),
-    disabled: z.boolean(),
   })
   .strict()
 

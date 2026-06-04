@@ -19,9 +19,7 @@ import type {
   ActivityAnswerValue,
   ActivityProgress,
   ActivityProgressStatus,
-  AdminCourseSummary,
   AdminOverview,
-  AdminUserSummary,
   Course,
   DashboardCourse,
   Enrollment,
@@ -696,139 +694,6 @@ export async function upsertUserActivityProgress(params: {
     },
     { merge: true }
   )
-}
-
-export async function fetchAdminUsers(): Promise<AdminUserSummary[]> {
-  const firestore = getDbOrThrow()
-  const snapshot = await getDocs(collection(firestore, COLLECTIONS.users))
-
-  return snapshot.docs
-    .map((docSnap) => {
-      const data = docSnap.data()
-      return {
-        uid: data.uid ?? docSnap.id,
-        name: data.name ?? "",
-        email: data.email ?? "",
-        role: (data.role ?? "user") as UserRole,
-        team: data.team ?? null,
-        isRobot: data.isRobot ?? false,
-        createdAt: data.createdAt?.toDate?.() ?? null,
-        updatedAt: data.updatedAt?.toDate?.() ?? null,
-      } satisfies AdminUserSummary
-    })
-    .sort((a, b) => a.name.localeCompare(b.name))
-}
-
-export async function updateAdminUser(params: {
-  uid: string
-  name: string
-  email: string
-  role: UserRole
-  team?: string | null
-  isRobot?: boolean
-}) {
-  const firestore = getDbOrThrow()
-  const userRef = doc(firestore, COLLECTIONS.users, params.uid)
-
-  await setDoc(
-    userRef,
-    {
-      uid: params.uid,
-      name: params.name,
-      email: params.email,
-      role: params.role,
-      team: params.team ?? null,
-      isRobot: params.isRobot ?? false,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  )
-}
-
-export async function fetchAdminCourses(): Promise<AdminCourseSummary[]> {
-  const firestore = getDbOrThrow()
-  const coursesSnapshot = await getDocs(
-    collection(firestore, COLLECTIONS.courses)
-  )
-
-  const courseBase = coursesSnapshot.docs.map((docSnap) => {
-    const data = docSnap.data()
-    return {
-      id: docSnap.id,
-      title: data.title ?? "",
-      description: data.description ?? "",
-      level: (data.level ?? "Beginner") as "Beginner" | "Intermediate" | "Advanced",
-      durationWeeks: data.durationWeeks ?? 0,
-      coverUrl: normalizeCloudinaryUrlValue(data.coverUrl ?? null) ?? null,
-      status: data.status ?? "Inscrições abertas",
-    }
-  })
-
-  const courses = await Promise.all(
-    courseBase.map(async (course) => {
-      const [tracksSnapshot, enrollmentsSnapshot, activitiesSnapshot] =
-        await Promise.all([
-          getDocs(
-            query(
-              collection(firestore, COLLECTIONS.tracks),
-              where("courseId", "==", course.id)
-            )
-          ),
-          getDocs(
-            query(
-              collection(firestore, COLLECTIONS.enrollments),
-              where("courseId", "==", course.id)
-            )
-          ),
-          getDocs(
-            query(
-              collection(firestore, COLLECTIONS.activities),
-              where("courseId", "==", course.id)
-            )
-          ),
-        ])
-
-      const trackUserIds = new Set<string>()
-      tracksSnapshot.docs.forEach((trackSnap) => {
-        const data = trackSnap.data()
-        const ids = Array.isArray(data.userIds) ? data.userIds : []
-        ids.forEach((id: string) => {
-          if (typeof id === "string" && id.trim()) {
-            trackUserIds.add(id)
-          }
-        })
-      })
-
-      const enrollmentUserIds = new Set<string>()
-      enrollmentsSnapshot.docs.forEach((enrollmentSnap) => {
-        const data = enrollmentSnap.data()
-        const id = data.userId
-        if (typeof id === "string" && id.trim()) {
-          enrollmentUserIds.add(id)
-        }
-      })
-
-      const studentsCount = new Set([
-        ...trackUserIds.values(),
-        ...enrollmentUserIds.values(),
-      ]).size
-
-      return {
-        id: course.id,
-        title: course.title,
-        description: course.description,
-        level: course.level,
-        durationWeeks: course.durationWeeks,
-        coverUrl: course.coverUrl,
-        status: course.status,
-        modulesCount: tracksSnapshot.size,
-        studentsCount,
-        activitiesCount: activitiesSnapshot.size,
-      } satisfies AdminCourseSummary
-    })
-  )
-
-  return courses.sort((a, b) => a.title.localeCompare(b.title))
 }
 
 export async function fetchAdminOverview(): Promise<AdminOverview> {

@@ -26,16 +26,6 @@ const COURSE_STATUS_OPTIONS = [
 
 type CourseStatus = (typeof COURSE_STATUS_OPTIONS)[number]
 
-type CreateCourseBody = {
-  id?: string
-  title?: string
-  description?: string
-  level?: "Beginner" | "Intermediate" | "Advanced"
-  durationWeeks?: number
-  coverUrl?: string | null
-  status?: string
-}
-
 function resolveCourseStatus(status?: string): CourseStatus {
   const inputStatus = status?.trim()
   if (inputStatus && COURSE_STATUS_OPTIONS.includes(inputStatus as CourseStatus)) {

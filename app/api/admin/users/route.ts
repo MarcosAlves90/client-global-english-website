@@ -12,16 +12,6 @@ import {
 } from "@/lib/contracts/admin"
 import type { AdminUserSummary, UserRole } from "@/lib/firebase/types"
 
-// body type used by both create and update handlers
-interface RequestBody {
-  name?: string
-  email?: string
-  role?: "user" | "admin"
-  team?: string | null
-  disabled?: boolean
-  isRobot?: boolean
-}
-
 interface PaginatedUsersResponse {
   items: AdminUserSummary[]
   nextCursor: string | null

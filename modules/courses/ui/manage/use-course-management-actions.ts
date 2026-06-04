@@ -25,7 +25,6 @@ import type {
   ActivityForm,
   MaterialForm,
   TrackForm,
-  UpdateMaterialForm,
 } from "./courseManagement.types"
 
 type UseCourseManagementActionsArgs = {
@@ -136,7 +135,7 @@ export function useCourseManagementActions({
   )
 
   const handleUpdateMaterial = React.useCallback(
-    async (form: UpdateMaterialForm) => {
+    async (form: { id: string; title: string; markdown: string }) => {
       if (!user) return
       try {
         const idToken = await user.getIdToken()

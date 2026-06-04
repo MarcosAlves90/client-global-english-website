@@ -12,12 +12,6 @@ import { normalizeCloudinaryUrlItems } from "@/lib/cloudinary-url"
 import { COLLECTIONS } from "@/lib/firebase/collections"
 import { adminAttachmentDeleteBodySchema } from "@/lib/contracts/admin"
 
-type DeleteAttachmentBody = {
-  entityType?: "material" | "activity"
-  entityId?: string
-  attachmentUrl?: string
-}
-
 function resolveCollection(entityType: "material" | "activity") {
   if (entityType === "material") {
     return COLLECTIONS.materials

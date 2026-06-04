@@ -15,7 +15,7 @@ const CLOUDINARY_UPLOAD_SEGMENT = "/upload/"
 
 type CloudinaryResourceType = "image" | "video" | "raw"
 
-export function getCloudinaryCloudName() {
+function getCloudinaryCloudName() {
   return (
     process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim() ||
     process.env.CLOUDINARY_CLOUD_NAME?.trim() ||

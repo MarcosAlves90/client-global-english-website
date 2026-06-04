@@ -6,10 +6,6 @@ const activityProgressCache = new Map<
   { data: AdminActivityResponse[]; ts: number }
 >()
 
-export function clearAdminActivityProgressCache() {
-  activityProgressCache.clear()
-}
-
 export async function fetchAdminActivityProgress(params: {
   idToken: string | null
   courseId: string

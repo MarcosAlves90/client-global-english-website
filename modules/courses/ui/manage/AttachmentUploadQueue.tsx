@@ -14,7 +14,7 @@ export type UploadFeedbackState = {
   message: string
 }
 
-export type AttachmentItem = {
+type AttachmentItem = {
   name: string
   url: string
   type: AttachmentType

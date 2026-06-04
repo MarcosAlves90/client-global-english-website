@@ -34,11 +34,11 @@ export function isCloudinaryUrl(url: string) {
   return checkIsCloudinaryUrl(url)
 }
 
-export function getCloudinaryPublicIdFromUrl(url: string): string | null {
+function getCloudinaryPublicIdFromUrl(url: string): string | null {
   return extractCloudinaryPublicIdFromUrl(url)
 }
 
-export async function deleteCloudinaryPublicId(publicId: string) {
+async function deleteCloudinaryPublicId(publicId: string) {
   ensureCloudinaryConfig()
 
   const resourceTypes: Array<"image" | "video" | "raw"> = ["image", "video", "raw"]
