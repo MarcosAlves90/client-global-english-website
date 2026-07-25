@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, LockKeyhole } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   requestPasswordReset,
@@ -97,19 +97,31 @@ export function LoginForm({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card className="border-border/50 shadow-xl shadow-primary/5 rounded-[2rem] bg-card/80 backdrop-blur-xl">
-        <CardHeader className="text-center pt-8 pb-4">
-          <CardTitle className="text-2xl font-bold tracking-tight text-foreground">
+      <Card className="overflow-hidden rounded-[1.5rem] border-border/70 bg-card/70 pt-0 shadow-2xl shadow-black/10 backdrop-blur-2xl">
+        <div className="flex items-center gap-1.5 border-b border-border/60 bg-background/25 px-5 py-3" aria-hidden="true">
+          <span className="size-2.5 rounded-full bg-[#ff5f57]" />
+          <span className="size-2.5 rounded-full bg-[#febc2e]" />
+          <span className="size-2.5 rounded-full bg-[#28c840]" />
+          <span className="ml-2 text-[10px] font-medium tracking-wide text-muted-foreground/70">globalenglish.app / login</span>
+        </div>
+        <CardHeader className="pb-4 pt-0 text-left sm:px-8 sm:pt-0">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex size-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+              <LockKeyhole className="size-4" />
+            </div>
+            <span className="rounded-full border border-border/60 bg-background/40 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Secure access</span>
+          </div>
+          <CardTitle className="text-[1.7rem] font-semibold tracking-[-0.045em] text-foreground">
             Acesso ao Portal
           </CardTitle>
-          <CardDescription className="text-base text-muted-foreground">
-            Insira suas credenciais para entrar na plataforma.
+          <CardDescription className="mt-2 text-sm leading-6 text-muted-foreground">
+            Retome sua trilha e continue de onde parou.
           </CardDescription>
         </CardHeader>
-        <CardContent className="px-8 pb-8">
+        <CardContent className="px-6 pb-6 sm:px-8 sm:pb-7">
           <form onSubmit={handleSubmit}>
-            <FieldGroup>
-              <Field>
+            <FieldGroup className="gap-5">
+              <Field className="gap-2">
                 <FieldLabel required htmlFor="email" className="font-medium text-foreground">
                   E-mail
                 </FieldLabel>
@@ -123,7 +135,7 @@ export function LoginForm({
                   className="h-12 rounded-xl border-border/60 bg-background/50 focus-visible:ring-primary/40 focus-visible:border-primary transition-all text-base"
                 />
               </Field>
-              <Field>
+              <Field className="gap-2">
                 <div className="flex items-center">
                   <FieldLabel required htmlFor="password" className="font-medium text-foreground">
                     Senha
@@ -161,7 +173,7 @@ export function LoginForm({
                   </button>
                 </div>
               </Field>
-              <Field className="pt-2">
+              <Field className="gap-2 pt-0">
                 <Button
                   type="submit"
                   disabled={isSubmitting}
@@ -201,4 +213,3 @@ export function LoginForm({
     </div>
   )
 }
-

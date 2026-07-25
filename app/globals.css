@@ -228,6 +228,17 @@
   }
 }
 
+@keyframes auth-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @layer utilities {
   .ge-page-enter {
     animation: ge-fade 280ms ease-out both;
@@ -270,6 +281,11 @@
   .ge-progress {
     animation: ge-progress 3.6s ease-in-out infinite;
   }
+
+  .auth-card-enter {
+    animation: auth-card-enter 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -280,6 +296,7 @@
   .ge-shimmer,
   .ge-orbit,
   .ge-progress,
+  .auth-card-enter,
   .ge-hover-lift:hover {
     animation: none !important;
     transition: none !important;
