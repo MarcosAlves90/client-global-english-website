@@ -190,6 +190,44 @@
   }
 }
 
+@keyframes ge-float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(0.35deg);
+  }
+}
+
+@keyframes ge-shimmer {
+  0%, 70%, 100% {
+    box-shadow: 0 0 0 0 rgb(196 181 253 / 0%);
+  }
+  82% {
+    box-shadow: 0 0 0 5px rgb(196 181 253 / 8%);
+  }
+}
+
+@keyframes ge-orbit {
+  0%, 100% {
+    opacity: .7;
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate3d(-50%, 22px, 0) scale(1.06);
+  }
+}
+
+@keyframes ge-progress {
+  0%, 100% {
+    filter: saturate(1);
+  }
+  50% {
+    filter: saturate(1.45) brightness(1.12);
+  }
+}
+
 @layer utilities {
   .ge-page-enter {
     animation: ge-fade 280ms ease-out both;
@@ -209,12 +247,39 @@
   .ge-hover-lift:hover {
     transform: translateY(-2px);
   }
+
+  .ge-float {
+    animation: ge-float 6s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .ge-shimmer {
+    animation: ge-shimmer 4.8s ease-in-out infinite;
+  }
+
+  .ge-orbit {
+    animation: ge-orbit 10s ease-in-out infinite;
+    will-change: opacity, transform;
+  }
+
+  .ge-orbit-delayed {
+    animation-delay: -4s;
+    animation-duration: 12s;
+  }
+
+  .ge-progress {
+    animation: ge-progress 3.6s ease-in-out infinite;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ge-page-enter,
   .ge-reveal,
   .ge-hover-lift,
+  .ge-float,
+  .ge-shimmer,
+  .ge-orbit,
+  .ge-progress,
   .ge-hover-lift:hover {
     animation: none !important;
     transition: none !important;

@@ -12,6 +12,7 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- Refreshed the landing page with a guided product story, Cupertino-inspired UI, richer dashboard preview, and accessible micro-interactions.
 - Centralized Cloudinary URL normalization, optimization, and public-ID matching.
 - Added Zod contracts and centralized admin authorization for administrative APIs.
 - Refactored course-management state, actions, attachment uploads, activity creation, and activity insights.
