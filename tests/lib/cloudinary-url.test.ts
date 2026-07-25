@@ -29,6 +29,8 @@ describe("optimizeCloudinaryUrl", () => {
   })
 
   it("não duplica otimização quando já existe transformação automática", () => {
+    vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", "demo")
+
     const input = "https://res.cloudinary.com/demo/image/upload/f_auto,q_auto,dpr_auto,fl_progressive/v12345/folder/photo.jpg"
 
     expect(optimizeCloudinaryUrl(input)).toBe(input)
