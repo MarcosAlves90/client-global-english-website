@@ -1,41 +1,16 @@
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
-import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
+import admin, { adminDb } from "@/lib/firebase/admin"
+import { assertIsAdmin } from "@/lib/firebase/admin-request"
 import {
+  cloudinaryAssetUrlsMatch,
   deleteCloudinaryAssetsByUrls,
   isCloudinaryUrl,
 } from "@/lib/cloudinary-admin"
+import { normalizeCloudinaryUrlItems } from "@/lib/cloudinary-url"
 import { COLLECTIONS } from "@/lib/firebase/collections"
-
-type DeleteAttachmentBody = {
-  entityType?: "material" | "activity"
-  entityId?: string
-  attachmentUrl?: string
-}
-
-async function assertIsAdmin(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.split(" ")[1]
-  if (!token) {
-    return { ok: false, status: 401, message: "Missing auth token" }
-  }
-
-  try {
-    const decoded = await adminAuth.verifyIdToken(token)
-    const doc = await adminDb.collection(COLLECTIONS.users).doc(decoded.uid).get()
-    const data = doc.data()
-
-    if (data?.role === "admin") {
-      return { ok: true, uid: decoded.uid }
-    }
-
-    return { ok: false, status: 403, message: "Admin access required" }
-  } catch (err) {
-    console.error("token verification failed", err)
-    return { ok: false, status: 401, message: "Invalid auth token" }
-  }
-}
+import { adminAttachmentDeleteBodySchema } from "@/lib/contracts/admin"
 
 function resolveCollection(entityType: "material" | "activity") {
   if (entityType === "material") {
@@ -53,7 +28,7 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  let body: DeleteAttachmentBody
+  let body: unknown
 
   try {
     body = await req.json()
@@ -61,9 +36,14 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const entityType = body.entityType
-  const entityId = body.entityId?.trim()
-  const attachmentUrl = body.attachmentUrl?.trim()
+  const parsedBody = adminAttachmentDeleteBodySchema.safeParse(body)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const entityType = parsedBody.data.entityType
+  const entityId = parsedBody.data.entityId?.trim()
+  const attachmentUrl = parsedBody.data.attachmentUrl?.trim()
 
   if (
     (entityType !== "material" && entityType !== "activity") ||
@@ -92,8 +72,11 @@ export async function DELETE(req: NextRequest) {
       ? data.attachments
       : []
 
-    const nextAttachments = currentAttachments.filter(
-      (item: { url?: unknown }) => item?.url !== attachmentUrl
+    const nextAttachments = normalizeCloudinaryUrlItems(
+      currentAttachments.filter((item: { url?: unknown }) => {
+      const currentUrl = typeof item?.url === "string" ? item.url : ""
+      return !cloudinaryAssetUrlsMatch(currentUrl, attachmentUrl)
+      })
     )
 
     if (nextAttachments.length === currentAttachments.length) {

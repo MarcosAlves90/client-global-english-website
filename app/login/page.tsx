@@ -5,7 +5,18 @@ import { Quote } from "lucide-react"
 import { AuthLayout } from "@/components/layouts/auth-layout"
 import { LoginForm } from "@/components/login-form"
 import { useRedirectIfAuthenticated } from "@/hooks/use-redirect-if-authenticated"
-import { optimizeCloudinaryUrl } from "@/lib/cloudinary-url"
+import { buildCloudinaryUrl, optimizeCloudinaryUrl } from "@/lib/cloudinary-url"
+
+const LOGIN_HERO_PUBLIC_ID = process.env.NEXT_PUBLIC_LOGIN_HERO_PUBLIC_ID?.trim()
+if (!LOGIN_HERO_PUBLIC_ID) {
+  throw new Error("Missing env: NEXT_PUBLIC_LOGIN_HERO_PUBLIC_ID")
+}
+const LOGIN_HERO_IMAGE = buildCloudinaryUrl(LOGIN_HERO_PUBLIC_ID)
+const LOGIN_AVATAR_PUBLIC_ID = process.env.NEXT_PUBLIC_LOGIN_AVATAR_PUBLIC_ID?.trim()
+if (!LOGIN_AVATAR_PUBLIC_ID) {
+  throw new Error("Missing env: NEXT_PUBLIC_LOGIN_AVATAR_PUBLIC_ID")
+}
+const LOGIN_AVATAR_IMAGE = buildCloudinaryUrl(LOGIN_AVATAR_PUBLIC_ID)
 
 export default function LoginPage() {
   const { isChecking } = useRedirectIfAuthenticated()
@@ -14,7 +25,7 @@ export default function LoginPage() {
 
   return (
     <AuthLayout
-      imageSrc="https://res.cloudinary.com/dflvo098t/image/upload/v1772349852/toronto-canada_glefp0.jpg"
+      imageSrc={LOGIN_HERO_IMAGE}
       imageAlt="Toronto, Canada"
       badgeText="Área Exclusiva"
       title={
@@ -33,7 +44,7 @@ export default function LoginPage() {
             <div className="flex items-center gap-3">
               <div className="size-10 rounded-full bg-zinc-800 overflow-hidden border border-zinc-700">
                 <Image
-                  src={optimizeCloudinaryUrl("https://res.cloudinary.com/dflvo098t/image/upload/v1772409364/av3_wuknvs.jpg", {
+                  src={optimizeCloudinaryUrl(LOGIN_AVATAR_IMAGE, {
                     width: 80,
                     height: 80,
                     crop: "fill",

@@ -32,4 +32,4 @@ if (hasFirebaseConfig) {
   throw new Error("Missing Firebase configuration in production.")
 }
 
-export { app, auth, db, hasFirebaseConfig }
+export { auth, db, hasFirebaseConfig }

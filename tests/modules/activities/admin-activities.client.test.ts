@@ -18,15 +18,73 @@ describe("admin activities client", () => {
       "@/modules/activities/api/admin-activities.client"
     )
 
-    mockFetchOnce([{ id: "a1" }])
+    mockFetchOnce([
+      {
+        id: "a1",
+        courseId: "course-1",
+        trackId: "track-1",
+        title: "Activity 1",
+        type: "lesson",
+        order: 1,
+        estimatedMinutes: 10,
+        visibility: "module",
+        userIds: [],
+        releaseAt: null,
+        attachments: [],
+        questions: [],
+      },
+    ])
     const first = await fetchAdminCourseActivities("token", "course-1")
     const cached = await fetchAdminCourseActivities("token", "course-1")
 
-    expect(first).toEqual([{ id: "a1" }])
-    expect(cached).toEqual([{ id: "a1" }])
+    expect(first).toEqual([
+      {
+        id: "a1",
+        courseId: "course-1",
+        trackId: "track-1",
+        title: "Activity 1",
+        type: "lesson",
+        order: 1,
+        estimatedMinutes: 10,
+        visibility: "module",
+        userIds: [],
+        releaseAt: null,
+        attachments: [],
+        questions: [],
+      },
+    ])
+    expect(cached).toEqual([
+      {
+        id: "a1",
+        courseId: "course-1",
+        trackId: "track-1",
+        title: "Activity 1",
+        type: "lesson",
+        order: 1,
+        estimatedMinutes: 10,
+        visibility: "module",
+        userIds: [],
+        releaseAt: null,
+        attachments: [],
+        questions: [],
+      },
+    ])
     expect(fetch).toHaveBeenCalledTimes(1)
 
-    mockFetchOnce({ id: "a2" })
+    mockFetchOnce({
+      id: "a2",
+      courseId: "course-1",
+      trackId: "track-1",
+      title: "Activity 2",
+      type: "lesson",
+      order: 2,
+      estimatedMinutes: 10,
+      visibility: "module",
+      userIds: [],
+      releaseAt: null,
+      attachments: [],
+      questions: [],
+    })
     await createAdminActivity("token", {
       courseId: "course-1",
       trackId: "track-1",
@@ -36,9 +94,39 @@ describe("admin activities client", () => {
       visibility: "module",
     })
 
-    mockFetchOnce([{ id: "a3" }])
+    mockFetchOnce([
+      {
+        id: "a3",
+        courseId: "course-1",
+        trackId: "track-1",
+        title: "Activity 3",
+        type: "lesson",
+        order: 3,
+        estimatedMinutes: 10,
+        visibility: "module",
+        userIds: [],
+        releaseAt: null,
+        attachments: [],
+        questions: [],
+      },
+    ])
     const refreshed = await fetchAdminCourseActivities("token", "course-1")
-    expect(refreshed).toEqual([{ id: "a3" }])
+    expect(refreshed).toEqual([
+      {
+        id: "a3",
+        courseId: "course-1",
+        trackId: "track-1",
+        title: "Activity 3",
+        type: "lesson",
+        order: 3,
+        estimatedMinutes: 10,
+        visibility: "module",
+        userIds: [],
+        releaseAt: null,
+        attachments: [],
+        questions: [],
+      },
+    ])
     expect(fetch).toHaveBeenCalledTimes(3)
   })
 

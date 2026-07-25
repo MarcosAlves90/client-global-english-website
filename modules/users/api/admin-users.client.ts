@@ -1,4 +1,13 @@
 import type { AdminUserSummary } from "@/lib/firebase/types"
+import {
+  adminUsersPageResponseSchema,
+  createAdminUserResponseSchema,
+} from "@/lib/contracts/admin"
+import {
+  adminJsonRequest,
+  getFreshCacheEntry,
+  setCacheEntry,
+} from "@/lib/api/admin-client"
 
 const USERS_CACHE_TTL = 60_000
 const usersCache = new Map<
@@ -27,10 +36,10 @@ export async function fetchAdminUsersPage(params: {
   force?: boolean
 }) {
   const cacheKey = `${params.pageSize}:${params.cursor ?? "__root__"}`
-  const now = Date.now()
   const cached = usersCache.get(cacheKey)
-  if (!params.force && cached && now - cached.ts < USERS_CACHE_TTL) {
-    return cached.data
+  const fresh = params.force ? null : getFreshCacheEntry(cached, USERS_CACHE_TTL)
+  if (fresh) {
+    return fresh.data
   }
 
   const query = new URLSearchParams({
@@ -41,18 +50,15 @@ export async function fetchAdminUsersPage(params: {
     query.set("cursor", params.cursor)
   }
 
-  const resp = await fetch(`/api/admin/users?${query.toString()}`, {
-    headers: {
-      ...(params.idToken ? { Authorization: `Bearer ${params.idToken}` } : {}),
-    },
-  })
-
-  if (!resp.ok) {
-    throw new Error("failed to load")
-  }
-
-  const data = (await resp.json()) as AdminUsersPageResponse
-  usersCache.set(cacheKey, { data, ts: now })
+  const data = await adminJsonRequest<AdminUsersPageResponse>(
+    `/api/admin/users?${query.toString()}`,
+    {
+      idToken: params.idToken,
+      errorMessage: "failed to load",
+      schema: adminUsersPageResponseSchema,
+    }
+  )
+  usersCache.set(cacheKey, setCacheEntry(data))
   return data
 }
 
@@ -64,41 +70,40 @@ export async function upsertAdminUser(
   idToken: string | null,
   payload: UpsertUserPayload
 ) {
-  const resp = await fetch("/api/admin/users", {
-    method: payload.uid ? "PATCH" : "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-    },
-    body: JSON.stringify(payload),
+  if (payload.uid) {
+    await adminJsonRequest<void>("/api/admin/users", {
+      idToken,
+      method: "PATCH",
+      body: payload,
+      errorMessage: "failed to update",
+    })
+
+    usersCache.clear()
+    return
+  }
+
+  const result = await adminJsonRequest<CreateAdminUserResponse>("/api/admin/users", {
+    idToken,
+    method: "POST",
+    body: payload,
+    errorMessage: "failed to create",
+    schema: createAdminUserResponseSchema,
   })
 
-  if (!resp.ok) {
-    throw new Error(payload.uid ? "failed to update" : "failed to create")
-  }
-
   usersCache.clear()
-  if (!payload.uid) {
-    return resp.json()
-  }
+  return result
 }
 
 export async function toggleAdminUserDisabled(
   idToken: string | null,
   payload: { uid: string; disabled: boolean }
 ) {
-  const resp = await fetch("/api/admin/users", {
+  await adminJsonRequest<void>("/api/admin/users", {
+    idToken,
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-    },
-    body: JSON.stringify(payload),
+    body: payload,
+    errorMessage: "freeze failed",
   })
-
-  if (!resp.ok) {
-    throw new Error("freeze failed")
-  }
 
   usersCache.clear()
 }
@@ -107,18 +112,12 @@ export async function deleteAdminUser(
   idToken: string | null,
   payload: { uid: string }
 ) {
-  const resp = await fetch("/api/admin/users", {
+  await adminJsonRequest<void>("/api/admin/users", {
+    idToken,
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-    },
-    body: JSON.stringify(payload),
+    body: payload,
+    errorMessage: "delete failed",
   })
-
-  if (!resp.ok) {
-    throw new Error("delete failed")
-  }
 
   usersCache.clear()
 }

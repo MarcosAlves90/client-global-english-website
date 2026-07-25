@@ -1,15 +1,20 @@
 "use server"
 
 import { v2 as cloudinary } from "cloudinary"
+import { getCloudinaryPublicIdFromUrl, requireCloudinaryCloudName } from "@/lib/cloudinary-url"
 
-if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+const cloudName = requireCloudinaryCloudName()
+const apiKey = process.env.CLOUDINARY_API_KEY
+const apiSecret = process.env.CLOUDINARY_API_SECRET
+
+if (!apiKey || !apiSecret) {
     throw new Error("Cloudinary environment variables are missing.")
 }
 
 cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
     secure: true,
 })
 
@@ -29,7 +34,7 @@ export async function uploadImage(formData: FormData, subfolder: string = "gener
             },
             (error, result) => {
                 if (error) {
-                    reject(error)
+                    reject(error instanceof Error ? error : new Error(String(error)))
                     return
                 }
                 if (!result) {
@@ -46,18 +51,7 @@ export async function uploadImage(formData: FormData, subfolder: string = "gener
 }
 
 export async function getPublicIdFromUrl(url: string): Promise<string | null> {
-    if (!url || !url.includes("cloudinary.com")) return null
-
-    // Extract the part after /upload/v<numeric>/
-    // Example: https://res.cloudinary.com/demo/image/upload/v12345/global-english/avatars/foobar.jpg
-    const parts = url.split("/")
-    const uploadIndex = parts.indexOf("upload")
-    if (uploadIndex === -1) return null
-
-    // The public ID is everything from parts[uploadIndex + 2] to the end, excluding the extension
-    // We skip the version (v12345)
-    const publicIdWithExtension = parts.slice(uploadIndex + 2).join("/")
-    return publicIdWithExtension.replace(/\.[^/.]+$/, "")
+    return getCloudinaryPublicIdFromUrl(url)
 }
 
 export async function deleteImage(publicId: string) {

@@ -18,7 +18,20 @@ describe("admin courses client", () => {
       "@/modules/courses/api/admin-courses.client"
     )
 
-    const data = [{ id: "1", title: "Course" }]
+    const data = [
+      {
+        id: "1",
+        title: "Course",
+        description: "Desc",
+        level: "Beginner",
+        durationWeeks: 4,
+        coverUrl: null,
+        status: "draft",
+        modulesCount: 0,
+        studentsCount: 0,
+        activitiesCount: 0,
+      },
+    ]
     mockFetchOnce(data)
 
     const first = await fetchAdminCourses("token")
@@ -34,13 +47,52 @@ describe("admin courses client", () => {
       "@/modules/courses/api/admin-courses.client"
     )
 
-    mockFetchOnce([{ id: "1" }])
-    mockFetchOnce([{ id: "2" }])
+    mockFetchOnce([
+      {
+        id: "1",
+        title: "Course 1",
+        description: "Desc 1",
+        level: "Beginner",
+        durationWeeks: 4,
+        coverUrl: null,
+        status: "draft",
+        modulesCount: 0,
+        studentsCount: 0,
+        activitiesCount: 0,
+      },
+    ])
+    mockFetchOnce([
+      {
+        id: "2",
+        title: "Course 2",
+        description: "Desc 2",
+        level: "Beginner",
+        durationWeeks: 4,
+        coverUrl: null,
+        status: "draft",
+        modulesCount: 0,
+        studentsCount: 0,
+        activitiesCount: 0,
+      },
+    ])
 
     await fetchAdminCourses(null)
     const next = await fetchAdminCourses(null, { force: true })
 
-    expect(next).toEqual([{ id: "2" }])
+    expect(next).toEqual([
+      {
+        id: "2",
+        title: "Course 2",
+        description: "Desc 2",
+        level: "Beginner",
+        durationWeeks: 4,
+        coverUrl: null,
+        status: "draft",
+        modulesCount: 0,
+        studentsCount: 0,
+        activitiesCount: 0,
+      },
+    ])
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 

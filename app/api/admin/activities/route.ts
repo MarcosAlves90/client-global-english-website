@@ -1,55 +1,21 @@
 ﻿import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
-import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
-import { deleteCloudinaryAssetsByUrls, isCloudinaryUrl } from "@/lib/cloudinary-admin"
+import admin, { adminDb } from "@/lib/firebase/admin"
+import { assertIsAdmin } from "@/lib/firebase/admin-request"
+import {
+  deleteCloudinaryAssetsByUrls,
+  isCloudinaryUrl,
+} from "@/lib/cloudinary-admin"
+import {
+  normalizeCloudinaryUrlItems,
+} from "@/lib/cloudinary-url"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import {
+  createActivityBodySchema,
+  deleteActivityBodySchema,
+} from "@/lib/contracts/admin"
 import type { Activity } from "@/lib/firebase/types"
-
-type CreateActivityBody = {
-  courseId?: string
-  trackId?: string
-  title?: string
-  type?: "lesson" | "quiz" | "assignment" | "project"
-  order?: number
-  estimatedMinutes?: number
-  visibility?: "module" | "users" | "private"
-  userIds?: string[]
-  releaseAt?: string | null
-  attachments?: { name?: string; url?: string; type?: string }[]
-  questions?: {
-    id?: string
-    type?: "essay" | "single_choice" | "multiple_choice" | "true_false" | "short_answer"
-    prompt?: string
-    options?: string[]
-    correctAnswers?: string[]
-    points?: number
-    required?: boolean
-  }[]
-}
-
-async function assertIsAdmin(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.split(" ")[1]
-  if (!token) {
-    return { ok: false, status: 401, message: "Missing auth token" }
-  }
-
-  try {
-    const decoded = await adminAuth.verifyIdToken(token)
-    const doc = await adminDb.collection(COLLECTIONS.users).doc(decoded.uid).get()
-    const data = doc.data()
-
-    if (data?.role === "admin") {
-      return { ok: true, uid: decoded.uid }
-    }
-
-    return { ok: false, status: 403, message: "Admin access required" }
-  } catch (err) {
-    console.error("token verification failed", err)
-    return { ok: false, status: 401, message: "Invalid auth token" }
-  }
-}
 
 function normalizeUserIds(input?: unknown) {
   if (!Array.isArray(input)) {
@@ -100,7 +66,9 @@ function normalizeAttachments(input?: unknown) {
     .map((item) => item.url)
 
   return {
-    attachments: mapped.filter((item) => isCloudinaryUrl(item.url)),
+    attachments: normalizeCloudinaryUrlItems(
+      mapped.filter((item) => isCloudinaryUrl(item.url))
+    ),
     invalidUrls,
   }
 }
@@ -220,7 +188,9 @@ export async function GET(req: NextRequest) {
         visibility: data.visibility ?? "private",
         userIds: Array.isArray(data.userIds) ? data.userIds : [],
         releaseAt: data.releaseAt?.toDate?.() ?? null,
-        attachments: Array.isArray(data.attachments) ? data.attachments : [],
+        attachments: normalizeCloudinaryUrlItems(
+          Array.isArray(data.attachments) ? data.attachments : []
+        ),
         questions: Array.isArray(data.questions) ? data.questions : [],
       }
     })
@@ -246,13 +216,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: CreateActivityBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = createActivityBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const courseId = body.courseId?.trim()
   const trackId = body.trackId?.trim()
@@ -347,15 +324,20 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  let body: { id?: string }
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const id = body.id?.trim()
+  const parsedBody = deleteActivityBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const id = parsedBody.data.id.trim()
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }

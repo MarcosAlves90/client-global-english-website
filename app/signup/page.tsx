@@ -5,9 +5,15 @@ import { AlertCircle, Construction } from "lucide-react"
 import { AuthLayout } from "@/components/layouts/auth-layout"
 import { SignupForm } from "@/components/signup-form"
 import { useRedirectIfAuthenticated } from "@/hooks/use-redirect-if-authenticated"
+import { buildCloudinaryUrl } from "@/lib/cloudinary-url"
 
 const isSignupDisabled = process.env.NEXT_PUBLIC_SIGNUP_ENABLED === "false"
 const isSignupUnderConstruction = true
+const SIGNUP_HERO_PUBLIC_ID = process.env.NEXT_PUBLIC_SIGNUP_HERO_PUBLIC_ID?.trim()
+if (!SIGNUP_HERO_PUBLIC_ID) {
+  throw new Error("Missing env: NEXT_PUBLIC_SIGNUP_HERO_PUBLIC_ID")
+}
+const SIGNUP_HERO_IMAGE = buildCloudinaryUrl(SIGNUP_HERO_PUBLIC_ID)
 
 export default function SignupPage() {
   const { isChecking } = useRedirectIfAuthenticated()
@@ -18,7 +24,7 @@ export default function SignupPage() {
     <AuthLayout
       reverseLayout
       primaryColorTheme
-      imageSrc="https://res.cloudinary.com/dflvo098t/image/upload/v1772349852/ghent-belgica_nkpima.jpg"
+      imageSrc={SIGNUP_HERO_IMAGE}
       imageAlt="Ghent, Belgica"
       badgeText={
         <>

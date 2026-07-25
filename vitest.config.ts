@@ -5,6 +5,11 @@ export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
     environment: "jsdom",
+    environmentOptions: {
+      jsdom: {
+        url: "http://localhost",
+      },
+    },
     setupFiles: ["./vitest.setup.ts"],
     coverage: {
       provider: "v8",

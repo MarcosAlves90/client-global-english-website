@@ -1,42 +1,16 @@
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
-import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
+import admin, { adminDb } from "@/lib/firebase/admin"
+import { assertIsAdmin } from "@/lib/firebase/admin-request"
 import { deleteCloudinaryAssetsByUrls } from "@/lib/cloudinary-admin"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import {
+  createTrackBodySchema,
+  deleteTrackBodySchema,
+  updateTrackBodySchema,
+} from "@/lib/contracts/admin"
 import type { Track } from "@/lib/firebase/types"
-
-type CreateTrackBody = {
-  id?: string
-  courseId?: string
-  title?: string
-  description?: string
-  order?: number
-  userIds?: string[]
-}
-
-async function assertIsAdmin(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.split(" ")[1]
-  if (!token) {
-    return { ok: false, status: 401, message: "Missing auth token" }
-  }
-
-  try {
-    const decoded = await adminAuth.verifyIdToken(token)
-    const doc = await adminDb.collection(COLLECTIONS.users).doc(decoded.uid).get()
-    const data = doc.data()
-
-    if (data?.role === "admin") {
-      return { ok: true, uid: decoded.uid }
-    }
-
-    return { ok: false, status: 403, message: "Admin access required" }
-  } catch (err) {
-    console.error("token verification failed", err)
-    return { ok: false, status: 401, message: "Invalid auth token" }
-  }
-}
 
 function parseOrder(input?: number) {
   if (input === undefined || input === null) {
@@ -306,13 +280,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: CreateTrackBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = createTrackBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const courseId = body.courseId?.trim()
   const title = body.title?.trim() ?? ""
@@ -389,13 +370,20 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
-  let body: CreateTrackBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = updateTrackBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const id = body.id?.trim()
   if (!id) {
@@ -495,15 +483,20 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  let body: { id?: string }
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const id = body.id?.trim()
+  const parsedBody = deleteTrackBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const id = parsedBody.data.id.trim()
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }

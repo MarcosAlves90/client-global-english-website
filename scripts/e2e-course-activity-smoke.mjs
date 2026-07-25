@@ -115,9 +115,9 @@ async function run() {
   let activityId = null
 
   try {
-    dev = spawn("npm.cmd", ["run", "dev", "--", "--port", "3102"], {
+    const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm"
+    dev = spawn(npmCommand, ["run", "dev", "--", "--port", "3102"], {
       stdio: "ignore",
-      shell: true,
       env: process.env,
     })
 

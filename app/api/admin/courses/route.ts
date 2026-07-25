@@ -1,9 +1,19 @@
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
-import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
+import admin, { adminDb } from "@/lib/firebase/admin"
+import { assertIsAdmin } from "@/lib/firebase/admin-request"
 import { deleteCloudinaryAssetsByUrls } from "@/lib/cloudinary-admin"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import {
+  normalizeCloudinaryUrlValue,
+  isCloudinaryUrl,
+} from "@/lib/cloudinary-url"
+import {
+  createCourseBodySchema,
+  deleteCourseBodySchema,
+  updateCourseBodySchema,
+} from "@/lib/contracts/admin"
 import type { AdminCourseSummary } from "@/lib/firebase/types"
 
 const COURSE_STATUS_OPTIONS = [
@@ -15,16 +25,6 @@ const COURSE_STATUS_OPTIONS = [
 ] as const
 
 type CourseStatus = (typeof COURSE_STATUS_OPTIONS)[number]
-
-type CreateCourseBody = {
-  id?: string
-  title?: string
-  description?: string
-  level?: "Beginner" | "Intermediate" | "Advanced"
-  durationWeeks?: number
-  coverUrl?: string | null
-  status?: string
-}
 
 function resolveCourseStatus(status?: string): CourseStatus {
   const inputStatus = status?.trim()
@@ -68,29 +68,6 @@ function extractAttachmentUrlsFromDocs(
     })
   })
   return urls
-}
-
-async function assertIsAdmin(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.split(" ")[1]
-  if (!token) {
-    return { ok: false, status: 401, message: "Missing auth token" }
-  }
-
-  try {
-    const decoded = await adminAuth.verifyIdToken(token)
-    const doc = await adminDb.collection(COLLECTIONS.users).doc(decoded.uid).get()
-    const data = doc.data()
-
-    if (data?.role === "admin") {
-      return { ok: true, uid: decoded.uid }
-    }
-
-    return { ok: false, status: 403, message: "Admin access required" }
-  } catch (err) {
-    console.error("token verification failed", err)
-    return { ok: false, status: 401, message: "Invalid auth token" }
-  }
 }
 
 export async function GET(req: NextRequest) {
@@ -157,7 +134,7 @@ export async function GET(req: NextRequest) {
             ((data.level as "Beginner" | "Intermediate" | "Advanced") ??
               "Beginner"),
           durationWeeks: Number(data.durationWeeks ?? 0),
-          coverUrl: (data.coverUrl as string | null) ?? null,
+          coverUrl: normalizeCloudinaryUrlValue(data.coverUrl ?? null) ?? null,
           status: (data.status as string) ?? "Inscrições abertas",
           modulesCount: tracksSnapshot.size,
           studentsCount,
@@ -183,13 +160,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: CreateCourseBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = createCourseBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const title = body.title?.trim() ?? ""
   const description = body.description?.trim() ?? ""
@@ -209,12 +193,16 @@ export async function POST(req: NextRequest) {
   try {
     const ref = adminDb.collection(COLLECTIONS.courses).doc()
 
+    const coverUrl = body.coverUrl && isCloudinaryUrl(body.coverUrl.trim())
+      ? normalizeCloudinaryUrlValue(body.coverUrl) ?? null
+      : body.coverUrl?.trim() || null
+
     await ref.set({
       title,
       description,
       level,
       durationWeeks,
-      coverUrl: body.coverUrl?.trim() || null,
+      coverUrl,
       status,
       createdAt: now,
       updatedAt: now,
@@ -227,7 +215,7 @@ export async function POST(req: NextRequest) {
       description,
       level,
       durationWeeks,
-      coverUrl: body.coverUrl?.trim() || null,
+      coverUrl,
       status,
       modulesCount: 0,
       studentsCount: 0,
@@ -250,13 +238,20 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
-  let body: CreateCourseBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = updateCourseBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const id = body.id?.trim()
   if (!id) {
@@ -302,7 +297,10 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (body.coverUrl !== undefined) {
-    updates.coverUrl = body.coverUrl?.trim() || null
+    const trimmedCoverUrl = body.coverUrl?.trim() || ""
+    updates.coverUrl = isCloudinaryUrl(trimmedCoverUrl)
+      ? normalizeCloudinaryUrlValue(trimmedCoverUrl) ?? null
+      : trimmedCoverUrl || null
   }
 
   if (body.status !== undefined) {
@@ -330,15 +328,20 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  let body: { id?: string }
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const id = body.id?.trim()
+  const parsedBody = deleteCourseBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const id = parsedBody.data.id.trim()
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }

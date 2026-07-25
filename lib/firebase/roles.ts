@@ -24,7 +24,3 @@ export function resolveUserRole(params: {
 
   return "user"
 }
-
-export function getAdminEmails() {
-  return ADMIN_EMAILS
-}
