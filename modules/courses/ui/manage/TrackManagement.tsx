@@ -12,7 +12,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { NativeSelect } from "@/components/ui/native-select"
+import { Textarea } from "@/components/ui/textarea"
 import { useCourseManagement, TrackForm } from "./CourseManagementContext"
+import { UserAssignmentPicker } from "./UserAssignmentPicker"
+import { ManagementGrid } from "./ManagementGrid"
 
 type TrackManagementProps = {
     showCreatePanel: boolean
@@ -91,6 +95,14 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
         })
     }, [tracks])
 
+    const uniqueAssignedStudentCount = React.useMemo(() => {
+        return new Set(
+            tracks.flatMap((track) =>
+                (track.userIds ?? []).map((userId) => userId.trim()).filter(Boolean)
+            )
+        ).size
+    }, [tracks])
+
     React.useEffect(() => {
         if (tracksOrdered.length === 0) {
             setSelectedTrackId("")
@@ -117,10 +129,10 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
 
     return (
         <div className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-[1.2fr,2fr]">
+            <ManagementGrid showCreatePanel={showCreatePanel}>
                 {/* Form Card */}
                 {showCreatePanel ? (
-                    <Card className="border-primary/20 bg-card/40 backdrop-blur-sm">
+                    <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-base">
                             <Sparkles className="size-4 text-primary" />
@@ -134,21 +146,20 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
-                            <Label required htmlFor="track-title" className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Título do módulo</Label>
+                            <Label required htmlFor="track-title" className="ge-kicker text-muted-foreground/70">Título do módulo</Label>
                             <Input
                                 id="track-title"
                                 placeholder="Ex.: Comunicação estratégica"
                                 value={form.title}
                                 onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                                className="bg-background/50 border-primary/20 transition-all focus:border-primary/30"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label required htmlFor="track-description" className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Descrição</Label>
-                            <textarea
+                            <Label required htmlFor="track-description" className="ge-kicker text-muted-foreground/70">Descrição</Label>
+                            <Textarea
                                 id="track-description"
-                                className="bg-background/50 text-foreground border-primary/20 min-h-24 w-full rounded-md border p-3 text-sm transition-all focus:border-primary/30 outline-none"
+                                className="min-h-24"
                                 placeholder="Objetivo, conteúdo e resultados esperados."
                                 value={form.description}
                                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
@@ -157,7 +168,7 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
 
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
-                                <Label htmlFor="track-order" className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Ordem</Label>
+                                <Label htmlFor="track-order" className="ge-kicker text-muted-foreground/70">Ordem</Label>
                                 <Input
                                     id="track-order"
                                     type="number"
@@ -165,69 +176,20 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
                                     placeholder="Ex.: 1"
                                     value={form.order}
                                     onChange={(e) => setForm((p) => ({ ...p, order: e.target.value }))}
-                                    className="bg-background/50 border-primary/20"
                                 />
                             </div>
                         </div>
 
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Alunos no Módulo</Label>
-                                <span className="text-[10px] font-bold text-primary px-2 py-0.5 rounded-full bg-primary/5">{form.userIds.length} selecionado(s)</span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
-                                Alunos adicionados em qualquer módulo são matriculados automaticamente no curso.
-                            </p>
-
-                            <Input
-                                placeholder="Buscar por nome ou email..."
-                                value={userSearch}
-                                onChange={(e) => setUserSearch(e.target.value)}
-                                className="bg-background/50 border-primary/20"
-                            />
-
-                            <div className="rounded-xl border border-dashed border-primary/20 p-3 space-y-3">
-                                <div className="flex flex-wrap gap-2">
-                                    {selectedUsers.length === 0 ? (
-                                        <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/40 p-1">Nenhum aluno selecionado</span>
-                                    ) : (
-                                        selectedUsers.map((user) => (
-                                            <span key={user.uid} className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-[10px] font-bold text-foreground">
-                                                {user.name}
-                                                <button onClick={() => toggleUserSelection(user.uid)} className="hover:text-primary transition-colors">
-                                                    <X className="size-3" />
-                                                </button>
-                                            </span>
-                                        ))
-                                    )}
-                                </div>
-
-                                {suggestedUsers.length > 0 && (
-                                    <div className="space-y-1 pt-2 border-t border-primary/5">
-                                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-2">Sugestões</p>
-                                        {suggestedUsers.map((user) => (
-                                            <button
-                                                key={user.uid}
-                                                type="button"
-                                                onClick={() => toggleUserSelection(user.uid)}
-                                                className="flex w-full items-center justify-between p-2 rounded-lg hover:bg-primary/5 transition-colors text-left"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <div className="size-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
-                                                        {user.name?.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs font-bold leading-none">{user.name}</p>
-                                                        <p className="text-[10px] text-muted-foreground leading-tight">{user.email}</p>
-                                                    </div>
-                                                </div>
-                                                <span className="text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 uppercase tracking-widest">+ Add</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                        <UserAssignmentPicker
+                            label="Alunos no Módulo"
+                            helperText="Alunos adicionados em qualquer módulo são matriculados automaticamente no curso."
+                            searchValue={userSearch}
+                            onSearchValueChange={setUserSearch}
+                            selectedUsers={selectedUsers}
+                            suggestedUsers={suggestedUsers}
+                            selectedCount={form.userIds.length}
+                            onToggleUser={toggleUserSelection}
+                        />
 
                         <div className="flex gap-2 pt-4">
                             <Button onClick={onSubmit} disabled={localCreating} className="flex-1 shadow-lg shadow-primary/10">
@@ -242,61 +204,61 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
                 ) : null}
 
                 {/* List Card */}
-                <Card className="border-primary/20 bg-card/20 backdrop-blur-sm">
+                <Card className="h-fit overflow-hidden lg:sticky lg:top-6">
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div>
                             <CardTitle className="text-base font-bold">Módulos Estruturados</CardTitle>
                             <p className="text-xs text-muted-foreground leading-relaxed">Gerencie a sequência de entrega do curso.</p>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => void loadTracks(true)} disabled={loading.tracks} className="text-[10px] font-bold uppercase tracking-widest">
+                        <Button variant="ghost" size="sm" onClick={() => void loadTracks(true)} disabled={loading.tracks} className="text-[10px] font-medium">
                             Atualizar
                         </Button>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
                             {loading.tracks ? (
-                                <div className="h-32 flex items-center justify-center text-muted-foreground animate-pulse text-xs uppercase tracking-widest">Carregando módulos...</div>
+                                <div className="h-32 flex items-center justify-center text-muted-foreground animate-pulse text-xs ">Carregando módulos...</div>
                             ) : tracks.length === 0 ? (
-                                <div className="h-32 flex items-center justify-center text-muted-foreground/40 border border-dashed border-primary/5 rounded-2xl text-[10px] uppercase font-bold tracking-widest">Nenhum módulo encontrado</div>
+                                <div className="ge-surface-muted flex h-32 items-center justify-center text-[10px] font-medium text-muted-foreground/60">Nenhum módulo encontrado</div>
                             ) : (
                                 <>
                                     <div className="grid gap-2 sm:grid-cols-3">
-                                        <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
-                                            <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Módulos</p>
+                                        <div className="ge-surface-muted p-3">
+                                            <p className="text-xs font-medium text-muted-foreground">Módulos</p>
                                             <p className="text-lg font-bold text-foreground">{tracksOrdered.length}</p>
                                         </div>
-                                        <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
-                                            <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Com alunos</p>
+                                        <div className="ge-surface-muted p-3">
+                                            <p className="text-xs font-medium text-muted-foreground">Com alunos</p>
                                             <p className="text-lg font-bold text-foreground">{tracksOrdered.filter((track) => (track.userIds?.length ?? 0) > 0).length}</p>
                                         </div>
-                                        <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
-                                            <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Alunos vinculados</p>
-                                            <p className="text-lg font-bold text-foreground">{tracksOrdered.reduce((acc, track) => acc + (track.userIds?.length ?? 0), 0)}</p>
+                                        <div className="ge-surface-muted p-3">
+                                            <p className="text-xs font-medium text-muted-foreground">Alunos vinculados</p>
+                                            <p className="text-lg font-bold text-foreground">{uniqueAssignedStudentCount}</p>
                                         </div>
                                     </div>
 
-                                    <div className="rounded-xl border border-primary/10 bg-background/70 p-3 space-y-3">
+                                    <div className="ge-inset space-y-3 p-3">
                                         <div className="space-y-1">
-                                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Módulo selecionado</Label>
-                                            <select
+                                            <Label className="text-[10px] font-medium text-muted-foreground/70">Módulo selecionado</Label>
+                                            <NativeSelect
                                                 value={selectedTrackId}
                                                 onChange={(event) => setSelectedTrackId(event.target.value)}
-                                                className="h-9 w-full rounded-md border border-primary/20 bg-background/80 px-3 text-xs font-semibold outline-none transition-all focus:border-primary/30"
+                                                className="h-9 text-xs font-semibold"
                                             >
                                                 {tracksOrdered.map((track) => (
                                                     <option key={track.id} value={track.id}>
                                                         Módulo {track.order || "-"} · {track.title}
                                                     </option>
                                                 ))}
-                                            </select>
+                                            </NativeSelect>
                                         </div>
 
                                         {selectedTrack ? (
                                             <>
-                                                <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                                                <div className="ge-surface-muted p-3">
                                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                                         <div className="min-w-0">
-                                                            <div className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Módulo {selectedTrack.order || "-"}</div>
+                                                            <div className="text-[10px] font-bold text-primary  mb-1">Módulo {selectedTrack.order || "-"}</div>
                                                             <p className="text-sm font-bold tracking-tight wrap-break-word">{selectedTrack.title}</p>
                                                             <p className="mt-1 text-[11px] text-muted-foreground/70 leading-relaxed wrap-break-word">
                                                                 {selectedTrack.description || "Sem descrição disponível."}
@@ -332,7 +294,7 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
                                                     </div>
                                                 </div>
 
-                                                <div className="inline-flex items-center gap-1 rounded-xl border border-primary/15 bg-primary/5 p-1">
+                                                <div className="ge-segmented">
                                                     {[
                                                         { id: "overview", label: "Visão geral" },
                                                         { id: "students", label: "Alunos" },
@@ -342,7 +304,7 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
                                                             type="button"
                                                             size="xs"
                                                             variant={trackTab === tab.id ? "default" : "ghost"}
-                                                            className="rounded-lg text-[10px] uppercase tracking-widest font-bold"
+                                                            className="rounded-lg text-[10px]  font-bold"
                                                             onClick={() => setTrackTab(tab.id as typeof trackTab)}
                                                         >
                                                             {tab.label}
@@ -352,17 +314,17 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
 
                                                 {trackTab === "overview" ? (
                                                     <div className="grid gap-2 sm:grid-cols-2">
-                                                        <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
+                                                        <div className="ge-inset p-2">
                                                             <div className="flex items-center gap-1.5 text-muted-foreground/60">
                                                                 <Users2 className="size-3" />
-                                                                <p className="text-[10px] uppercase font-bold tracking-widest">Alunos vinculados</p>
+                                                                <p className="text-xs font-medium">Alunos vinculados</p>
                                                             </div>
                                                             <p className="mt-1 text-sm font-bold text-foreground">{selectedTrack.userIds?.length || 0}</p>
                                                         </div>
-                                                        <div className="rounded-lg border border-primary/10 bg-background/80 p-2">
+                                                        <div className="ge-inset p-2">
                                                             <div className="flex items-center gap-1.5 text-muted-foreground/60">
                                                                 <ClipboardList className="size-3" />
-                                                                <p className="text-[10px] uppercase font-bold tracking-widest">Status</p>
+                                                                <p className="text-xs font-medium">Status</p>
                                                             </div>
                                                             <p className="mt-1 text-sm font-bold text-foreground">OK</p>
                                                         </div>
@@ -373,7 +335,7 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
                                                     selectedTrackStudents.length > 0 ? (
                                                         <div className="space-y-2">
                                                             {selectedTrackStudents.map((user) => (
-                                                                <div key={user.uid} className="rounded-lg border border-primary/10 bg-background/80 px-2 py-1.5">
+                                                                <div key={user.uid} className="ge-inset px-2 py-1.5">
                                                                     <div className="flex items-center gap-2">
                                                                         <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
                                                                             {user.name?.charAt(0) || user.email?.charAt(0) || "U"}
@@ -400,7 +362,7 @@ export function TrackManagement({ showCreatePanel, onRequestOpenCreatePanel }: T
                         </div>
                     </CardContent>
                 </Card>
-            </div>
+            </ManagementGrid>
         </div>
     )
 }

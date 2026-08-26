@@ -1,4 +1,11 @@
-export type UserRole = "user" | "admin"
+export type UserRole = "user" | "teacher" | "admin"
+
+export type NotificationPreferences = {
+  activityUpdates: boolean
+  gradesAndFeedback: boolean
+  weeklySummary: boolean
+  marketing: boolean
+}
 
 export type UserProfile = {
   uid: string
@@ -10,6 +17,7 @@ export type UserProfile = {
   isRobot?: boolean
   mustChangePassword?: boolean
   photoURL?: string | null
+  notificationPreferences?: NotificationPreferences
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -21,6 +29,7 @@ export type Course = {
   level: "Beginner" | "Intermediate" | "Advanced"
   durationWeeks: number
   coverUrl?: string
+  teacherIds?: string[]
 }
 
 export type Track = {
@@ -30,6 +39,33 @@ export type Track = {
   description: string
   order: number
   userIds?: string[]
+}
+
+export type MediaAttachment = {
+  name: string
+  url: string
+  type?: "pdf" | "video" | "link" | "audio"
+}
+
+export type AudioAttachment = MediaAttachment & { type: "audio" }
+
+export type ActivityQuestionType =
+  | "essay"
+  | "single_choice"
+  | "multiple_choice"
+  | "true_false"
+  | "short_answer"
+  | "audio_response"
+
+export type ActivityQuestion = {
+  id: string
+  type: ActivityQuestionType
+  prompt: string
+  options?: string[]
+  correctAnswers?: string[]
+  points?: number
+  required?: boolean
+  promptAudio?: AudioAttachment
 }
 
 export type Activity = {
@@ -43,16 +79,10 @@ export type Activity = {
   visibility?: "module" | "users" | "private"
   userIds?: string[]
   releaseAt?: Date | string | null
-  attachments?: { name: string; url: string; type?: "pdf" | "video" | "link" | "audio" }[]
-  questions?: {
-    id: string
-    type: "essay" | "single_choice" | "multiple_choice" | "true_false" | "short_answer"
-    prompt: string
-    options?: string[]
-    correctAnswers?: string[]
-    points?: number
-    required?: boolean
-  }[]
+  dueAt?: Date | string | null
+  closeAt?: Date | string | null
+  attachments?: MediaAttachment[]
+  questions?: ActivityQuestion[]
 }
 
 export type Material = {
@@ -67,7 +97,7 @@ export type Material = {
   userIds?: string[]
   releaseAt?: Date | string | null
   markdown?: string
-  attachments?: { name: string; url: string; type?: "pdf" | "video" | "link" | "audio" }[]
+  attachments?: MediaAttachment[]
 }
 
 export type Enrollment = {
@@ -81,6 +111,7 @@ export type Enrollment = {
 export type ActivityAnswerValue = string | string[] | boolean | null
 
 export type ActivityProgressStatus = "not_started" | "in_progress" | "completed"
+export type ActivityGradingStatus = "pending" | "revision_requested" | "graded"
 
 export type ActivityProgress = {
   id: string
@@ -94,6 +125,11 @@ export type ActivityProgress = {
   totalQuestions: number
   completionPercent: number
   scorePercent: number | null
+  gradingStatus: ActivityGradingStatus
+  teacherScorePercent: number | null
+  teacherFeedback: string | null
+  gradedBy: string | null
+  gradedAt: Date | null
   submittedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -118,6 +154,7 @@ export type AdminCourseSummary = {
   modulesCount: number
   studentsCount: number
   activitiesCount: number
+  teacherIds?: string[]
 }
 
 export type AdminActivityResponse = {
@@ -132,6 +169,11 @@ export type AdminActivityResponse = {
   totalQuestions: number
   completionPercent: number
   scorePercent: number | null
+  gradingStatus: ActivityGradingStatus
+  teacherScorePercent: number | null
+  teacherFeedback: string | null
+  gradedBy: string | null
+  gradedAt: Date | string | null
   submittedAt: Date | string | null
   createdAt: Date | string | null
   updatedAt: Date | string | null
@@ -142,9 +184,87 @@ export type AdminActivityResponse = {
     photoURL?: string | null
     isRobot?: boolean
   }
+  activity?: {
+    id: string
+    title: string
+    type: Activity["type"]
+    questions: NonNullable<Activity["questions"]>
+  }
+}
+
+
+export type TeacherGradebookActivity = {
+  id: string
+  title: string
+  type: Activity["type"]
+  trackId: string
+  trackTitle: string
+  order: number
+  dueAt: Date | string | null
+}
+
+export type TeacherGradebookStudent = {
+  uid: string
+  name: string
+  email: string
+}
+
+export type TeacherGradebookProgress = {
+  id: string
+  userId: string
+  activityId: string
+  status: ActivityProgressStatus
+  gradingStatus: ActivityGradingStatus
+  automaticScorePercent: number | null
+  teacherScorePercent: number | null
+  teacherFeedback: string | null
+  submittedAt: Date | string | null
+  reviewedAt: Date | string | null
+}
+
+export type TeacherGradebook = {
+  course: {
+    id: string
+    title: string
+  }
+  activities: TeacherGradebookActivity[]
+  students: TeacherGradebookStudent[]
+  progress: TeacherGradebookProgress[]
 }
 
 export type AdminOverview = {
   usersCount: number
   coursesCount: number
+}
+
+export type AdminUserStats = {
+  totalUsersCount: number
+  disabledUsersCount: number
+  teacherUsersCount: number
+  adminUsersCount: number
+}
+
+export type AdminCourseCatalogMetrics = {
+  coursesCount: number
+  uniqueStudentsCount: number
+  modulesCount: number
+  activitiesCount: number
+}
+
+export type AdminCourseCatalog = {
+  items: AdminCourseSummary[]
+  metrics: AdminCourseCatalogMetrics
+}
+
+
+export type SupportTicketStatus = "open" | "resolved"
+
+export type SupportTicket = {
+  id: string
+  userId: string
+  subject: string
+  message: string
+  status: SupportTicketStatus
+  createdAt: Date | null
+  updatedAt: Date | null
 }

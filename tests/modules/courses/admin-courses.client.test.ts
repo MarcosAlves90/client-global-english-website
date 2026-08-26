@@ -1,4 +1,6 @@
-import { describe, expect, it, vi, afterEach } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
+
+import type { AdminCourseCatalog, AdminCourseSummary } from "@/lib/firebase/types"
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -12,21 +14,55 @@ function mockFetchOnce(payload: unknown, ok = true) {
   } as Response)
 }
 
+function catalog(items: AdminCourseSummary[]): AdminCourseCatalog {
+  return {
+    items,
+    metrics: {
+      coursesCount: items.length,
+      uniqueStudentsCount: 0,
+      modulesCount: items.reduce((sum, item) => sum + item.modulesCount, 0),
+      activitiesCount: items.reduce(
+        (sum, item) => sum + item.activitiesCount,
+        0
+      ),
+    },
+  }
+}
+
+function course(id: string, title: string): AdminCourseSummary {
+  return {
+    id,
+    title,
+    description: `Desc ${id}`,
+    level: "Beginner",
+    durationWeeks: 4,
+    coverUrl: null,
+    status: "draft",
+    modulesCount: 0,
+    studentsCount: 0,
+    activitiesCount: 0,
+  }
+}
+
 describe("admin courses client", () => {
-  it("caches results and skips fetch within TTL", async () => {
-    const { fetchAdminCourses } = await import(
+  it("caches the catalog and exposes course items", async () => {
+    const { fetchAdminCourseCatalog, fetchAdminCourses } = await import(
       "@/modules/courses/api/admin-courses.client"
     )
 
-    const data = [{ id: "1", title: "Course" }]
-    mockFetchOnce(data)
+    const payload = catalog([course("1", "Course")])
+    mockFetchOnce(payload)
 
     const first = await fetchAdminCourses("token")
-    const second = await fetchAdminCourses("token")
+    const cachedCatalog = await fetchAdminCourseCatalog("token")
 
-    expect(first).toEqual(data)
-    expect(second).toEqual(data)
+    expect(first).toEqual(payload.items)
+    expect(cachedCatalog).toEqual(payload)
     expect(fetch).toHaveBeenCalledTimes(1)
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/admin/courses?includeMetrics=true",
+      expect.any(Object)
+    )
   })
 
   it("forces reload when requested", async () => {
@@ -34,13 +70,13 @@ describe("admin courses client", () => {
       "@/modules/courses/api/admin-courses.client"
     )
 
-    mockFetchOnce([{ id: "1" }])
-    mockFetchOnce([{ id: "2" }])
+    mockFetchOnce(catalog([course("1", "Course 1")]))
+    mockFetchOnce(catalog([course("2", "Course 2")]))
 
     await fetchAdminCourses(null)
     const next = await fetchAdminCourses(null, { force: true })
 
-    expect(next).toEqual([{ id: "2" }])
+    expect(next).toEqual([course("2", "Course 2")])
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 

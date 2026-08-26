@@ -1,152 +1,127 @@
 import Image from "next/image"
-import { Bot, Edit, Eye, Flame, ShieldCheck, Snowflake, Trash2, User } from "lucide-react"
+import { Bot, Edit, Flame, GraduationCap, MoreHorizontal, ShieldCheck, Snowflake, Trash2, User } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { optimizeCloudinaryUrl } from "@/lib/cloudinary-url"
 import { cn } from "@/lib/utils"
 import type { AdminUserSummary } from "@/lib/firebase/types"
-
 import { ROLE_LABELS } from "@/modules/users/model/user"
 
 type AdminUserCardProps = {
-    item: AdminUserSummary
-    isSelected: boolean
-    onEdit: (user: AdminUserSummary) => void
-    onFreeze: (user: AdminUserSummary) => void
-    onDelete: (user: AdminUserSummary) => void
+  item: AdminUserSummary
+  isSelected: boolean
+  onEdit: (user: AdminUserSummary) => void
+  onFreeze: (user: AdminUserSummary) => void
+  onDelete: (user: AdminUserSummary) => void
 }
 
 export function AdminUserCard({
-    item,
-    isSelected,
-    onEdit,
-    onFreeze,
-    onDelete,
+  item,
+  isSelected,
+  onEdit,
+  onFreeze,
+  onDelete,
 }: AdminUserCardProps) {
-    const isAdmin = item.role === "admin"
-    const isDisabled = item.disabled
+  const isAdmin = item.role === "admin"
+  const isTeacher = item.role === "teacher"
+  const isDisabled = item.disabled
 
-    return (
-        <div
+  return (
+    <Card
+      className={cn(
+        "ge-surface gap-0 overflow-hidden py-0 transition-colors hover:border-primary/20",
+        isSelected && "border-primary/35 bg-primary/5",
+        isDisabled && "opacity-70"
+      )}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <div
             className={cn(
-                "group relative flex flex-col rounded-xl border bg-card/40 backdrop-blur-sm p-4 transition-all duration-300",
-                "hover:border-primary/30 hover:bg-primary/2 hover:shadow-xl hover:shadow-primary/5",
-                isSelected ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20 shadow-lg" : "border-primary/20",
-                isDisabled && "grayscale-[0.8] opacity-60"
+              "relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-muted-foreground",
+              isAdmin && "bg-primary/10 text-primary"
             )}
-        >
-            <div className="mb-2 flex items-start gap-3">
-                <div
-                    className={cn(
-                        "relative flex size-8 shrink-0 items-center justify-center rounded-full overflow-hidden transition-colors duration-500",
-                        isAdmin ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
-                        isSelected && "bg-primary text-primary-foreground"
-                    )}
-                >
-                    {item.photoURL ? (
-                        <Image
-                            src={optimizeCloudinaryUrl(item.photoURL, {
-                                width: 80,
-                                height: 80,
-                                crop: "fill",
-                                gravity: "auto",
-                            })}
-                            alt={item.name}
-                            fill
-                            className="object-cover"
-                        />
-                    ) : isAdmin ? (
-                        <ShieldCheck className="size-4" />
-                    ) : (
-                        <User className="size-4" />
-                    )}
-                </div>
-                <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                        <p className={cn("truncate text-sm font-bold tracking-tight", isSelected ? "text-primary" : "text-foreground")}>
-                            {item.name}
-                        </p>
-                        {isAdmin ? (
-                            <>
-                                <ShieldCheck className="size-3 shrink-0 text-primary" />
-                                <span className="sr-only">Admin</span>
-                            </>
-                        ) : null}
-                    </div>
-                    <p className="truncate text-[11px] text-muted-foreground">{item.email}</p>
-                </div>
+          >
+            {item.photoURL ? (
+              <Image
+                src={optimizeCloudinaryUrl(item.photoURL, {
+                  width: 88,
+                  height: 88,
+                  crop: "fill",
+                  gravity: "auto",
+                })}
+                alt={item.name}
+                fill
+                className="object-cover"
+              />
+            ) : isAdmin ? (
+              <ShieldCheck className="size-4" />
+            ) : isTeacher ? (
+              <GraduationCap className="size-4" />
+            ) : (
+              <User className="size-4" />
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-semibold text-foreground">{item.name}</p>
+              {item.isRobot ? <Bot className="size-3.5 shrink-0 text-amber-600" aria-label="Conta automatizada" /> : null}
             </div>
+            <p className="truncate text-xs text-muted-foreground">{item.email}</p>
+            {item.team ? <p className="mt-1 truncate text-xs text-muted-foreground">{item.team}</p> : null}
+          </div>
 
-            <div className="mt-2 flex items-center gap-2">
-                <span
-                    className={cn(
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                        isAdmin ? "bg-primary/10 text-primary border border-primary/20" : "bg-muted text-muted-foreground"
-                    )}
-                >
-                    {ROLE_LABELS[item.role]}
-                </span>
-
-                {isDisabled ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400 border border-blue-500/20">
-                        <Snowflake className="size-2.5" />
-                        Congelado
-                    </span>
-                ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-500 border border-emerald-500/20">
-                        <div className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        Ativo
-                    </span>
-                )}
-
-                {item.isRobot ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-500">
-                        <Bot className="size-2.5" />
-                        Robô
-                    </span>
-                ) : null}
-            </div>
-
-            <div className="mt-4 flex items-center justify-between gap-1 border-t border-dashed border-primary/20 pt-4 group-hover:border-primary/20">
-                <div className="flex items-center gap-2">
-                    <Button size="icon" variant="ghost" className="size-8 rounded-full transition-all hover:bg-primary/10 hover:text-primary hover:scale-110" onClick={() => { }}>
-                        <Eye className="size-4" />
-                    </Button>
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        className={cn(
-                            "size-8 rounded-full transition-all hover:scale-110",
-                            isSelected ? "bg-primary/20 text-primary" : "hover:bg-primary/10 hover:text-primary"
-                        )}
-                        onClick={() => onEdit(item)}
-                    >
-                        <Edit className="size-4" />
-                    </Button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        className={cn(
-                            "size-8 rounded-full transition-all border-none hover:scale-110",
-                            isDisabled ? "text-amber-500 hover:bg-amber-500/10" : "text-blue-400 hover:bg-blue-400/10"
-                        )}
-                        onClick={() => onFreeze(item)}
-                    >
-                        {isDisabled ? <Flame className="size-4" /> : <Snowflake className="size-4" />}
-                    </Button>
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        className="size-8 rounded-full transition-all text-destructive hover:bg-destructive/10 hover:scale-110 hover:rotate-6"
-                        onClick={() => onDelete(item)}
-                    >
-                        <Trash2 className="size-4" />
-                    </Button>
-                </div>
-            </div>
+          <MoreHorizontal className="mt-1 size-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
         </div>
-    )
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className={isAdmin ? "border-primary/20 bg-primary/8 text-primary" : undefined}>
+            {ROLE_LABELS[item.role]}
+          </Badge>
+          <Badge
+            variant="outline"
+            className={isDisabled ? "border-amber-500/20 bg-amber-500/8 text-amber-700 dark:text-amber-400" : "border-emerald-500/20 bg-emerald-500/8 text-emerald-700 dark:text-emerald-400"}
+          >
+            {isDisabled ? "Desativado" : "Ativo"}
+          </Badge>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/70 pt-3">
+          <Button
+            size="sm"
+            variant={isSelected ? "secondary" : "outline"}
+            onClick={() => onEdit(item)}
+            aria-label={`Editar ${item.name}`}
+          >
+            <Edit className="mr-2 size-3.5" />
+            Editar
+          </Button>
+
+          <div className="flex items-center gap-1">
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className={isDisabled ? "text-amber-600" : "text-muted-foreground"}
+              onClick={() => onFreeze(item)}
+              aria-label={isDisabled ? `Reativar ${item.name}` : `Desativar ${item.name}`}
+            >
+              {isDisabled ? <Flame className="size-4" /> : <Snowflake className="size-4" />}
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => onDelete(item)}
+              aria-label={`Excluir ${item.name}`}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }

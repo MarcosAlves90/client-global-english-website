@@ -4,7 +4,9 @@ import * as React from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import {
+  AlertTriangle,
   ArrowLeft,
+  CalendarClock,
   CheckCircle2,
   Clock3,
   FileText,
@@ -13,13 +15,25 @@ import {
   Save,
   Send,
   Target,
+  MessageSquareText,
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { DashboardHeader } from "@/components/dashboard-header"
+import { AudioAnswerField } from "@/components/activities/audio-answer-field"
+import { DashboardNotice } from "@/components/dashboard/dashboard-feedback"
+import { DashboardPage } from "@/components/dashboard/dashboard-page"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/hooks/use-auth"
+import { getActivityTiming, parseActivityDate } from "@/lib/activities/deadlines"
+import { ACTIVITY_QUESTION_TYPE_LABELS } from "@/lib/activities/questions"
+import { getEffectiveScore } from "@/lib/activities/grading"
+import {
+  calculateAutomaticActivityScore,
+  getActivityQuestionKey,
+  isActivityAnswerPresent,
+} from "@/lib/activities/scoring"
 import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
 import {
   fetchUserActivities,
@@ -38,69 +52,12 @@ type ActivityDetail = Activity & {
   trackTitle: string
 }
 
-type QuestionModel = NonNullable<Activity["questions"]>[number]
 type AnswerState = Record<string, ActivityAnswerValue>
 
-function normalizeText(value: string) {
-  return value.trim().toLowerCase()
-}
-
-function getQuestionKey(question: QuestionModel, index: number) {
-  return question.id || `q-${index}`
-}
-
-function isAnswered(value: ActivityAnswerValue) {
-  if (Array.isArray(value)) {
-    return value.length > 0
-  }
-  if (typeof value === "boolean") {
-    return true
-  }
-  if (typeof value === "string") {
-    return value.trim().length > 0
-  }
-  return false
-}
-
-function compareAsSet(left: string[], right: string[]) {
-  if (left.length !== right.length) return false
-  const leftSet = new Set(left.map(normalizeText))
-  const rightSet = new Set(right.map(normalizeText))
-  if (leftSet.size !== rightSet.size) return false
-  return Array.from(leftSet).every((item) => rightSet.has(item))
-}
-
-function evaluateQuestion(question: QuestionModel, answer: ActivityAnswerValue) {
-  const expected = Array.isArray(question.correctAnswers)
-    ? question.correctAnswers.filter((item) => typeof item === "string")
-    : []
-  if (expected.length === 0) {
-    return null
-  }
-
-  if (question.type === "multiple_choice") {
-    const selected = Array.isArray(answer)
-      ? answer.filter((item): item is string => typeof item === "string")
-      : []
-    return compareAsSet(selected, expected)
-  }
-
-  if (question.type === "single_choice" || question.type === "true_false") {
-    const selected =
-      typeof answer === "string"
-        ? answer
-        : typeof answer === "boolean"
-          ? answer
-            ? "true"
-            : "false"
-          : ""
-    return normalizeText(selected) === normalizeText(expected[0] ?? "")
-  }
-
-  return null
-}
-
 function statusLabel(progress: ActivityProgress | null, isCompleted: boolean) {
+  if (progress?.gradingStatus === "revision_requested") {
+    return "Revisão solicitada"
+  }
   if (isCompleted || progress?.status === "completed") {
     return "Concluída"
   }
@@ -192,22 +149,13 @@ export default function Page() {
   const progressStats = React.useMemo(() => {
     const totalQuestions = questions.length
     const answeredCount = questions.reduce((count, question, index) => {
-      const key = getQuestionKey(question, index)
-      return count + (isAnswered(answers[key] ?? null) ? 1 : 0)
+      const key = getActivityQuestionKey(question, index)
+      return count + (isActivityAnswerPresent(answers[key] ?? null) ? 1 : 0)
     }, 0)
     const completionPercent =
       totalQuestions === 0 ? 100 : Math.round((answeredCount / totalQuestions) * 100)
 
-    const evaluable = questions
-      .map((question, index) => {
-        const key = getQuestionKey(question, index)
-        const result = evaluateQuestion(question, answers[key] ?? null)
-        return result
-      })
-      .filter((result): result is boolean => result !== null)
-    const correctCount = evaluable.filter(Boolean).length
-    const scorePercent =
-      evaluable.length > 0 ? Math.round((correctCount / evaluable.length) * 100) : null
+    const { scorePercent } = calculateAutomaticActivityScore(questions, answers)
 
     return {
       totalQuestions,
@@ -219,6 +167,14 @@ export default function Page() {
   }, [answers, questions])
 
   const isCompleted = progress?.status === "completed"
+  const revisionRequested = progress?.gradingStatus === "revision_requested"
+  const timing = activity ? getActivityTiming(activity) : { dueAt: null, closeAt: null, isOverdue: false, isClosed: false }
+  const submissionClosed = timing.isClosed && !isCompleted && !revisionRequested
+  const effectiveScore = getEffectiveScore({
+    gradingStatus: progress?.gradingStatus,
+    teacherScorePercent: progress?.teacherScorePercent,
+    scorePercent: progressStats.scorePercent,
+  })
 
   async function persistProgress(status: "in_progress" | "completed") {
     if (!user || !activity) return
@@ -258,6 +214,10 @@ export default function Page() {
       toast.error("Esta atividade já foi enviada e não pode ser alterada.")
       return
     }
+    if (submissionClosed) {
+      toast.error("O período de envio desta atividade foi encerrado.")
+      return
+    }
     setIsSaving(true)
     try {
       await persistProgress("in_progress")
@@ -280,6 +240,10 @@ export default function Page() {
       toast.error("Esta atividade já foi enviada e não pode ser alterada.")
       return
     }
+    if (submissionClosed) {
+      toast.error("O período de envio desta atividade foi encerrado.")
+      return
+    }
     if (!progressStats.canSubmit) {
       toast.error("Responda todas as questões antes de finalizar.")
       return
@@ -288,7 +252,11 @@ export default function Page() {
     setIsSubmitting(true)
     try {
       await persistProgress("completed")
-      toast.success("Atividade finalizada com sucesso.")
+      toast.success(
+        revisionRequested
+          ? "Atividade reenviada para nova correção."
+          : "Atividade finalizada com sucesso."
+      )
     } catch (submitError) {
       toast.error(
         toFriendlyFirestoreLoadError(
@@ -302,19 +270,19 @@ export default function Page() {
   }
 
   function updateSingleAnswer(questionKey: string, value: ActivityAnswerValue) {
-    if (isCompleted) {
+    if (isCompleted || submissionClosed) {
       return
     }
     setAnswers((prev) => ({ ...prev, [questionKey]: value }))
   }
 
   function toggleMultiChoice(questionKey: string, option: string) {
-    if (isCompleted) {
+    if (isCompleted || submissionClosed) {
       return
     }
     setAnswers((prev) => {
       const current = Array.isArray(prev[questionKey]) ? [...prev[questionKey]] : []
-      const index = current.findIndex((item) => normalizeText(item) === normalizeText(option))
+      const index = current.findIndex((item) => item.trim().toLowerCase() === option.trim().toLowerCase())
       if (index >= 0) {
         current.splice(index, 1)
       } else {
@@ -325,78 +293,95 @@ export default function Page() {
   }
 
   return (
-    <div>
-      <DashboardHeader
-        title="Atividade"
-        description="Resolva as questões, salve seu progresso e finalize quando terminar."
-      />
-
-      <div className="flex flex-col gap-6 p-6">
-        <div className="flex items-center justify-between gap-3">
-          <Button asChild variant="outline" className="rounded-full">
-            <Link href="/dashboard/activities">
-              <ArrowLeft className="mr-2 size-4" />
-              Voltar para atividades
-            </Link>
-          </Button>
-          {activity ? (
-            <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-primary">
-              {statusLabel(progress, isCompleted)}
-            </span>
-          ) : null}
-        </div>
+    <DashboardPage
+      title={activity?.title ?? "Atividade"}
+      description={
+        activity
+          ? [activity.courseTitle, activity.trackTitle].filter(Boolean).join(" · ")
+          : "Resolva as questões, salve seu progresso e finalize quando terminar."
+      }
+      breadcrumbItems={[
+        { label: "Atividades", href: "/dashboard/activities" },
+        { label: activity?.title ?? "Atividade" },
+      ]}
+      action={
+        <Button asChild variant="outline" size="sm">
+          <Link href="/dashboard/activities">
+            <ArrowLeft className="mr-2 size-4" />
+            Atividades
+          </Link>
+        </Button>
+      }
+      toolbar={
+        activity ? (
+          <>
+            <span className="ge-chip text-foreground">{statusLabel(progress, isCompleted)}</span>
+            {activity.estimatedMinutes > 0 ? (
+              <span className="ge-chip"><Clock3 className="size-3.5" />{activity.estimatedMinutes} min</span>
+            ) : null}
+            {parseActivityDate(activity.dueAt) ? (
+              <span className={!isCompleted && timing.isOverdue ? "ge-chip text-destructive" : "ge-chip"}>
+                {!isCompleted && timing.isOverdue ? <AlertTriangle className="size-3.5" /> : <CalendarClock className="size-3.5" />}
+                Entrega {parseActivityDate(activity.dueAt)?.toLocaleString("pt-BR")}
+              </span>
+            ) : null}
+          </>
+        ) : null
+      }
+      contentClassName="gap-6"
+    >
 
         {isLoading ? (
-          <div className="rounded-2xl border border-dashed bg-accent/40 p-6 text-sm text-muted-foreground animate-pulse">
+          <DashboardNotice className="animate-pulse">
             Carregando atividade...
-          </div>
+          </DashboardNotice>
         ) : error ? (
-          <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-            {error}
-          </div>
+          <DashboardNotice tone="danger">{error}</DashboardNotice>
         ) : !activity ? (
-          <div className="rounded-2xl border border-dashed bg-accent/40 p-6 text-sm text-muted-foreground">
+          <DashboardNotice>
             Atividade não encontrada ou sem permissão de acesso.
-          </div>
+          </DashboardNotice>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
             <div className="space-y-5">
-              <Card className="border-primary/20 bg-card/70">
+              <Card>
                 <CardHeader className="gap-3">
-                  <CardTitle className="text-xl leading-tight">{activity.title}</CardTitle>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span className="rounded-full border border-primary/10 bg-primary/5 px-3 py-1 uppercase tracking-widest font-semibold">
-                      {activity.courseTitle}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/10 bg-primary/5 px-3 py-1 uppercase tracking-widest font-semibold">
-                      <Clock3 className="size-3.5 text-primary" />
-                      {activity.estimatedMinutes || 15} min
-                    </span>
+                  <CardTitle className="text-base">Detalhes da atividade</CardTitle>
+                  <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                    <div><span className="font-medium text-foreground">Curso</span><p>{activity.courseTitle}</p></div>
+                    <div><span className="font-medium text-foreground">Módulo</span><p>{activity.trackTitle || "Sem módulo"}</p></div>
                   </div>
                 </CardHeader>
                 {activity.attachments?.length ? (
                   <CardContent className="space-y-3 pt-0">
-                    <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    <h3 className="text-sm font-medium text-foreground">
                       Materiais de apoio
                     </h3>
                     <div className="grid gap-2">
                       {activity.attachments.map((attachment, index) => (
-                        <a
+                        <div
                           key={`${attachment.url}-${index}`}
-                          href={attachment.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-2 rounded-xl border border-primary/10 bg-background/80 px-3 py-2 text-sm hover:border-primary/30 transition-colors"
+                          className="ge-inset flex flex-col gap-2 px-3 py-2 text-sm"
                         >
-                          {attachment.type === "link" ? (
-                            <Link2 className="size-4 text-primary" />
-                          ) : (
-                            <FileText className="size-4 text-primary" />
-                          )}
-                          <span className="line-clamp-1">
-                            {attachment.name || "Abrir material"}
-                          </span>
-                        </a>
+                          <a
+                            href={attachment.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2 transition-colors hover:text-primary"
+                          >
+                            {attachment.type === "link" ? (
+                              <Link2 className="size-4 text-primary" />
+                            ) : (
+                              <FileText className="size-4 text-primary" />
+                            )}
+                            <span className="line-clamp-1">
+                              {attachment.name || "Abrir material"}
+                            </span>
+                          </a>
+                          {attachment.type === "audio" ? (
+                            <audio controls preload="metadata" src={attachment.url} className="h-9 max-w-full" />
+                          ) : null}
+                        </div>
                       ))}
                     </div>
                   </CardContent>
@@ -411,32 +396,46 @@ export default function Page() {
                   ) : (
                     <ol className="space-y-4">
                       {questions.map((question, index) => {
-                        const questionKey = getQuestionKey(question, index)
+                        const questionKey = getActivityQuestionKey(question, index)
                         const value = answers[questionKey] ?? null
                         const options = question.options ?? []
                         return (
                           <li
                             key={questionKey}
-                            className="rounded-2xl border border-primary/10 bg-card/40 p-4"
+                            className="ge-surface p-4"
                           >
                             <div className="mb-3 flex items-start justify-between gap-2">
                               <p className="text-sm font-semibold leading-relaxed">
                                 {index + 1}. {question.prompt}
                               </p>
-                              <span className="shrink-0 rounded-full border border-primary/15 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary">
-                                {question.type}
+                              <span className="ge-chip shrink-0">
+                                {ACTIVITY_QUESTION_TYPE_LABELS[question.type]}
                               </span>
                             </div>
 
-                            {(question.type === "essay" || question.type === "short_answer") && (
-                              <textarea
+                            {question.promptAudio?.url ? (
+                              <div className="mb-3 ge-inset p-3">
+                                <p className="mb-2 text-xs font-medium text-muted-foreground">Áudio de referência</p>
+                                <audio controls preload="metadata" src={question.promptAudio.url} className="h-9 max-w-full" />
+                              </div>
+                            ) : null}
+
+                            {question.type === "audio_response" ? (
+                              <AudioAnswerField
                                 value={typeof value === "string" ? value : ""}
-                                disabled={isCompleted}
+                                disabled={isCompleted || submissionClosed}
+                                onChange={(audioUrl) => updateSingleAnswer(questionKey, audioUrl)}
+                              />
+                            ) : null}
+
+                            {(question.type === "essay" || question.type === "short_answer") && (
+                              <Textarea
+                                value={typeof value === "string" ? value : ""}
+                                disabled={isCompleted || submissionClosed}
                                 onChange={(event) =>
                                   updateSingleAnswer(questionKey, event.target.value)
                                 }
                                 rows={question.type === "essay" ? 6 : 3}
-                                className="w-full rounded-xl border border-primary/15 bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-primary"
                                 placeholder="Digite sua resposta..."
                               />
                             )}
@@ -449,13 +448,13 @@ export default function Page() {
                                     <label
                                       key={optionId}
                                       htmlFor={optionId}
-                                      className="flex cursor-pointer items-center gap-2 rounded-xl border border-primary/10 bg-background/70 px-3 py-2 text-sm hover:border-primary/25"
+                                      className="ge-inset flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/70"
                                     >
                                       <input
                                         id={optionId}
                                         type="radio"
                                         name={questionKey}
-                                        disabled={isCompleted}
+                                        disabled={isCompleted || submissionClosed}
                                         checked={value === option}
                                         onChange={() => updateSingleAnswer(questionKey, option)}
                                         className="size-4 accent-primary"
@@ -472,7 +471,7 @@ export default function Page() {
                                 {options.map((option, optionIndex) => {
                                   const selected = Array.isArray(value)
                                     ? value.some(
-                                      (item) => normalizeText(item) === normalizeText(option)
+                                      (item) => item.trim().toLowerCase() === option.trim().toLowerCase()
                                     )
                                     : false
                                   const optionId = `${questionKey}-multi-${optionIndex}`
@@ -480,12 +479,12 @@ export default function Page() {
                                     <label
                                       key={optionId}
                                       htmlFor={optionId}
-                                      className="flex cursor-pointer items-center gap-2 rounded-xl border border-primary/10 bg-background/70 px-3 py-2 text-sm hover:border-primary/25"
+                                      className="ge-inset flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/70"
                                     >
                                       <input
                                         id={optionId}
                                         type="checkbox"
-                                        disabled={isCompleted}
+                                        disabled={isCompleted || submissionClosed}
                                         checked={selected}
                                         onChange={() => toggleMultiChoice(questionKey, option)}
                                         className="size-4 accent-primary"
@@ -508,13 +507,13 @@ export default function Page() {
                                     <label
                                       key={optionId}
                                       htmlFor={optionId}
-                                      className="flex cursor-pointer items-center gap-2 rounded-xl border border-primary/10 bg-background/70 px-3 py-2 text-sm hover:border-primary/25"
+                                      className="ge-inset flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/70"
                                     >
                                       <input
                                         id={optionId}
                                         type="radio"
                                         name={questionKey}
-                                        disabled={isCompleted}
+                                        disabled={isCompleted || submissionClosed}
                                         checked={value === option.value}
                                         onChange={() =>
                                           updateSingleAnswer(questionKey, option.value)
@@ -534,14 +533,14 @@ export default function Page() {
                   )}
             </div>
 
-            <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-              <Card className="border-primary/20">
+            <div className="space-y-4 lg:sticky lg:top-36 lg:self-start">
+              <Card className="border-border">
                 <CardHeader>
                   <CardTitle className="text-base">Resumo da entrega</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    <div className="mb-2 flex items-center justify-between text-xs font-medium text-muted-foreground">
                       <span>Progresso</span>
                       <span>{progressStats.completionPercent}%</span>
                     </div>
@@ -567,11 +566,11 @@ export default function Page() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Pontuação</span>
+                      <span className="text-muted-foreground">{effectiveScore.source === "teacher" ? "Nota do professor" : "Pontuação automática"}</span>
                       <span className="font-semibold">
-                        {progressStats.scorePercent === null
-                          ? "Sem correção automática"
-                          : `${progressStats.scorePercent}%`}
+                        {effectiveScore.scorePercent === null
+                          ? "Aguardando correção"
+                          : `${effectiveScore.scorePercent}%`}
                       </span>
                     </div>
                   </div>
@@ -580,9 +579,8 @@ export default function Page() {
                     <Button
                       type="button"
                       variant="outline"
-                      className="rounded-full"
                       onClick={() => void handleSaveDraft()}
-                      disabled={isSaving || isSubmitting || isCompleted}
+                      disabled={isSaving || isSubmitting || isCompleted || submissionClosed}
                     >
                       {isSaving ? (
                         <Loader2 className="mr-2 size-4 animate-spin" />
@@ -594,12 +592,12 @@ export default function Page() {
 
                     <Button
                       type="button"
-                      className="rounded-full"
                       onClick={() => void handleSubmit()}
                       disabled={
                         isSubmitting ||
                         isSaving ||
                         isCompleted ||
+                        submissionClosed ||
                         !progressStats.canSubmit ||
                         (questions.length === 0 && isCompleted)
                       }
@@ -609,13 +607,29 @@ export default function Page() {
                       ) : (
                         <Send className="mr-2 size-4" />
                       )}
-                      {isCompleted ? "Atividade enviada" : "Finalizar atividade"}
+                      {isCompleted
+                        ? "Atividade enviada"
+                        : revisionRequested
+                          ? "Reenviar atividade"
+                          : "Finalizar atividade"}
                     </Button>
                   </div>
 
                   {!progressStats.canSubmit && questions.length > 0 ? (
                     <p className="text-xs text-muted-foreground">
                       Você precisa responder todas as questões para finalizar.
+                    </p>
+                  ) : null}
+
+                  {submissionClosed ? (
+                    <p className="inline-flex items-center gap-2 text-xs font-semibold text-destructive">
+                      <AlertTriangle className="size-4" />
+                      O período de envio foi encerrado.
+                    </p>
+                  ) : !isCompleted && timing.isOverdue ? (
+                    <p className="inline-flex items-center gap-2 text-xs font-semibold text-amber-600">
+                      <AlertTriangle className="size-4" />
+                      O prazo normal passou, mas a atividade ainda aceita envio.
                     </p>
                   ) : null}
 
@@ -627,10 +641,66 @@ export default function Page() {
                   ) : null}
                 </CardContent>
               </Card>
+
+              {progress?.gradingStatus === "graded" ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <MessageSquareText className="size-4 text-primary" />
+                      Feedback do professor
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                      {progress.teacherFeedback || "Correção concluída sem comentário adicional."}
+                    </p>
+                    {progress.gradedAt ? (
+                      <p className="text-xs text-muted-foreground">
+                        Corrigida em {progress.gradedAt.toLocaleString("pt-BR")}
+                      </p>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              ) : revisionRequested ? (
+                <Card className="border-amber-500/20">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <MessageSquareText className="size-4 text-amber-600" />
+                      Revisão solicitada
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                      {progress.teacherFeedback || "Revise sua entrega antes de reenviar."}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Você pode editar e reenviar esta atividade mesmo que o prazo normal já tenha encerrado.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : isCompleted ? (
+                <>
+                  {progress?.teacherFeedback ? (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <MessageSquareText className="size-4 text-primary" />
+                          Feedback da revisão anterior
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                          {progress.teacherFeedback}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : null}
+                  <DashboardNotice>Entrega enviada. A correção do professor ainda está pendente.</DashboardNotice>
+                </>
+              ) : null}
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </DashboardPage>
   )
 }

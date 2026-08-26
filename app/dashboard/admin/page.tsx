@@ -1,15 +1,16 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
-import { GraduationCap, LayoutDashboard, Users2 } from "lucide-react"
+import Link from "next/link"
+import { ArrowRight, GraduationCap, Users2 } from "lucide-react"
 
-import { DashboardHeader } from "@/components/dashboard-header"
+import { DashboardNotice } from "@/components/dashboard/dashboard-feedback"
+import { DashboardPage } from "@/components/dashboard/dashboard-page"
+import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/hooks/use-auth"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { fetchAdminOverview } from "@/lib/firebase/firestore"
-import { DashboardNavCard } from "@/components/dashboard-nav-card"
-import { DashboardStatCard } from "@/components/dashboard-stat-card"
-import { DashboardSectionHeader } from "@/components/dashboard-section-header"
 import type { AdminOverview } from "@/lib/firebase/types"
 
 export default function Page() {
@@ -18,113 +19,14 @@ export default function Page() {
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
-    if (!isFirebaseReady || role !== "admin") {
-      return
-    }
+  React.useEffect(() => { if (!isFirebaseReady || role !== "admin") return; let active = true; async function load() { try { setLoading(true); setError(null); const data = await fetchAdminOverview(); if (active) setOverview(data) } catch { if (active) setError("Não foi possível carregar os indicadores.") } finally { if (active) setLoading(false) } } void load(); return () => { active = false } }, [isFirebaseReady, role])
 
-    let isMounted = true
+  if (role !== "admin") return <DashboardPage title="Administração" description="Gestão da plataforma."><DashboardNotice tone="danger">Esta área é exclusiva para administradores.</DashboardNotice></DashboardPage>
 
-    const loadOverview = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const data = await fetchAdminOverview()
-        if (isMounted) {
-          setOverview(data)
-        }
-      } catch {
-        if (isMounted) {
-          setError("Não foi possível carregar os indicadores.")
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
-      }
-    }
-
-    loadOverview()
-
-    return () => {
-      isMounted = false
-    }
-  }, [isFirebaseReady, role])
-
-  if (role !== "admin") {
-    return (
-      <div className="p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Acesso restrito</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Esta área é exclusiva para administradores.
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  return (
-    <div>
-      <DashboardHeader
-        title="Admin"
-        description="Visão geral do desempenho e gestão da plataforma."
-      />
-
-      <div className="flex flex-col gap-6 p-6">
-        {!isFirebaseReady ? (
-          <div className="rounded-2xl border border-dashed bg-accent/40 p-4 text-sm text-muted-foreground">
-            Firebase não configurado. Conecte para visualizar dados reais.
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <DashboardStatCard
-            title="Usuários ativos"
-            value={overview?.usersCount ?? "-"}
-            icon={Users2}
-            description="Total cadastrado na plataforma"
-            loading={loading}
-          />
-          <DashboardStatCard
-            title="Cursos ativos"
-            value={overview?.coursesCount ?? "-"}
-            icon={GraduationCap}
-            description="Total publicado e disponível"
-            loading={loading}
-          />
-        </div>
-
-        <div className="space-y-4">
-          <DashboardSectionHeader
-            title="Gestão do System"
-            icon={LayoutDashboard}
-          />
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <DashboardNavCard
-              title="Gestão de Usuários"
-              description="Gerencie contas de alunos, professores e administradores. Altere permissões e visualize perfis."
-              href="/dashboard/admin/users"
-              icon={Users2}
-            />
-            <DashboardNavCard
-              title="Gestão de Cursos"
-              description="Administre trilhas de aprendizado, módulos e materiais. Publique novos conteúdos ou edite existentes."
-              href="/dashboard/admin/courses"
-              icon={GraduationCap}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+  return <DashboardPage title="Administração" description="Acesse as áreas de gestão sem misturar controles administrativos ao fluxo do aluno.">
+    {!isFirebaseReady ? <DashboardNotice>Firebase não configurado. Conecte para visualizar dados reais.</DashboardNotice> : null}
+    {error ? <DashboardNotice tone="danger">{error}</DashboardNotice> : null}
+    <div className="grid gap-3 sm:grid-cols-2"><DashboardStatCard title="Usuários cadastrados" value={overview?.usersCount ?? "—"} icon={Users2} loading={loading} /><DashboardStatCard title="Cursos cadastrados" value={overview?.coursesCount ?? "—"} icon={GraduationCap} loading={loading} /></div>
+    <section className="space-y-3"><div><h2 className="text-lg font-semibold">Gestão</h2><p className="text-sm text-muted-foreground">Escolha o recurso que deseja administrar.</p></div><div className="grid gap-3 md:grid-cols-2"><Card className="py-0"><CardContent className="p-5"><div className="ge-icon-tile size-10"><Users2 className="size-4.5" /></div><h3 className="mt-4 font-semibold">Usuários</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">Gerencie contas, papéis e status de alunos, professores e administradores.</p><Button asChild variant="outline" size="sm" className="mt-4"><Link href="/dashboard/admin/users">Abrir usuários <ArrowRight className="size-3.5" /></Link></Button></CardContent></Card><Card className="py-0"><CardContent className="p-5"><div className="ge-icon-tile size-10"><GraduationCap className="size-4.5" /></div><h3 className="mt-4 font-semibold">Cursos</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">Administre cursos, módulos, atividades, materiais e professores atribuídos.</p><Button asChild variant="outline" size="sm" className="mt-4"><Link href="/dashboard/admin/courses">Abrir cursos <ArrowRight className="size-3.5" /></Link></Button></CardContent></Card></div></section>
+  </DashboardPage>
 }

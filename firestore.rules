@@ -23,6 +23,38 @@ service cloud.firestore {
         );
     }
 
+    function isActivitySubmissionOpen(activityId) {
+      let activityPath = /databases/$(database)/documents/activities/$(activityId);
+      return exists(activityPath)
+        && (
+          !get(activityPath).data.keys().hasAny(['closeAt'])
+          || get(activityPath).data.closeAt == null
+          || request.time <= get(activityPath).data.closeAt
+        );
+    }
+
+    function isTrackVisibleToUser(trackId) {
+      let trackPath = /databases/$(database)/documents/tracks/$(trackId);
+      return trackId is string
+        && exists(trackPath)
+        && isEmptyOrContainsUser(get(trackPath).data.userIds);
+    }
+
+    function canSubmitActivity(activityId) {
+      let activityPath = /databases/$(database)/documents/activities/$(activityId);
+      return exists(activityPath)
+        && isVisibleToUser(get(activityPath).data)
+        && isTrackVisibleToUser(get(activityPath).data.trackId)
+        && isActivitySubmissionOpen(activityId);
+    }
+
+    function submissionMatchesActivity(activityId, courseId, trackId) {
+      let activityPath = /databases/$(database)/documents/activities/$(activityId);
+      return exists(activityPath)
+        && get(activityPath).data.courseId == courseId
+        && get(activityPath).data.trackId == trackId;
+    }
+
     match /users/{userId} {
       // Users can read their own document.
       // Users can only write to their own document if they are NOT changing their role.
@@ -65,6 +97,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+
+    match /supportTickets/{ticketId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == "open";
+      allow update, delete: if isAdmin();
+    }
+
     match /activityProgress/{progressId} {
       allow read: if isAdmin()
         || (
@@ -75,12 +117,51 @@ service cloud.firestore {
           )
         );
       allow create: if isSignedIn()
-        && request.resource.data.userId == request.auth.uid;
+        && request.resource.data.userId == request.auth.uid
+        && canSubmitActivity(request.resource.data.activityId)
+        && submissionMatchesActivity(
+          request.resource.data.activityId,
+          request.resource.data.courseId,
+          request.resource.data.trackId
+        )
+        && !request.resource.data.keys().hasAny([
+          'gradingStatus',
+          'teacherScorePercent',
+          'teacherFeedback',
+          'gradedBy',
+          'gradedAt'
+        ]);
       allow update: if isSignedIn()
         && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == request.auth.uid;
-      allow delete: if isAdmin()
-        || (isSignedIn() && resource.data.userId == request.auth.uid);
+        && resource.data.status != "completed"
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.activityId == resource.data.activityId
+        && request.resource.data.courseId == resource.data.courseId
+        && request.resource.data.trackId == resource.data.trackId
+        && submissionMatchesActivity(
+          request.resource.data.activityId,
+          request.resource.data.courseId,
+          request.resource.data.trackId
+        )
+        && (
+          canSubmitActivity(request.resource.data.activityId)
+          || resource.data.gradingStatus == "revision_requested"
+        )
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'teacherScorePercent',
+          'teacherFeedback',
+          'gradedBy',
+          'gradedAt'
+        ])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['gradingStatus'])
+          || (
+            resource.data.gradingStatus == "revision_requested"
+            && request.resource.data.gradingStatus == "pending"
+            && request.resource.data.status == "completed"
+          )
+        );
+      allow delete: if isAdmin();
     }
 
     match /{document=**} {

@@ -3,10 +3,10 @@ import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import "@uiw/react-md-editor/markdown-editor.css"
 import "@uiw/react-markdown-preview/markdown.css"
-import "@uiw/react-markdown-preview/markdown.css"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { AuthProvider } from "@/components/auth-provider"
+import { AuthProvider } from "@/components/auth/auth-provider"
 import { Toaster } from "sonner"
+import { AccessibilityMenu } from "@/components/accessibility-menu"
 import { createOgImageUrl, getMetadataBase, siteConfig } from "@/lib/seo"
 
 const geistSans = Geist({
@@ -98,6 +98,7 @@ export default function RootLayout({
               }
             }}
           />
+          <AccessibilityMenu />
         </TooltipProvider>
       </body>
     </html>

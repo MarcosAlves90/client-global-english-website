@@ -2,23 +2,20 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
 import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
+import { assertIsAdmin } from "@/lib/firebase/admin-request"
 import { COLLECTIONS } from "@/lib/firebase/collections"
 import { resolveUserRole } from "@/lib/firebase/roles"
-import type { AdminUserSummary, UserRole } from "@/lib/firebase/types"
-
-// body type used by both create and update handlers
-interface RequestBody {
-  name?: string
-  email?: string
-  role?: "user" | "admin"
-  team?: string | null
-  disabled?: boolean
-  isRobot?: boolean
-}
+import { normalizeCloudinaryUrlValue } from "@/lib/cloudinary-url"
+import {
+  deleteAdminUserBodySchema,
+  upsertAdminUserBodySchema,
+} from "@/lib/contracts/admin"
+import type { AdminUserStats, AdminUserSummary, UserRole } from "@/lib/firebase/types"
 
 interface PaginatedUsersResponse {
   items: AdminUserSummary[]
   nextCursor: string | null
+  stats: AdminUserStats
 }
 
 function generateInitialPassword() {
@@ -48,32 +45,6 @@ function generateInitialPassword() {
   return picks.join("")
 }
 
-// helpers
-async function assertIsAdmin(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.split(" ")[1]
-  if (!token) {
-    return { ok: false, status: 401, message: "Missing auth token" }
-  }
-
-  try {
-    const decoded = await adminAuth.verifyIdToken(token)
-    // check the user's role in firestore
-    const doc = await adminDb
-      .collection(COLLECTIONS.users)
-      .doc(decoded.uid)
-      .get()
-    const data = doc.data()
-    if (data?.role === "admin") {
-      return { ok: true, uid: decoded.uid }
-    }
-    return { ok: false, status: 403, message: "Admin access required" }
-  } catch (err) {
-    console.error("token verification failed", err)
-    return { ok: false, status: 401, message: "Invalid auth token" }
-  }
-}
-
 // list all admin users; name comes from auth
 export async function GET(req: NextRequest) {
   const authCheck = await assertIsAdmin(req)
@@ -99,46 +70,88 @@ export async function GET(req: NextRequest) {
       usersQuery = usersQuery.startAfter(cursor)
     }
 
-    const usersSnapshot = await usersQuery.get()
+    const usersCollection = adminDb.collection(COLLECTIONS.users)
+    const [
+      usersSnapshot,
+      totalUsersSnapshot,
+      disabledUsersSnapshot,
+      teacherUsersSnapshot,
+      adminUsersSnapshot,
+    ] = await Promise.all([
+      usersQuery.get(),
+      usersCollection.count().get(),
+      usersCollection.where("disabled", "==", true).count().get(),
+      usersCollection.where("role", "==", "teacher").count().get(),
+      usersCollection.where("role", "==", "admin").count().get(),
+    ])
     const userDocs = usersSnapshot.docs.slice(0, pageSize)
     const hasMore = usersSnapshot.docs.length > pageSize
 
-    const authUsersResult = await adminAuth.getUsers(
-      userDocs.map((docSnap) => ({ uid: docSnap.id }))
-    )
+    const authUsersResult: {
+      users: Array<{
+        uid: string
+        displayName?: string | null
+        email?: string | null
+        photoURL?: string | null
+        disabled?: boolean
+      }>
+    } = await adminAuth.getUsers(userDocs.map((docSnap) => ({ uid: docSnap.id })))
 
     const authUsersByUid = new Map(
       authUsersResult.users.map((u) => [u.uid, u])
     )
 
     const items: AdminUserSummary[] = userDocs.map((docSnap) => {
-      const data = docSnap.data()
+      const data = docSnap.data() as Record<string, unknown>
       const authUser = authUsersByUid.get(docSnap.id)
+      const rawPhotoURL =
+        typeof authUser?.photoURL === "string" && authUser.photoURL.trim()
+          ? authUser.photoURL
+          : typeof data.photoURL === "string"
+            ? data.photoURL
+            : null
 
       return {
         uid: docSnap.id,
-        name: authUser?.displayName ?? (data?.name as string) ?? "",
-        email: authUser?.email ?? (data?.email as string) ?? "",
-        role: (data?.role as UserRole) ?? "user",
-        team: (data?.team as string) ?? null,
-        disabled: authUser?.disabled ?? Boolean(data?.disabled),
-        isRobot: Boolean(data?.isRobot),
-        photoURL:
-          (typeof authUser?.photoURL === "string" && authUser.photoURL.trim())
-            ? authUser.photoURL
-            : (data?.photoURL as string | null) ?? null,
-        createdAt: data?.createdAt?.toDate?.() ?? null,
-        updatedAt: data?.updatedAt?.toDate?.() ?? null,
+        name:
+          authUser?.displayName ??
+          (typeof data.name === "string" ? data.name : ""),
+        email:
+          authUser?.email ??
+          (typeof data.email === "string" ? data.email : ""),
+        role: (data.role as UserRole) ?? "user",
+        team: typeof data.team === "string" ? data.team : null,
+        disabled: authUser?.disabled ?? Boolean(data.disabled),
+        isRobot: Boolean(data.isRobot),
+        photoURL: normalizeCloudinaryUrlValue(rawPhotoURL) ?? null,
+        createdAt:
+          typeof data.createdAt === "object" &&
+          data.createdAt !== null &&
+          "toDate" in data.createdAt
+            ? (data.createdAt as { toDate: () => Date }).toDate()
+            : null,
+        updatedAt:
+          typeof data.updatedAt === "object" &&
+          data.updatedAt !== null &&
+          "toDate" in data.updatedAt
+            ? (data.updatedAt as { toDate: () => Date }).toDate()
+            : null,
       }
     })
 
     const nextCursor = hasMore
-      ? ((userDocs[userDocs.length - 1]?.id ?? null) as string | null)
+      ? (userDocs.at(-1)?.id ?? null)
       : null
 
     const payload: PaginatedUsersResponse = {
       items,
       nextCursor,
+      stats: {
+        totalUsersCount: totalUsersSnapshot.data().count,
+        disabledUsersCount: disabledUsersSnapshot.data().count,
+        teacherUsersCount: teacherUsersSnapshot.data().count,
+        adminUsersCount: adminUsersSnapshot.data().count,
+      },
     }
 
     return NextResponse.json(payload)
@@ -154,13 +167,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: authCheck.message }, { status: authCheck.status })
   }
 
-  let body: RequestBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = upsertAdminUserBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   if (!body.name || !body.email) {
     return NextResponse.json({ error: "Name and email are required" }, { status: 400 })
@@ -176,7 +196,7 @@ export async function POST(req: NextRequest) {
 
     const role = resolveUserRole({
       email: body.email,
-      existingRole: body.role && (body.role === "admin" ? "admin" : "user"),
+      existingRole: body.role ?? "user",
     })
 
     const userDoc = {
@@ -185,6 +205,7 @@ export async function POST(req: NextRequest) {
       email: body.email,
       role,
       team: body.team ?? null,
+      disabled: false,
       isRobot: Boolean(body.isRobot),
       mustChangePassword: true,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -231,12 +252,19 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: authCheck.message }, { status: authCheck.status })
   }
 
-  let body: RequestBody & { uid?: string }
+  let rawBody: unknown
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = upsertAdminUserBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   if (!body.uid) {
     return NextResponse.json({ error: "uid is required" }, { status: 400 })
@@ -259,7 +287,7 @@ export async function PATCH(req: NextRequest) {
     if (roleStr) {
       firestoreUpdates.role = resolveUserRole({
         email: email ?? undefined,
-        existingRole: roleStr as UserRole,
+        existingRole: roleStr,
       })
     }
     if (team !== undefined) firestoreUpdates.team = team
@@ -287,67 +315,64 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: authCheck.message }, { status: authCheck.status })
   }
 
-  let body: { uid?: string }
+  let rawBody: unknown
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  if (!body.uid) {
-    return NextResponse.json({ error: "uid is required" }, { status: 400 })
+  const parsedBody = deleteAdminUserBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
 
   try {
-    const uid = body.uid
+    const uid = parsedBody.data.uid
     const batch = adminDb.batch()
 
-    const enrollmentsSnapshot = await adminDb
-      .collection(COLLECTIONS.enrollments)
-      .where("userId", "==", uid)
-      .get()
+    const [
+      enrollmentsSnapshot,
+      tracksSnapshot,
+      materialsSnapshot,
+      activitiesSnapshot,
+    ] = await Promise.all([
+      adminDb
+        .collection(COLLECTIONS.enrollments)
+        .where("userId", "==", uid)
+        .get(),
+      adminDb
+        .collection(COLLECTIONS.tracks)
+        .where("userIds", "array-contains", uid)
+        .get(),
+      adminDb
+        .collection(COLLECTIONS.materials)
+        .where("userIds", "array-contains", uid)
+        .get(),
+      adminDb
+        .collection(COLLECTIONS.activities)
+        .where("userIds", "array-contains", uid)
+        .get(),
+    ])
 
     enrollmentsSnapshot.docs.forEach((docSnap) => {
       batch.delete(docSnap.ref)
     })
 
-    const tracksSnapshot = await adminDb.collection(COLLECTIONS.tracks).get()
-    tracksSnapshot.docs.forEach((docSnap) => {
-      const data = docSnap.data()
-      const userIds = Array.isArray(data.userIds) ? data.userIds : []
-      if (!userIds.includes(uid)) {
-        return
-      }
-      const nextUserIds = userIds.filter((id: string) => id !== uid)
-      batch.set(docSnap.ref, { userIds: nextUserIds }, { merge: true })
-    })
+    const removeUserAssignment = (docSnap: FirebaseFirestore.QueryDocumentSnapshot) => {
+      batch.update(docSnap.ref, {
+        userIds: admin.firestore.FieldValue.arrayRemove(uid),
+      })
+    }
 
-    const materialsSnapshot = await adminDb.collection(COLLECTIONS.materials).get()
-    materialsSnapshot.docs.forEach((docSnap) => {
-      const data = docSnap.data()
-      const userIds = Array.isArray(data.userIds) ? data.userIds : []
-      if (!userIds.includes(uid)) {
-        return
-      }
-      const nextUserIds = userIds.filter((id: string) => id !== uid)
-      batch.set(docSnap.ref, { userIds: nextUserIds }, { merge: true })
-    })
-
-    const activitiesSnapshot = await adminDb.collection(COLLECTIONS.activities).get()
-    activitiesSnapshot.docs.forEach((docSnap) => {
-      const data = docSnap.data()
-      const userIds = Array.isArray(data.userIds) ? data.userIds : []
-      if (!userIds.includes(uid)) {
-        return
-      }
-      const nextUserIds = userIds.filter((id: string) => id !== uid)
-      batch.set(docSnap.ref, { userIds: nextUserIds }, { merge: true })
-    })
+    tracksSnapshot.docs.forEach(removeUserAssignment)
+    materialsSnapshot.docs.forEach(removeUserAssignment)
+    activitiesSnapshot.docs.forEach(removeUserAssignment)
 
     await batch.commit()
 
-    await adminAuth.deleteUser(body.uid)
-    await adminDb.collection(COLLECTIONS.users).doc(body.uid).delete()
+    await adminAuth.deleteUser(uid)
+    await adminDb.collection(COLLECTIONS.users).doc(uid).delete()
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error("failed to delete user", err)

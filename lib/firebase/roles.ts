@@ -13,18 +13,16 @@ export function resolveUserRole(params: {
     return "admin"
   }
 
-  if (!params.email) {
-    return "user"
+  if (params.email) {
+    const normalizedEmail = params.email.trim().toLowerCase()
+    if (ADMIN_EMAILS.includes(normalizedEmail)) {
+      return "admin"
+    }
   }
 
-  const normalizedEmail = params.email.trim().toLowerCase()
-  if (ADMIN_EMAILS.includes(normalizedEmail)) {
-    return "admin"
+  if (params.existingRole === "teacher") {
+    return "teacher"
   }
 
   return "user"
-}
-
-export function getAdminEmails() {
-  return ADMIN_EMAILS
 }

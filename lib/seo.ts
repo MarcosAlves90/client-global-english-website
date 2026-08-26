@@ -19,7 +19,7 @@ export function getMetadataBase() {
   }
 }
 
-export function getSiteOrigin() {
+function getSiteOrigin() {
   return getMetadataBase().origin
 }
 

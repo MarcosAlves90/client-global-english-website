@@ -1,42 +1,21 @@
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
-import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
+import admin, { adminDb } from "@/lib/firebase/admin"
+import { assertIsAdmin } from "@/lib/firebase/admin-request"
 import { deleteCloudinaryAssetsByUrls } from "@/lib/cloudinary-admin"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import {
+  deleteDocsInBatches,
+  extractAttachmentUrlsFromDocs,
+} from "@/lib/firebase/admin-firestore-utils"
+import {
+  createTrackBodySchema,
+  deleteTrackBodySchema,
+  updateTrackBodySchema,
+} from "@/lib/contracts/admin"
 import type { Track } from "@/lib/firebase/types"
-
-type CreateTrackBody = {
-  id?: string
-  courseId?: string
-  title?: string
-  description?: string
-  order?: number
-  userIds?: string[]
-}
-
-async function assertIsAdmin(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.split(" ")[1]
-  if (!token) {
-    return { ok: false, status: 401, message: "Missing auth token" }
-  }
-
-  try {
-    const decoded = await adminAuth.verifyIdToken(token)
-    const doc = await adminDb.collection(COLLECTIONS.users).doc(decoded.uid).get()
-    const data = doc.data()
-
-    if (data?.role === "admin") {
-      return { ok: true, uid: decoded.uid }
-    }
-
-    return { ok: false, status: 403, message: "Admin access required" }
-  } catch (err) {
-    console.error("token verification failed", err)
-    return { ok: false, status: 401, message: "Invalid auth token" }
-  }
-}
+import { buildCourseEnrollmentSyncPlan } from "@/modules/courses/server/course-enrollment-sync"
 
 function parseOrder(input?: number) {
   if (input === undefined || input === null) {
@@ -122,26 +101,6 @@ async function resolveNextOrder(courseId: string) {
   return maxOrder + 1
 }
 
-async function deleteDocsInBatches(
-  docs: FirebaseFirestore.QueryDocumentSnapshot[]
-) {
-  if (!docs.length) return
-  let batch = adminDb.batch()
-  let count = 0
-  for (const doc of docs) {
-    batch.delete(doc.ref)
-    count += 1
-    if (count >= 450) {
-      await batch.commit()
-      batch = adminDb.batch()
-      count = 0
-    }
-  }
-  if (count > 0) {
-    await batch.commit()
-  }
-}
-
 async function syncCourseEnrollmentsByTracks(courseId: string) {
   const [tracksSnapshot, enrollmentsSnapshot] = await Promise.all([
     adminDb.collection(COLLECTIONS.tracks).where("courseId", "==", courseId).get(),
@@ -162,20 +121,20 @@ async function syncCourseEnrollmentsByTracks(courseId: string) {
     })
   })
 
-  const enrollmentByUserId = new Map<
-    string,
-    FirebaseFirestore.QueryDocumentSnapshot
-  >()
-  enrollmentsSnapshot.docs.forEach((enrollmentSnap) => {
+  const enrollmentStates = enrollmentsSnapshot.docs.map((enrollmentSnap) => {
     const enrollmentData = enrollmentSnap.data()
-    const userId =
-      typeof enrollmentData?.userId === "string"
-        ? enrollmentData.userId.trim()
-        : ""
-    if (userId) {
-      enrollmentByUserId.set(userId, enrollmentSnap)
+    return {
+      userId:
+        typeof enrollmentData?.userId === "string"
+          ? enrollmentData.userId.trim()
+          : "",
+      source:
+        typeof enrollmentData?.source === "string"
+          ? enrollmentData.source
+          : "",
     }
   })
+  const syncPlan = buildCourseEnrollmentSyncPlan(assignedUserIds, enrollmentStates)
 
   const now = admin.firestore.FieldValue.serverTimestamp()
   let batch = adminDb.batch()
@@ -191,10 +150,7 @@ async function syncCourseEnrollmentsByTracks(courseId: string) {
     pendingWrites = 0
   }
 
-  for (const userId of assignedUserIds) {
-    if (enrollmentByUserId.has(userId)) {
-      continue
-    }
+  for (const userId of syncPlan.userIdsToCreate) {
     const ref = adminDb.collection(COLLECTIONS.enrollments).doc()
     batch.set(ref, {
       userId,
@@ -212,22 +168,10 @@ async function syncCourseEnrollmentsByTracks(courseId: string) {
     }
   }
 
-  for (const enrollmentSnap of enrollmentsSnapshot.docs) {
-    const enrollmentData = enrollmentSnap.data()
-    const userId =
-      typeof enrollmentData?.userId === "string"
-        ? enrollmentData.userId.trim()
-        : ""
-    const source = typeof enrollmentData?.source === "string" ? enrollmentData.source : ""
-    if (!userId || assignedUserIds.has(userId)) {
-      return
-    }
-    // Remove only enrollments created by automatic track assignment.
-    if (source === "track_assignment") {
-      batch.delete(enrollmentSnap.ref)
-      pendingWrites += 1
-      hasMutations = true
-    }
+  for (const index of syncPlan.enrollmentIndexesToDelete) {
+    batch.delete(enrollmentsSnapshot.docs[index].ref)
+    pendingWrites += 1
+    hasMutations = true
     if (pendingWrites >= 450) {
       await flushBatch()
     }
@@ -236,22 +180,6 @@ async function syncCourseEnrollmentsByTracks(courseId: string) {
   if (hasMutations) {
     await flushBatch()
   }
-}
-
-function extractAttachmentUrlsFromDocs(
-  docs: FirebaseFirestore.QueryDocumentSnapshot[]
-) {
-  const urls: string[] = []
-  docs.forEach((docSnap) => {
-    const data = docSnap.data()
-    const attachments = Array.isArray(data?.attachments) ? data.attachments : []
-    attachments.forEach((attachment: { url?: unknown }) => {
-      if (typeof attachment?.url === "string" && attachment.url.trim()) {
-        urls.push(attachment.url.trim())
-      }
-    })
-  })
-  return urls
 }
 
 export async function GET(req: NextRequest) {
@@ -306,13 +234,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: CreateTrackBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = createTrackBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const courseId = body.courseId?.trim()
   const title = body.title?.trim() ?? ""
@@ -389,13 +324,20 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
-  let body: CreateTrackBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = updateTrackBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const id = body.id?.trim()
   if (!id) {
@@ -495,15 +437,20 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  let body: { id?: string }
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const id = body.id?.trim()
+  const parsedBody = deleteTrackBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const id = parsedBody.data.id.trim()
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }
@@ -532,8 +479,8 @@ export async function DELETE(req: NextRequest) {
     ]
 
     await deleteCloudinaryAssetsByUrls(attachmentUrls)
-    await deleteDocsInBatches(materialsSnapshot.docs)
-    await deleteDocsInBatches(activitiesSnapshot.docs)
+    await deleteDocsInBatches(adminDb, materialsSnapshot.docs)
+    await deleteDocsInBatches(adminDb, activitiesSnapshot.docs)
     await trackRef.delete()
     if (courseId) {
       await syncCourseEnrollmentsByTracks(courseId)

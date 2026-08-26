@@ -93,6 +93,7 @@ async function run() {
   const clientEmail = assertEnv("FIREBASE_CLIENT_EMAIL")
   const privateKey = assertEnv("FIREBASE_PRIVATE_KEY").replace(/\\n/g, "\n")
   const apiKey = assertEnv("NEXT_PUBLIC_FIREBASE_API_KEY")
+  const cloudName = assertEnv("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME")
 
   if (!admin.apps.length) {
     admin.initializeApp({
@@ -115,9 +116,9 @@ async function run() {
   let activityId = null
 
   try {
-    dev = spawn("npm.cmd", ["run", "dev", "--", "--port", "3102"], {
+    const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm"
+    dev = spawn(npmCommand, ["run", "dev", "--", "--port", "3102"], {
       stdio: "ignore",
-      shell: true,
       env: process.env,
     })
 
@@ -187,6 +188,8 @@ async function run() {
     }
     trackId = createTrack.data.id
 
+    const audioUrl = `https://res.cloudinary.com/${cloudName}/video/upload/v1/e2e-audio-${ts}.mp3`
+
     const createActivity = await api(baseUrl, "/api/admin/activities", "POST", adminIdToken, {
       courseId,
       trackId,
@@ -204,12 +207,40 @@ async function run() {
           points: 1,
           required: true,
         },
+        {
+          id: "q-audio",
+          type: "audio_response",
+          prompt: "Pronuncie a palavra children.",
+          points: 1,
+          required: true,
+          promptAudio: {
+            name: "Referencia de pronuncia",
+            url: audioUrl,
+            type: "audio",
+          },
+        },
       ],
     })
     if (!createActivity.ok || !createActivity.data?.id) {
       throw new Error(`create activity failed: ${createActivity.status}`)
     }
     activityId = createActivity.data.id
+
+    const updateActivityAttachments = await api(
+      baseUrl,
+      "/api/admin/activities",
+      "PATCH",
+      adminIdToken,
+      {
+        id: activityId,
+        attachments: [
+          { name: "Audio complementar", url: audioUrl, type: "audio" },
+        ],
+      }
+    )
+    if (!updateActivityAttachments.ok || updateActivityAttachments.data?.attachments?.[0]?.url !== audioUrl) {
+      throw new Error(`update activity attachments failed: ${updateActivityAttachments.status}`)
+    }
 
     const enrollmentSnapshot = await db
       .collection("enrollments")
@@ -231,9 +262,10 @@ async function run() {
       status: "completed",
       answers: {
         "q-1": "children",
+        "q-audio": audioUrl,
       },
-      answeredCount: 1,
-      totalQuestions: 1,
+      answeredCount: 2,
+      totalQuestions: 2,
       completionPercent: 100,
       scorePercent: 100,
       submittedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -250,12 +282,12 @@ async function run() {
     if (progressData.status !== "completed") {
       throw new Error("activity response status mismatch")
     }
-    if (progressData.answeredCount !== 1 || progressData.totalQuestions !== 1) {
+    if (progressData.answeredCount !== 2 || progressData.totalQuestions !== 2) {
       throw new Error("activity response counters mismatch")
     }
 
     console.log("E2E smoke test (course -> activity response): PASS")
-    console.log("Checked: course creation, track assignment, activity creation, student response persistence")
+    console.log("Checked: course creation, track assignment, audio-response activity, post-create activity attachments, student response persistence")
   } finally {
     try {
       if (activityId && studentUid) {

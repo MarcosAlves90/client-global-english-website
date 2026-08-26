@@ -1,200 +1,65 @@
 "use client"
 
 import * as React from "react"
-import {
-    LifeBuoy,
-    MessageCircle,
-    Mail,
-    FileText,
-    ChevronRight,
-    Search,
-    BookOpen,
-    Zap,
-    Globe,
-    Settings,
-    AlertCircle
-} from "lucide-react"
+import { AlertCircle, CheckCircle2, LifeBuoy, Plus, Send } from "lucide-react"
+import { toast } from "sonner"
 
-import { DashboardHeader } from "@/components/dashboard-header"
-import { DashboardSectionHeader } from "@/components/dashboard-section-header"
+import { DashboardNotice } from "@/components/dashboard/dashboard-feedback"
+import { DashboardPage } from "@/components/dashboard/dashboard-page"
+import { SearchField } from "@/components/dashboard/search-field"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger
-} from "@/components/ui/accordion"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { useAuth } from "@/hooks/use-auth"
+import { createSupportTicket, fetchUserSupportTickets } from "@/lib/firebase/firestore"
+import type { SupportTicket } from "@/lib/firebase/types"
+import { validateSupportTicketDraft } from "@/lib/support/tickets"
 
 const FAQS = [
-    {
-        question: "Como acesso meus certificados?",
-        answer: "Seus certificados ficam disponíveis na página de cada curso concluído. Você também pode encontrá-los na aba 'Meus Diplomas' em breve.",
-        category: "Cursos"
-    },
-    {
-        question: "Posso acessar a plataforma de vários dispositivos?",
-        answer: "Sim, a Global English é responsiva e pode ser acessada de computadores, tablets e smartphones simultaneamente.",
-        category: "Acesso"
-    },
-    {
-        question: "Como altero minha senha?",
-        answer: "Você pode alterar sua senha na página de Configurações, na seção de Segurança.",
-        category: "Conta"
-    },
-    {
-        question: "Quais são os requisitos técnicos?",
-        answer: "Recomendamos o uso de navegadores modernos (Chrome, Firefox ou Safari) e uma conexão de internet estável.",
-        category: "Técnico"
-    }
+  { question: "Como altero minha senha?", answer: "Abra Configurações, entre em Segurança e informe a nova senha." },
+  { question: "Onde acompanho minhas atividades?", answer: "A página Atividades separa pendências, atividades em andamento, revisões e itens concluídos." },
+  { question: "Onde encontro minhas notas?", answer: "Abra Notas para consultar correções finais, referências automáticas e feedback do professor." },
+  { question: "Como envio um problema para o suporte?", answer: "Selecione Nova solicitação, descreva o problema e acompanhe o protocolo nesta página." },
 ]
 
-const QUICK_LINKS = [
-    { title: "Manuais", desc: "Guias passo a passo", icon: BookOpen },
-    { title: "Status", desc: "Sistema online", icon: Zap },
-    { title: "Comunidade", desc: "Fórum de alunos", icon: Globe },
-    { title: "Ajustes", desc: "Preferências", icon: Settings },
-]
+function formatTicketDate(value: Date | null) { return value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(value) : "Sincronizando" }
 
 export default function Page() {
-    const [searchQuery, setSearchQuery] = React.useState("")
+  const { user, isFirebaseReady } = useAuth()
+  const [subject, setSubject] = React.useState("")
+  const [message, setMessage] = React.useState("")
+  const [query, setQuery] = React.useState("")
+  const [tickets, setTickets] = React.useState<SupportTicket[]>([])
+  const [showForm, setShowForm] = React.useState(false)
+  const [loading, setLoading] = React.useState(false)
+  const [submitting, setSubmitting] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
 
-    const filteredFaqs = React.useMemo(() => {
-        return FAQS.filter(faq =>
-            faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-    }, [searchQuery])
+  const loadTickets = React.useCallback(async () => { if (!user || !isFirebaseReady) { setTickets([]); return } try { setLoading(true); setError(null); setTickets(await fetchUserSupportTickets(user.uid)) } catch { setError("Não foi possível carregar seu histórico de suporte.") } finally { setLoading(false) } }, [isFirebaseReady, user])
+  React.useEffect(() => { void loadTickets() }, [loadTickets])
 
-    return (
-        <div className="flex-1">
-            <DashboardHeader
-                title="Central de Ajuda"
-                description="Encontre respostas rápidas ou entre em contato com nosso time."
-            />
+  async function handleSubmit() {
+    if (!user) return
+    const validation = validateSupportTicketDraft({ subject, message })
+    if (!validation.ok) return toast.error(validation.message)
+    try { setSubmitting(true); await createSupportTicket({ uid: user.uid, ...validation.value }); setSubject(""); setMessage(""); setShowForm(false); await loadTickets(); toast.success("Solicitação enviada ao suporte.") } catch { toast.error("Não foi possível enviar a solicitação.") } finally { setSubmitting(false) }
+  }
 
-            <div className="flex flex-col gap-8 p-6">
-                {/* Search Hero */}
-                <div className="relative overflow-hidden rounded-2xl bg-primary/5 border border-dashed border-primary/20 p-8 sm:p-12 text-center">
-                    <div className="absolute top-0 right-0 p-4 opacity-5">
-                        <LifeBuoy className="size-48 text-primary" />
-                    </div>
+  const q = query.trim().toLocaleLowerCase("pt-BR")
+  const faqs = FAQS.filter((item) => !q || `${item.question} ${item.answer}`.toLocaleLowerCase("pt-BR").includes(q))
 
-                    <div className="relative z-10 space-y-4 max-w-xl mx-auto">
-                        <h2 className="text-3xl font-bold tracking-tight">Como podemos ajudar?</h2>
-                        <div className="relative group">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
-                            <Input
-                                placeholder="Pesquisar por dúvidas, recursos ou tutoriais..."
-                                className="h-14 pl-12 pr-4 bg-background/60 backdrop-blur-md border-primary/20 text-lg rounded-2xl shadow-xl transition-all focus:ring-primary/20"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            Ex: &quot;como resetar senha&quot;, &quot;acessar certificados&quot;, &quot;materiais extras&quot;
-                        </p>
-                    </div>
-                </div>
+  return <DashboardPage title="Central de Ajuda" description="Encontre uma resposta primeiro e abra uma solicitação quando precisar de atendimento." action={<Button size="sm" onClick={() => setShowForm((value) => !value)}><Plus className="size-4" />Nova solicitação</Button>}>
+    {!isFirebaseReady ? <DashboardNotice>Firebase não configurado. O envio de tickets está indisponível.</DashboardNotice> : null}
+    {error ? <DashboardNotice tone="danger">{error}</DashboardNotice> : null}
 
-                {/* Support Options */}
-                <div className="grid gap-6 md:grid-cols-2">
-                    <Card className="bg-card/40 backdrop-blur-sm border-primary/5 group transition-all hover:border-primary/20">
-                        <CardContent className="p-6 flex items-start gap-4">
-                            <div className="p-3 rounded-2xl bg-primary/10 text-primary transition-transform group-hover:scale-110">
-                                <MessageCircle className="size-6" />
-                            </div>
-                            <div className="space-y-1">
-                                <h3 className="font-semibold">Suporte via Chat</h3>
-                                <p className="text-xs text-muted-foreground leading-relaxed">
-                                    Fale com um atendente em tempo real para dúvidas urgentes.
-                                </p>
-                                <div className="pt-2">
-                                    <Button size="sm" variant="link" className="p-0 h-auto text-primary">
-                                        Iniciar conversa <ChevronRight className="size-3 ml-1" />
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+    <Card className="border-primary/15 py-0"><CardContent className="p-6"><div className="mx-auto max-w-2xl text-center"><div className="ge-icon-tile mx-auto size-11"><LifeBuoy className="size-5" /></div><h2 className="mt-3 text-xl font-semibold">Como podemos ajudar?</h2><SearchField value={query} onChange={setQuery} placeholder="Buscar nas perguntas frequentes..." ariaLabel="Buscar ajuda" className="relative mx-auto mt-4 max-w-xl" /></div></CardContent></Card>
 
-                    <Card className="bg-card/40 backdrop-blur-sm border-primary/5 group transition-all hover:border-primary/20">
-                        <CardContent className="p-6 flex items-start gap-4">
-                            <div className="p-3 rounded-2xl bg-primary/10 text-primary transition-transform group-hover:scale-110">
-                                <Mail className="size-6" />
-                            </div>
-                            <div className="space-y-1">
-                                <h3 className="font-semibold">Abertura de Ticket</h3>
-                                <p className="text-xs text-muted-foreground leading-relaxed">
-                                    Envie solicitações detalhadas de suporte ou reporte bugs.
-                                </p>
-                                <div className="pt-2">
-                                    <Button size="sm" variant="link" className="p-0 h-auto text-primary">
-                                        Enviar email <ChevronRight className="size-3 ml-1" />
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
+    {showForm ? <Card className="max-w-3xl py-0"><CardContent className="space-y-4 p-6"><div><h2 className="font-semibold">Nova solicitação</h2><p className="mt-1 text-sm text-muted-foreground">Descreva o problema e o comportamento que esperava.</p></div><div className="space-y-2"><Label htmlFor="ticket-subject">Assunto</Label><Input id="ticket-subject" value={subject} maxLength={120} onChange={(event) => setSubject(event.target.value)} placeholder="Ex.: Não consigo abrir uma atividade" /></div><div className="space-y-2"><Label htmlFor="ticket-message">Descrição</Label><Textarea id="ticket-message" value={message} maxLength={4000} onChange={(event) => setMessage(event.target.value)} placeholder="Explique o que aconteceu." className="min-h-36" /></div><div className="flex gap-2"><Button onClick={() => void handleSubmit()} disabled={submitting || !user || !isFirebaseReady}><Send className="size-4" />{submitting ? "Enviando..." : "Enviar solicitação"}</Button><Button variant="ghost" onClick={() => setShowForm(false)}>Cancelar</Button></div></CardContent></Card> : null}
 
-                {/* FAQ Section */}
-                <div className="space-y-6">
-                    <DashboardSectionHeader
-                        title="Perguntas Frequentes"
-                        description="As dúvidas mais comuns resolvidas na hora."
-                        icon={FileText}
-                    />
+    <section className="space-y-3"><div><h2 className="text-lg font-semibold">Perguntas frequentes</h2><p className="text-sm text-muted-foreground">Orientações sobre funções disponíveis na plataforma.</p></div><div className="grid gap-3 md:grid-cols-2">{faqs.map((faq) => <Card key={faq.question} className="py-0"><CardContent className="p-5"><h3 className="text-sm font-semibold">{faq.question}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{faq.answer}</p></CardContent></Card>)}</div>{faqs.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma orientação corresponde à busca.</p> : null}</section>
 
-                    <Card className="bg-card/40 backdrop-blur-sm border-primary/5 overflow-hidden">
-                        <CardContent className="p-0">
-                            {filteredFaqs.length > 0 ? (
-                                <Accordion type="single" collapsible className="w-full">
-                                    {filteredFaqs.map((faq, index) => (
-                                        <AccordionItem
-                                            key={index}
-                                            value={`item-${index}`}
-                                            className="border-primary/5 px-6 last:border-0"
-                                        >
-                                            <AccordionTrigger className="hover:no-underline py-4 text-sm font-medium">
-                                                <div className="flex items-center gap-3 text-left">
-                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary px-2 py-0.5 bg-primary/10 rounded">
-                                                        {faq.category}
-                                                    </span>
-                                                    {faq.question}
-                                                </div>
-                                            </AccordionTrigger>
-                                            <AccordionContent className="pb-4 text-sm text-muted-foreground leading-relaxed">
-                                                {faq.answer}
-                                            </AccordionContent>
-                                        </AccordionItem>
-                                    ))}
-                                </Accordion>
-                            ) : (
-                                <div className="p-12 text-center space-y-3">
-                                    <AlertCircle className="size-8 mx-auto text-muted-foreground opacity-50" />
-                                    <p className="text-sm text-muted-foreground">Nenhuma resposta encontrada para sua pesquisa.</p>
-                                    <Button variant="outline" size="sm" onClick={() => setSearchQuery("")}>Limpar busca</Button>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Quick Links */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {QUICK_LINKS.map((link) => (
-                        <Card key={link.title} className="bg-card/40 backdrop-blur-sm border-primary/5 hover:bg-primary/5 transition-all text-center group cursor-pointer">
-                            <CardContent className="p-6 space-y-2">
-                                <link.icon className="size-6 mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
-                                <h4 className="text-sm font-semibold">{link.title}</h4>
-                                <p className="text-[10px] text-muted-foreground">{link.desc}</p>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            </div>
-        </div>
-    )
+    <section className="space-y-3"><div><h2 className="text-lg font-semibold">Suas solicitações</h2><p className="text-sm text-muted-foreground">Acompanhe protocolo e situação dos chamados enviados.</p></div>{loading ? <div className="h-24 animate-pulse rounded-xl bg-muted" /> : tickets.length === 0 ? <Card className="py-0"><CardContent className="p-5 text-sm text-muted-foreground">Nenhuma solicitação registrada.</CardContent></Card> : <Card className="overflow-hidden py-0"><CardContent className="divide-y divide-border p-0">{tickets.slice(0, 12).map((ticket) => <div key={ticket.id} className="flex items-start justify-between gap-4 px-5 py-4"><div className="min-w-0"><p className="truncate text-sm font-semibold">{ticket.subject}</p><p className="mt-1 text-xs text-muted-foreground">{formatTicketDate(ticket.createdAt)} · Protocolo {ticket.id.slice(0, 8)}</p></div><span className={ticket.status === "resolved" ? "inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-600" : "inline-flex shrink-0 items-center gap-1 text-xs font-medium text-amber-600"}>{ticket.status === "resolved" ? <CheckCircle2 className="size-3.5" /> : <AlertCircle className="size-3.5" />}{ticket.status === "resolved" ? "Resolvido" : "Aberto"}</span></div>)}</CardContent></Card>}</section>
+  </DashboardPage>
 }

@@ -1,269 +1,73 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import {
-  ClipboardCheck,
-  GraduationCap,
-  Layers,
-  ListChecks,
-  Sparkles,
-} from "lucide-react"
+import { ArrowRight, CalendarDays, CheckCircle2, GraduationCap, ListChecks, RotateCcw } from "lucide-react"
 
-import { DashboardHeader } from "@/components/dashboard-header"
-import { DashboardSectionHeader } from "@/components/dashboard-section-header"
-import { DashboardStatCard } from "@/components/dashboard-stat-card"
-import { MotionItem } from "@/components/ui/micro-motion"
-import { StudentCourseCard } from "@/modules/courses/ui/student-course-card"
-import { StudentActivityCard } from "@/modules/activities/ui/student-activity-card"
+import { DashboardEmptyState, DashboardNotice } from "@/components/dashboard/dashboard-feedback"
+import { DashboardPage } from "@/components/dashboard/dashboard-page"
+import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/hooks/use-auth"
-import { fetchUserActivityProgressList, fetchUserDashboard } from "@/lib/firebase/firestore"
+import { parseActivityDate } from "@/lib/activities/deadlines"
 import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
-import type { DashboardCourse } from "@/lib/firebase/types"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { fetchUserActivityProgressList, fetchUserDashboard } from "@/lib/firebase/firestore"
+import type { ActivityProgress, DashboardCourse } from "@/lib/firebase/types"
+import { calculateDashboardProgressPercent } from "@/lib/metrics/learning-progress"
+import { StudentActivityCard } from "@/modules/activities/ui/student-activity-card"
+import { StudentCourseCard } from "@/modules/courses/ui/student-course-card"
 
 export default function Page() {
   const router = useRouter()
-  const { user, loading, isFirebaseReady } = useAuth()
+  const { user, profile, isFirebaseReady } = useAuth()
   const [courses, setCourses] = React.useState<DashboardCourse[]>([])
-  const [progressByActivityId, setProgressByActivityId] = React.useState<Map<string, "not_started" | "in_progress" | "completed">>(new Map())
-  const [isLoading, setIsLoading] = React.useState(true)
+  const [progress, setProgress] = React.useState<ActivityProgress[]>([])
+  const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    if (!loading && !user && isFirebaseReady) {
-      router.push("/login")
+    async function load() {
+      if (!user || !isFirebaseReady) { setCourses([]); setProgress([]); setLoading(false); return }
+      try { setLoading(true); setError(null); const [dashboard, activityProgress] = await Promise.all([fetchUserDashboard(user.uid), fetchUserActivityProgressList(user.uid)]); setCourses(dashboard); setProgress(activityProgress) }
+      catch (loadError) { setError(toFriendlyFirestoreLoadError(loadError, "Não foi possível carregar sua visão geral.")) }
+      finally { setLoading(false) }
     }
-  }, [loading, user, router, isFirebaseReady])
+    void load()
+  }, [isFirebaseReady, user])
 
-  React.useEffect(() => {
-    async function loadDashboard() {
-      if (!user || !isFirebaseReady) {
-        setIsLoading(false)
-        return
-      }
-
-      setIsLoading(true)
-      try {
-        setError(null)
-        const [data, progressList] = await Promise.all([
-          fetchUserDashboard(user.uid),
-          fetchUserActivityProgressList(user.uid),
-        ])
-        const nextProgressMap = new Map(
-          progressList.map((item) => [item.activityId, item.status] as const)
-        )
-        setCourses(data)
-        setProgressByActivityId(nextProgressMap)
-      } catch (error) {
-        setError(
-          toFriendlyFirestoreLoadError(
-            error,
-            "Não foi possível carregar seus cursos."
-          )
-        )
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    void loadDashboard()
-  }, [user, isFirebaseReady])
-
-  const stats = React.useMemo(
-    () => ({
-      courses: courses.length,
-      tracks: courses.reduce(
-        (total, course) => total + course.tracks.length,
-        0
-      ),
-      activities: courses.reduce(
-        (total, course) => total + course.activities.length,
-        0
-      ),
-      progress: courses.length
-        ? Math.round(
-          courses.reduce(
-            (sum, course) => sum + course.enrollment.progress,
-            0
-          ) / courses.length
-        )
-        : 0,
-    }),
-    [courses]
-  )
-
-  const upcomingActivities = React.useMemo(
-    () =>
-      courses
-        .flatMap((course) =>
-          course.activities.map((activity) => ({
-            ...activity,
-            status:
-              progressByActivityId.get(activity.id) === "completed"
-                ? "completed"
-                : progressByActivityId.get(activity.id) === "in_progress"
-                  ? "in_progress"
-                  : "pending",
-            courseTitle: course.title,
-            trackTitle:
-              course.tracks.find((track) => track.id === activity.trackId)
-                ?.title ?? "",
-          }))
-        )
-        .filter((activity) => activity.status !== "completed")
-        .sort((a, b) => a.order - b.order)
-        .slice(0, 4),
-    [courses, progressByActivityId]
-  )
+  const progressById = React.useMemo(() => new Map(progress.map((item) => [item.activityId, item] as const)), [progress])
+  const activities = React.useMemo(() => courses.flatMap((course) => course.activities.map((activity) => ({ ...activity, courseTitle: course.title, trackTitle: course.tracks.find((track) => track.id === activity.trackId)?.title ?? "", progress: progressById.get(activity.id) ?? null }))), [courses, progressById])
+  const pending = React.useMemo(() => activities.filter((item) => item.progress?.status !== "completed" || item.progress?.gradingStatus === "revision_requested").sort((a, b) => { const ad = parseActivityDate(a.dueAt)?.getTime() ?? Number.POSITIVE_INFINITY; const bd = parseActivityDate(b.dueAt)?.getTime() ?? Number.POSITIVE_INFINITY; return ad - bd || a.order - b.order }), [activities])
+  const next = pending[0]
+  const stats = { progress: calculateDashboardProgressPercent(courses, progress), courses: courses.length, pending: pending.length, revisions: progress.filter((item) => item.gradingStatus === "revision_requested").length }
+  const displayName = profile?.name?.split(" ")[0] || user?.displayName?.split(" ")[0] || ""
 
   return (
-    <div className="ge-page-enter">
-      <DashboardHeader
-        title="Painel do aluno"
-        description="Acompanhe seus cursos, trilhas e atividades atuais."
-      />
+    <DashboardPage title={displayName ? `Olá, ${displayName}` : "Visão geral"} description="Veja o que precisa da sua atenção e continue seus estudos.">
+      {!isFirebaseReady ? <DashboardNotice>Firebase não configurado. Os dados reais da conta não estão disponíveis.</DashboardNotice> : null}
+      {error ? <DashboardNotice tone="danger">{error}</DashboardNotice> : null}
 
-      <div className="flex flex-1 flex-col gap-6 p-6">
-        {!isFirebaseReady ? (
-          <div className="rounded-2xl border border-dashed bg-accent/40 p-4 text-sm text-muted-foreground">
-            Firebase não configurado. Conecte para visualizar seus cursos reais.
-          </div>
-        ) : null}
+      {loading ? <div className="h-44 animate-pulse rounded-2xl bg-muted" /> : next ? (
+        <Card className="overflow-hidden border-primary/15 bg-card py-0">
+          <CardContent className="grid gap-5 p-6 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div><p className="text-xs font-medium text-primary">CONTINUE DE ONDE PAROU</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">{next.title}</h2><p className="mt-1 text-sm text-muted-foreground">{next.courseTitle}{next.trackTitle ? ` · ${next.trackTitle}` : ""}</p>{next.progress?.gradingStatus === "revision_requested" ? <p className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400"><RotateCcw className="size-4" />O professor solicitou uma revisão desta entrega.</p> : null}</div>
+            <Button size="lg" onClick={() => router.push(`/dashboard/activities/${next.id}`)}>Continuar <ArrowRight className="size-4" /></Button>
+          </CardContent>
+        </Card>
+      ) : <DashboardEmptyState icon={CheckCircle2} title="Tudo em dia" description="Você não possui atividades pendentes neste momento." action={<Button asChild variant="outline"><Link href="/dashboard/courses">Ver meus cursos</Link></Button>} />}
 
-        {error ? (
-          <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MotionItem delay={40}>
-            <DashboardStatCard
-              title="Cursos ativos"
-              value={stats.courses}
-              icon={GraduationCap}
-              description="Cursos em andamento"
-            />
-          </MotionItem>
-          <MotionItem delay={80}>
-            <DashboardStatCard
-              title="Trilhas"
-              value={stats.tracks}
-              icon={Layers}
-              description="Módulos disponíveis"
-            />
-          </MotionItem>
-          <MotionItem delay={120}>
-            <DashboardStatCard
-              title="Atividades"
-              value={stats.activities}
-              icon={ClipboardCheck}
-              description="Total de atividades"
-            />
-          </MotionItem>
-          <MotionItem delay={160}>
-            <DashboardStatCard
-              title="Progresso médio"
-              value={`${stats.progress}%`}
-              icon={ListChecks}
-              description="Conclusão geral"
-            />
-          </MotionItem>
-        </div>
-
-        <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-6">
-            <DashboardSectionHeader
-              title="Meus Cursos"
-              description="Continue de onde parou para manter seu ritmo de aprendizado."
-              icon={GraduationCap}
-            />
-
-            <div className="grid gap-6">
-              {isLoading ? (
-                <div className="flex items-center justify-center p-12 text-muted-foreground animate-pulse">
-                  Carregando sua jornada...
-                </div>
-              ) : courses.length ? (
-                <div className="grid gap-6 sm:grid-cols-2">
-                  {courses.map((course, index) => (
-                    <MotionItem key={course.id} delay={120 + index * 45} lift>
-                      <StudentCourseCard course={course} />
-                    </MotionItem>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col gap-4 rounded-3xl bg-card/40 backdrop-blur-md border-primary/20 hover:bg-primary/5 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1 p-12 text-center">
-                  <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <GraduationCap className="size-8" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-lg font-bold tracking-tight text-foreground">
-                      Nenhum curso atribuído
-                    </p>
-                    <p className="text-sm text-muted-foreground/60">
-                      Sua jornada está prestes a começar. Fique atento!
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <DashboardSectionHeader
-              title="Próximos Passos"
-              description="Atividades recentes."
-              icon={Sparkles}
-            />
-
-            <div className="space-y-4">
-              {upcomingActivities.length ? (
-                upcomingActivities.map((activity, index) => (
-                  <MotionItem key={activity.id} delay={180 + index * 45}>
-                    <StudentActivityCard
-                      activity={{
-                        ...activity,
-                        status: activity.status as "pending" | "completed" | "in_progress",
-                      }}
-                      variant="compact"
-                      onOpen={(id) => router.push(`/dashboard/activities/${id}`)}
-                    />
-                  </MotionItem>
-                ))
-              ) : (
-                <div className="space-y-2.5 rounded-2xl border border-primary/5 bg-primary/5 p-4 group-hover:bg-primary/10 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">Nenhuma tarefa pendente</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {courses.length > 0 && (
-              <MotionItem delay={240}>
-                <Card className="overflow-hidden border-primary/20 bg-primary/5 backdrop-blur-sm gap-2">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-bold uppercase tracking-widest text-primary/60 flex items-center gap-2">
-                      <Sparkles className="size-4" />
-                      Insight de hoje
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xs font-medium leading-relaxed text-muted-foreground">
-                      Alunos que mantêm uma rotina de 15 minutos diários têm 3x mais chances de atingir a fluência em 1 ano.
-                      <span className="block mt-2 font-bold text-primary/80">Keep going! 🚀</span>
-                    </p>
-                  </CardContent>
-                </Card>
-              </MotionItem>
-            )}
-          </div>
-        </div>
-
-        {/* Summary Footer removed as it's redundant with StatCards */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <DashboardStatCard title="Progresso geral" value={`${stats.progress}%`} icon={ListChecks} />
+        <DashboardStatCard title="Cursos" value={stats.courses} icon={GraduationCap} />
+        <DashboardStatCard title="Atividades pendentes" value={stats.pending} icon={CalendarDays} />
+        <DashboardStatCard title="Revisões" value={stats.revisions} icon={RotateCcw} />
       </div>
-    </div>
+
+      <section className="space-y-3"><div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">Próximas atividades</h2><p className="text-sm text-muted-foreground">Ordenadas pelos prazos mais próximos.</p></div><Button asChild variant="ghost" size="sm"><Link href="/dashboard/activities">Ver todas <ArrowRight className="size-3.5" /></Link></Button></div><div className="space-y-2">{pending.slice(0, 4).map((activity) => <StudentActivityCard key={activity.id} variant="compact" activity={{ ...activity, status: activity.progress?.status === "completed" ? "completed" : activity.progress?.status === "in_progress" ? "in_progress" : "pending", gradingStatus: activity.progress?.gradingStatus }} onOpen={(id) => router.push(`/dashboard/activities/${id}`)} />)}{!loading && pending.length === 0 ? <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">Nenhuma atividade pendente.</p> : null}</div></section>
+
+      <section className="space-y-3"><div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">Meus cursos</h2><p className="text-sm text-muted-foreground">Acesse o conteúdo organizado por módulos.</p></div><Button asChild variant="ghost" size="sm"><Link href="/dashboard/courses">Ver todos <ArrowRight className="size-3.5" /></Link></Button></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{courses.slice(0, 3).map((course) => <StudentCourseCard key={course.id} course={course} />)}</div></section>
+    </DashboardPage>
   )
 }

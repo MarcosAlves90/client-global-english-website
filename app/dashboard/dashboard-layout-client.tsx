@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 
-import { DashboardShell } from "@/components/dashboard-shell"
+import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { useAuth } from "@/hooks/use-auth"
 
 export function DashboardLayoutClient({

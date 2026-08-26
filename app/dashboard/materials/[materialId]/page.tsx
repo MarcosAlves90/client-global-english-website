@@ -12,11 +12,14 @@ import {
   FileAudio,
   FileText,
   Link as LinkIcon,
-  Sparkles,
-  Video,
+    Video,
 } from "lucide-react"
 
-import { DashboardHeader } from "@/components/dashboard-header"
+import {
+  DashboardEmptyState,
+  DashboardNotice,
+} from "@/components/dashboard/dashboard-feedback"
+import { DashboardPage } from "@/components/dashboard/dashboard-page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
@@ -100,15 +103,13 @@ export default function MaterialDetailPage() {
   }, [])
 
   return (
-    <div>
-      <DashboardHeader
-        title="Material"
-        description="Visualização detalhada de conteúdo, leitura e anexos."
-      />
-
-      <div className="flex flex-col gap-6 p-6">
+    <DashboardPage
+      title="Material"
+      description="Visualização detalhada de conteúdo, leitura e anexos."
+      contentClassName="gap-6"
+    >
         <div className="flex items-center justify-between gap-3">
-          <Button variant="outline" className="rounded-full" asChild>
+          <Button variant="outline" asChild>
             <Link href="/dashboard/materials">
               <ArrowLeft className="mr-2 size-4" />
               Voltar para materiais
@@ -117,44 +118,40 @@ export default function MaterialDetailPage() {
         </div>
 
         {!isFirebaseReady ? (
-          <div className="rounded-2xl border border-dashed bg-accent/40 p-4 text-sm text-muted-foreground">
+          <DashboardNotice>
             Firebase não configurado. Conecte para visualizar seus materiais reais.
-          </div>
+          </DashboardNotice>
         ) : null}
 
         {error ? (
-          <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-            {error}
-          </div>
+          <DashboardNotice tone="danger">{error}</DashboardNotice>
         ) : null}
 
         {loading ? (
-          <div className="flex h-64 items-center justify-center text-muted-foreground animate-pulse">
+          <div className="ge-surface-muted flex h-64 items-center justify-center text-muted-foreground animate-pulse">
             Carregando material...
           </div>
         ) : material === null ? (
-          <Card className="border-primary/20 bg-card/40 backdrop-blur-sm">
-            <CardContent className="py-14 text-center">
-              <p className="text-lg font-bold text-foreground">Material não encontrado</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Este item pode ter sido removido ou não está mais disponível para você.
-              </p>
-              <Button className="mt-4 rounded-full" onClick={() => router.push("/dashboard/materials")}>
+          <DashboardEmptyState
+            icon={FileText}
+            title="Material não encontrado"
+            description="Este item pode ter sido removido ou não está mais disponível para você."
+            action={
+              <Button onClick={() => router.push("/dashboard/materials")}>
                 Voltar para biblioteca
               </Button>
-            </CardContent>
-          </Card>
+            }
+          />
         ) : (
           <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
             <div className="space-y-6">
-              <Card className="border-primary/20 bg-card/40 backdrop-blur-sm overflow-hidden">
+              <Card className="overflow-hidden">
                 <CardHeader className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
-                      <Sparkles className="size-3" />
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
                       {typeLabels[primaryType] ?? "Material"}
                     </span>
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    <span className="text-xs font-medium text-muted-foreground">
                       {attachments.length} anexo(s)
                     </span>
                   </div>
@@ -167,8 +164,8 @@ export default function MaterialDetailPage() {
                 </CardHeader>
                 <CardContent>
                   {hasMarkdown ? (
-                    <div className="rounded-2xl border border-primary/10 bg-background/80 p-4">
-                      <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-primary/80">
+                    <div className="ge-inset p-4">
+                      <div className="mb-3 inline-flex items-center gap-2 rounded-lg bg-primary/8 px-2.5 py-1 text-xs font-medium text-primary">
                         <BookOpen className="size-3" />
                         Leitura guiada
                       </div>
@@ -185,7 +182,7 @@ export default function MaterialDetailPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-primary/20 bg-primary/5 p-6 text-center">
+                    <div className="ge-surface-muted p-6 text-center">
                       <p className="text-sm font-semibold text-foreground">Sem descrição textual</p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Este material é focado em anexos e links de apoio.
@@ -197,7 +194,7 @@ export default function MaterialDetailPage() {
             </div>
 
             <div className="space-y-6">
-              <Card className="border-primary/20 bg-card/40 backdrop-blur-sm lg:sticky lg:top-6">
+              <Card className="lg:sticky lg:top-6">
                 <CardHeader>
                   <CardTitle className="text-base font-bold">Recursos do material</CardTitle>
                 </CardHeader>
@@ -207,7 +204,7 @@ export default function MaterialDetailPage() {
                       href={material.url?.trim()}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center justify-between rounded-xl border border-primary/15 bg-background/80 px-3 py-2 text-sm font-medium hover:border-primary/30 hover:bg-primary/5 transition-colors"
+                      className="ge-inset flex items-center justify-between px-3 py-2 text-sm font-medium transition-colors hover:border-primary/30 hover:bg-primary/5"
                     >
                       <span>Link principal</span>
                       <ExternalLink className="size-4 text-primary" />
@@ -221,18 +218,18 @@ export default function MaterialDetailPage() {
                       return (
                         <div
                           key={`${material.id}-${index}`}
-                          className="rounded-xl border border-primary/15 bg-background/80 p-3"
+                          className="ge-inset p-3"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 flex items-start gap-2">
-                              <div className="mt-0.5 rounded-lg bg-primary/10 p-1.5 text-primary">
+                              <div className="mt-0.5 rounded-full bg-primary/10 p-1.5 text-primary">
                                 <AttachmentIcon className="size-3.5" />
                               </div>
                               <div className="min-w-0">
                                 <p className="text-xs font-semibold wrap-break-word">
                                   {attachment.name || `Anexo ${index + 1}`}
                                 </p>
-                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground mt-1">
+                                <p className="mt-1 text-xs text-muted-foreground">
                                   {typeLabels[itemType] ?? "Arquivo"}
                                 </p>
                               </div>
@@ -244,7 +241,7 @@ export default function MaterialDetailPage() {
                                     href={attachment.url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="inline-flex size-7 items-center justify-center rounded-md border border-primary/20 text-primary hover:bg-primary/10"
+                                    className="inline-flex size-7 items-center justify-center rounded-full border border-border/70 bg-background/60 text-primary transition-colors hover:bg-primary/10"
                                     aria-label={`Abrir anexo ${attachment.name || index + 1}`}
                                   >
                                     <ExternalLink className="size-3.5" />
@@ -252,7 +249,7 @@ export default function MaterialDetailPage() {
                                   <button
                                     type="button"
                                     onClick={() => void handleCopy(attachment.url)}
-                                    className="inline-flex size-7 items-center justify-center rounded-md border border-primary/20 text-primary hover:bg-primary/10"
+                                    className="inline-flex size-7 items-center justify-center rounded-full border border-border/70 bg-background/60 text-primary transition-colors hover:bg-primary/10"
                                     aria-label={`Copiar link do anexo ${attachment.name || index + 1}`}
                                   >
                                     <Copy className="size-3.5" />
@@ -265,7 +262,7 @@ export default function MaterialDetailPage() {
                       )
                     })
                   ) : (
-                    <div className="rounded-xl border border-dashed border-primary/20 bg-primary/5 p-4 text-center">
+                    <div className="ge-surface-muted rounded-xl p-4 text-center">
                       <p className="text-xs text-muted-foreground">Sem anexos cadastrados neste material.</p>
                     </div>
                   )}
@@ -274,7 +271,6 @@ export default function MaterialDetailPage() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </DashboardPage>
   )
 }

@@ -1,147 +1,33 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
-import { FileText, Link as LinkIcon, Video } from "lucide-react"
+import { FileText } from "lucide-react"
 
-import { DashboardHeader } from "@/components/dashboard-header"
-import { DashboardSectionHeader } from "@/components/dashboard-section-header"
-import { DashboardStatCard } from "@/components/dashboard-stat-card"
-import { MotionItem } from "@/components/ui/micro-motion"
-import { StudentMaterialCard } from "@/modules/materials/ui/student-material-card"
+import { DashboardEmptyState, DashboardNotice } from "@/components/dashboard/dashboard-feedback"
+import { DashboardPage } from "@/components/dashboard/dashboard-page"
+import { SearchField } from "@/components/dashboard/search-field"
+import { SegmentedControl } from "@/components/dashboard/segmented-control"
 import { useAuth } from "@/hooks/use-auth"
-import { fetchUserMaterials } from "@/lib/firebase/firestore"
 import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
+import { fetchUserMaterials } from "@/lib/firebase/firestore"
 import type { Material } from "@/lib/firebase/types"
+import { StudentMaterialCard } from "@/modules/materials/ui/student-material-card"
 
-
-// Helper functions removed as they are now handled by StudentMaterialCard
-
+type MaterialFilter = "all" | "pdf" | "video" | "audio" | "link" | "markdown"
 export default function Page() {
   const { user, isFirebaseReady } = useAuth()
   const [materials, setMaterials] = React.useState<Material[]>([])
+  const [query, setQuery] = React.useState("")
+  const [filter, setFilter] = React.useState<MaterialFilter>("all")
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
-    async function loadMaterials() {
-      if (!user || !isFirebaseReady) {
-        return
-      }
+  React.useEffect(() => { async function load() { if (!user || !isFirebaseReady) return; try { setLoading(true); setError(null); setMaterials(await fetchUserMaterials(user.uid)) } catch (loadError) { setError(toFriendlyFirestoreLoadError(loadError, "Não foi possível carregar seus materiais.")) } finally { setLoading(false) } } void load() }, [isFirebaseReady, user])
+  const filtered = materials.filter((material) => { const resolvedType = material.type ?? material.attachments?.find((item) => item.type)?.type ?? (material.markdown?.trim() ? "markdown" : "pdf"); const q = query.trim().toLocaleLowerCase("pt-BR"); return (!q || material.title.toLocaleLowerCase("pt-BR").includes(q)) && (filter === "all" || resolvedType === filter) })
 
-      setLoading(true)
-      try {
-        setError(null)
-        const data = await fetchUserMaterials(user.uid)
-        setMaterials(data)
-      } catch (error) {
-        setError(
-          toFriendlyFirestoreLoadError(
-            error,
-            "Não foi possível carregar seus materiais."
-          )
-        )
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    void loadMaterials()
-  }, [user, isFirebaseReady])
-
-  const totalAttachments = React.useMemo(
-    () =>
-      materials.reduce(
-        (acc, material) => acc + (material.attachments?.length ?? 0),
-        0
-      ),
-    [materials]
-  )
-  const markdownCount = React.useMemo(
-    () => materials.filter((material) => material.markdown?.trim()).length,
-    [materials]
-  )
-
-  return (
-    <div className="ge-page-enter">
-      <DashboardHeader
-        title="Materiais"
-        description="Acesse textos, anexos e links liberados pelos módulos."
-      />
-
-      <div className="flex flex-col gap-6 p-6">
-        {!isFirebaseReady ? (
-          <div className="rounded-2xl border border-dashed bg-accent/40 p-4 text-sm text-muted-foreground">
-            Firebase não configurado. Conecte para visualizar seus materiais reais.
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MotionItem delay={40}>
-            <DashboardStatCard title="Materiais" value={materials.length} icon={FileText} />
-          </MotionItem>
-          <MotionItem delay={80}>
-            <DashboardStatCard
-              title="Anexos"
-              value={totalAttachments}
-              icon={LinkIcon}
-            />
-          </MotionItem>
-          <MotionItem delay={120}>
-            <DashboardStatCard
-              title="Textos"
-              value={markdownCount}
-              icon={FileText}
-            />
-          </MotionItem>
-          <MotionItem delay={160}>
-            <DashboardStatCard
-              title="Liberados"
-              value={materials.length}
-              icon={Video}
-            />
-          </MotionItem>
-        </div>
-
-        <DashboardSectionHeader
-          title="Biblioteca de Materiais"
-          description="Acesse textos, anexos e links liberados pelos módulos."
-          icon={FileText}
-        />
-
-        {loading ? (
-          <div className="flex h-64 items-center justify-center text-muted-foreground animate-pulse">
-            Sincronizando biblioteca...
-          </div>
-        ) : materials.length === 0 ? (
-          <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-primary/20 bg-primary/5 p-12 text-center backdrop-blur-sm">
-            <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <FileText className="size-8" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-lg font-bold tracking-tight text-foreground">
-                Nenhum material disponível
-              </p>
-              <p className="text-sm text-muted-foreground/60">
-                Assim que novos conteúdos forem liberados, eles aparecerão aqui.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {materials.map((material, index) => (
-              <MotionItem key={material.id} delay={200 + index * 45} lift>
-                <StudentMaterialCard material={material} />
-              </MotionItem>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
+  return <DashboardPage title="Materiais" description="Uma biblioteca simples para encontrar textos, PDFs, vídeos, áudios e links." toolbar={<><SearchField value={query} onChange={setQuery} placeholder="Buscar materiais..." className="relative min-w-0 flex-1 sm:max-w-sm" /><SegmentedControl value={filter} onChange={setFilter} ariaLabel="Filtrar materiais" options={[{ value: "all", label: "Todos" }, { value: "pdf", label: "PDF" }, { value: "video", label: "Vídeo" }, { value: "audio", label: "Áudio" }, { value: "link", label: "Links" }, { value: "markdown", label: "Textos" }]} /></>}>
+    {!isFirebaseReady ? <DashboardNotice>Firebase não configurado. Conecte para visualizar seus materiais reais.</DashboardNotice> : null}
+    {error ? <DashboardNotice tone="danger">{error}</DashboardNotice> : null}
+    {loading ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[0,1,2].map((item) => <div key={item} className="h-52 animate-pulse rounded-2xl bg-muted" />)}</div> : filtered.length === 0 ? <DashboardEmptyState icon={FileText} title="Nenhum material encontrado" description={query ? "Tente outra busca ou filtro." : "Assim que conteúdos forem liberados, eles aparecerão aqui."} /> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{filtered.map((material) => <StudentMaterialCard key={material.id} material={material} />)}</div>}
+  </DashboardPage>
 }

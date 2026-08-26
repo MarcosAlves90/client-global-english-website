@@ -3,16 +3,11 @@ import type { Metadata } from "next"
 import { buildPageMetadata } from "@/lib/seo"
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "Criar Conta",
-  description:
-    "Crie sua conta na Global English para acessar trilhas de estudo e materiais exclusivos.",
+  title: "Cadastro",
+  description: "Informações sobre acesso e cadastro na plataforma Global English.",
   path: "/signup",
 })
 
-export default function SignupLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function SignupLayout({ children }: { children: React.ReactNode }) {
   return children
 }

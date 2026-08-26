@@ -1,4 +1,10 @@
-﻿import type { Activity } from "@/lib/firebase/types"
+import type { Activity, ActivityQuestion, MediaAttachment } from "@/lib/firebase/types"
+import { activitySchema } from "@/lib/contracts/admin"
+import {
+  adminJsonRequest,
+  getFreshCacheEntry,
+  setCacheEntry,
+} from "@/lib/api/admin-client"
 
 const ACTIVITIES_CACHE_TTL = 60_000
 const activitiesCache = new Map<string, { data: Activity[]; ts: number }>()
@@ -7,7 +13,7 @@ export function clearAdminActivitiesCache() {
   activitiesCache.clear()
 }
 
-export type CreateAdminActivityPayload = {
+export type CreateCourseActivityPayload = {
   courseId: string
   trackId: string
   title: string
@@ -17,16 +23,10 @@ export type CreateAdminActivityPayload = {
   visibility: "module" | "users" | "private"
   userIds?: string[]
   releaseAt?: string | null
-  attachments?: { name: string; url: string; type?: "pdf" | "video" | "link" | "audio" }[]
-  questions?: {
-    id: string
-    type: "essay" | "single_choice" | "multiple_choice" | "true_false" | "short_answer"
-    prompt: string
-    options?: string[]
-    correctAnswers?: string[]
-    points?: number
-    required?: boolean
-  }[]
+  dueAt?: string | null
+  closeAt?: string | null
+  attachments?: MediaAttachment[]
+  questions?: ActivityQuestion[]
 }
 
 export async function fetchAdminCourseActivities(
@@ -35,64 +35,71 @@ export async function fetchAdminCourseActivities(
   options?: { force?: boolean }
 ) {
   const cacheKey = courseId
-  const now = Date.now()
   const cached = activitiesCache.get(cacheKey)
-  if (!options?.force && cached && now - cached.ts < ACTIVITIES_CACHE_TTL) {
-    return cached.data
+  const fresh = options?.force ? null : getFreshCacheEntry(cached, ACTIVITIES_CACHE_TTL)
+  if (fresh) {
+    return fresh.data
   }
 
-  const resp = await fetch(
+  const data = await adminJsonRequest<Activity[]>(
     `/api/admin/activities?courseId=${encodeURIComponent(courseId)}`,
     {
-      headers: {
-        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-      },
+      idToken,
+      errorMessage: "failed to load activities",
+      schema: activitySchema.array(),
     }
   )
-
-  if (!resp.ok) {
-    throw new Error("failed to load activities")
-  }
-
-  const data = (await resp.json()) as Activity[]
-  activitiesCache.set(cacheKey, { data, ts: now })
+  activitiesCache.set(cacheKey, setCacheEntry(data))
   return data
 }
 
-export async function createAdminActivity(
+export async function createCourseActivity(
   idToken: string | null,
-  payload: CreateAdminActivityPayload
+  payload: CreateCourseActivityPayload
 ) {
-  const resp = await fetch("/api/admin/activities", {
+  const result = await adminJsonRequest<Activity>("/api/admin/activities", {
+    idToken,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-    },
-    body: JSON.stringify(payload),
+    body: payload,
+    errorMessage: "create failed",
+    schema: activitySchema,
   })
-
-  if (!resp.ok) {
-    throw new Error("create failed")
-  }
 
   clearAdminActivitiesCache()
-  return (await resp.json()) as Activity
+  return result
 }
 
-export async function deleteAdminActivity(idToken: string | null, id: string) {
-  const resp = await fetch("/api/admin/activities", {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-    },
-    body: JSON.stringify({ id }),
+export type UpdateAdminActivityPayload = {
+  id: string
+  attachments: MediaAttachment[]
+}
+
+export async function updateAdminActivity(
+  idToken: string | null,
+  payload: UpdateAdminActivityPayload
+) {
+  const result = await adminJsonRequest<Activity>("/api/admin/activities", {
+    idToken,
+    method: "PATCH",
+    body: payload,
+    errorMessage: "update failed",
+    schema: activitySchema,
   })
 
-  if (!resp.ok) {
-    throw new Error("delete failed")
-  }
+  clearAdminActivitiesCache()
+  return result
+}
+
+export type CreateAdminActivityPayload = CreateCourseActivityPayload
+export const createAdminActivity = createCourseActivity
+
+export async function deleteAdminActivity(idToken: string | null, id: string) {
+  await adminJsonRequest<void>("/api/admin/activities", {
+    idToken,
+    method: "DELETE",
+    body: { id },
+    errorMessage: "delete failed",
+  })
 
   clearAdminActivitiesCache()
 }

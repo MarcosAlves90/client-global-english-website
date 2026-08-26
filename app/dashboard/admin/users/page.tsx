@@ -1,19 +1,21 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
-import { Mail, UserCheck, Users2, UserPlus, Search, AlertCircle, X, Bot } from "lucide-react"
+import { GraduationCap, UserCheck, Users2, UserPlus, AlertCircle, X, Bot } from "lucide-react"
 
-import { DashboardHeader } from "@/components/dashboard-header"
-import { DashboardStatCard } from "@/components/dashboard-stat-card"
-import { DashboardSectionHeader } from "@/components/dashboard-section-header"
+import { DashboardPage } from "@/components/dashboard/dashboard-page"
+import { DashboardNotice } from "@/components/dashboard/dashboard-feedback"
+import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
+import { SearchField } from "@/components/dashboard/search-field"
+import { DashboardSectionHeader } from "@/components/dashboard/dashboard-section-header"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { NativeSelect } from "@/components/ui/native-select"
 import { Switch } from "@/components/ui/switch"
-import { cn } from "@/lib/utils"
-import type { AdminUserSummary } from "@/lib/firebase/types"
+import type { AdminUserStats, AdminUserSummary, UserRole } from "@/lib/firebase/types"
 import {
   AdminUserCard,
   deleteAdminUser,
@@ -31,18 +33,16 @@ type EditableUser = {
   uid: string
   name: string
   email: string
-  role: "admin" | "user"
+  role: UserRole
   team: string
   disabled?: boolean
   isRobot: boolean
 }
 
-const selectClassName =
-  "bg-card text-foreground border-input h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-
 export default function Page() {
   const { role, isFirebaseReady, user } = useAuth()
   const [users, setUsers] = React.useState<AdminUserSummary[]>([])
+  const [stats, setStats] = React.useState<AdminUserStats | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [selectedUser, setSelectedUser] = React.useState<EditableUser | null>(
@@ -63,6 +63,8 @@ export default function Page() {
     null
   )
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [roleFilter, setRoleFilter] = React.useState<"all" | UserRole>("all")
+  const [statusFilter, setStatusFilter] = React.useState<"all" | "active" | "disabled">("all")
 
   const [showForm, setShowForm] = React.useState(false)
   const breadcrumbItems = React.useMemo(() => [{ label: "Admin", href: "/dashboard/admin" }, { label: "Usuários" }], [])
@@ -79,6 +81,7 @@ export default function Page() {
           cursor,
         })) as AdminUsersPageResponse
         setUsers(data.items)
+        setStats(data.stats)
       } catch {
         setError("Não foi possível carregar os usuários.")
       } finally {
@@ -116,18 +119,20 @@ export default function Page() {
     }
   }, [selectedUser])
 
-  const totalUsers = users.length
-  const adminUsers = users.filter((u) => u.role === "admin").length
-
   const filteredUsers = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    if (!query) return users
-    return users.filter(
-      (u) =>
-        u.name.toLowerCase().includes(query) ||
-        u.email.toLowerCase().includes(query)
-    )
-  }, [users, searchQuery])
+    return users.filter((item) => {
+      const matchesSearch =
+        !query ||
+        item.name.toLowerCase().includes(query) ||
+        item.email.toLowerCase().includes(query)
+      const matchesRole = roleFilter === "all" || item.role === roleFilter
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "disabled" ? Boolean(item.disabled) : !item.disabled)
+      return matchesSearch && matchesRole && matchesStatus
+    })
+  }, [roleFilter, searchQuery, statusFilter, users])
 
   if (role !== "admin") {
     return (
@@ -187,6 +192,17 @@ export default function Page() {
           u.uid === target.uid ? { ...u, disabled: !target.disabled } : u
         )
       )
+      setStats((prev) =>
+        prev
+          ? {
+              ...prev,
+              disabledUsersCount: Math.max(
+                0,
+                prev.disabledUsersCount + (target.disabled ? -1 : 1)
+              ),
+            }
+          : prev
+      )
       if (selectedUser?.uid === target.uid) {
         setSelectedUser((prev) =>
           prev ? { ...prev, disabled: !target.disabled } : prev
@@ -245,6 +261,9 @@ export default function Page() {
               : u
           )
         )
+        if (selectedUser.role !== form.role) {
+          await loadUsersPage(null)
+        }
         setSelectedUser(null)
         setShowForm(false)
       } else {
@@ -285,12 +304,12 @@ export default function Page() {
   }
 
   return (
-    <div className="flex-1">
-      <DashboardHeader
-        title="Gerenciar usuários"
-        breadcrumbItems={breadcrumbItems}
-        description="Gerencie alunos, instrutores e permissões da plataforma."
-        action={
+    <DashboardPage
+      title="Gerenciar usuários"
+      breadcrumbItems={breadcrumbItems}
+      description="Gerencie usuários, permissões e status de acesso da plataforma."
+      contentClassName="gap-8"
+      action={
           <Button
             size="sm"
             onClick={() => {
@@ -301,7 +320,6 @@ export default function Page() {
                 setShowForm(true)
               }
             }}
-            className="shadow-lg shadow-primary/10"
           >
             {showForm && !selectedUser ? (
               <>
@@ -315,41 +333,44 @@ export default function Page() {
               </>
             )}
           </Button>
-        }
-      />
-
-      <div className="flex flex-col gap-8 p-6">
+      }
+    >
         {/* Error States */}
         {!isFirebaseReady && (
-          <div className="rounded-xl border border-dashed bg-accent/40 p-4 text-xs text-muted-foreground">
+          <DashboardNotice className="text-xs">
             Firebase não configurado. Conecte para visualizar usuários reais.
-          </div>
+          </DashboardNotice>
         )}
         {error && (
-          <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-xs text-destructive">
-            {error}
-          </div>
+          <DashboardNotice tone="danger" className="text-xs">{error}</DashboardNotice>
         )}
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <DashboardStatCard
-            title="Usuários ativos"
-            value={totalUsers}
+            title="Usuários cadastrados"
+            value={stats?.totalUsersCount ?? "-"}
             icon={Users2}
             description="Total na plataforma"
             loading={loading}
           />
           <DashboardStatCard
-            title="Convites pendentes"
-            value="-"
-            icon={Mail}
-            description="Aguardando ativação"
+            title="Contas bloqueadas"
+            value={stats?.disabledUsersCount ?? "-"}
+            icon={X}
+            description="Acesso desabilitado"
+            loading={loading}
+          />
+          <DashboardStatCard
+            title="Professores"
+            value={stats?.teacherUsersCount ?? "-"}
+            icon={GraduationCap}
+            description="Contas docentes"
             loading={loading}
           />
           <DashboardStatCard
             title="Administradores"
-            value={adminUsers}
+            value={stats?.adminUsersCount ?? "-"}
             icon={UserPlus}
             description="Gestores do sistema"
             loading={loading}
@@ -360,40 +381,47 @@ export default function Page() {
         <div className="space-y-4">
           <DashboardSectionHeader
             title="Base de usuários"
-            description="Acompanhe convites e status de acesso dos integrantes da plataforma."
+            description="Acompanhe usuários e status de acesso dos integrantes da plataforma."
             icon={Users2}
             action={
-              <div className="flex items-center gap-2 max-lg:w-full">
-                <div className="relative max-lg:w-full">
-                  <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar usuários..."
-                    className="h-9 w-full pl-9 lg:w-75 bg-card/40 backdrop-blur-sm border-primary/20 transition-all focus:border-primary/30"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-full border-primary/20 hover:border-primary/30"
-                  onClick={() => setSearchQuery("")}
+              <div className="grid w-full gap-2 sm:grid-cols-[minmax(220px,1fr)_160px_160px] lg:w-auto">
+                <SearchField
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  ariaLabel="Buscar usuários"
+                  placeholder="Buscar por nome ou email..."
+                />
+                <NativeSelect
+                  aria-label="Filtrar usuários por perfil"
+                  value={roleFilter}
+                  onChange={(event) => setRoleFilter(event.target.value as "all" | UserRole)}
                 >
-                  Limpar
-                </Button>
-
+                  <option value="all">Todos os perfis</option>
+                  <option value="user">Alunos</option>
+                  <option value="teacher">Professores</option>
+                  <option value="admin">Administradores</option>
+                </NativeSelect>
+                <NativeSelect
+                  aria-label="Filtrar usuários por status"
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as "all" | "active" | "disabled")}
+                >
+                  <option value="all">Todos os status</option>
+                  <option value="active">Ativos</option>
+                  <option value="disabled">Bloqueados</option>
+                </NativeSelect>
               </div>
             }
           />
 
-          <div className="rounded-xl bg-card/30 backdrop-blur-sm border border-primary/5 p-1 transition-all">
+          <div className="ge-surface-muted p-1">
             {loading ? (
               <div className="flex h-40 items-center justify-center text-sm text-muted-foreground animate-pulse">
                 Sincronizando base de dados...
               </div>
             ) : filteredUsers.length === 0 ? (
-              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground border border-dashed border-primary/20 rounded-lg m-2">
-                {searchQuery ? "Nenhum resultado para esta busca." : "Nenhum usuário cadastrado."}
+              <div className="m-2 flex h-40 items-center justify-center rounded-2xl border border-dashed border-border/70 text-sm text-muted-foreground">
+                {searchQuery || roleFilter !== "all" || statusFilter !== "all" ? "Nenhum usuário corresponde aos filtros." : "Nenhum usuário cadastrado."}
               </div>
             ) : (
               <div className="grid gap-4 p-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -414,19 +442,16 @@ export default function Page() {
 
         {/* Form Section */}
         {showForm && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-4">
             <DashboardSectionHeader
               title={selectedUser ? "Perfil do Usuário" : "Convite e Cadastro"}
               description={selectedUser ? "Ajuste permissões, atualize dados cadastrais ou congele o acesso." : "Cadastre novos integrantes na plataforma Global English."}
               icon={selectedUser ? UserCheck : UserPlus}
             />
 
-            <Card className="border-primary/20 bg-card/40 backdrop-blur-sm overflow-hidden border-dashed">
-              <CardHeader className="border-b border-primary/5 bg-primary/1">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <div className="size-2 rounded-full bg-primary animate-pulse" />
-                  Informações Principais
-                </CardTitle>
+            <Card className="overflow-hidden">
+              <CardHeader className="border-b border-border/60">
+                <CardTitle className="text-sm font-semibold">Informações principais</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-6 md:grid-cols-2 pt-6">
                 <div className="space-y-2">
@@ -434,8 +459,7 @@ export default function Page() {
                   <Input
                     id="user-name"
                     placeholder="Nome do usuário"
-                    className="bg-background/50"
-                    value={form.name}
+                                        value={form.name}
                     onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
                   />
                 </div>
@@ -445,33 +469,36 @@ export default function Page() {
                     id="user-email"
                     type="email"
                     placeholder="usuario@empresa.com"
-                    className="bg-background/50"
-                    value={form.email}
+                                        value={form.email}
                     onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="user-role">Perfil</Label>
-                  <select
+                  <NativeSelect
                     id="user-role"
-                    className={cn(selectClassName, "bg-background/50")}
                     value={form.role}
                     onChange={(e) => setForm((prev) => ({
                       ...prev,
-                      role: e.target.value === "admin" ? "admin" : "user",
+                      role:
+                        e.target.value === "admin"
+                          ? "admin"
+                          : e.target.value === "teacher"
+                            ? "teacher"
+                            : "user",
                     }))
                     }
                   >
                     <option value="user">Aluno</option>
+                    <option value="teacher">Professor</option>
                     <option value="admin">Admin</option>
-                  </select>
+                  </NativeSelect>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="user-team">Equipe</Label>
                   <Input
                     id="user-team"
                     placeholder="Turma ou time"
-                    className="bg-background/50"
                     value={form.team}
                     onChange={(e) => setForm((prev) => ({ ...prev, team: e.target.value }))}
                     list="team-options"
@@ -483,7 +510,7 @@ export default function Page() {
                   </datalist>
                 </div>
 
-                <div className="md:col-span-2 flex items-center justify-between gap-4 rounded-lg border border-primary/10 bg-background/40 p-3">
+                <div className="ge-surface-muted md:col-span-2 flex items-center justify-between gap-4 rounded-2xl p-4">
                   <div>
                     <p className="text-sm font-medium text-foreground">Conta de testes (robô)</p>
                     <p className="text-xs text-muted-foreground">
@@ -510,7 +537,7 @@ export default function Page() {
                 )}
 
                 {generatedPassword && (
-                  <div className="md:col-span-2 rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm animate-in fade-in slide-in-from-top-2">
+                  <div className="md:col-span-2 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
                     <p className="font-bold text-primary flex items-center gap-2">
                       <UserPlus className="size-4" />
                       Acesso criado com sucesso!
@@ -519,13 +546,12 @@ export default function Page() {
                       Compartilhe a senha inicial gerada com o usuário para o primeiro acesso.
                     </p>
                     <div className="mt-3 flex items-center gap-2">
-                      <code className="rounded-md bg-muted px-3 py-1.5 text-sm font-bold tracking-wider">
+                      <code className="rounded-md bg-muted px-3 py-1.5 text-sm font-semibold">
                         {generatedPassword}
                       </code>
                       <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-full"
                         onClick={() => navigator.clipboard.writeText(generatedPassword)}
                       >
                         Copiar
@@ -538,15 +564,14 @@ export default function Page() {
                   <Button
                     onClick={handleSave}
                     disabled={saving}
-                    className="rounded-full px-10 shadow-lg shadow-primary/20 transition-all active:scale-95"
+
                   >
                     {saving ? "Sincronizando..." : selectedUser ? "Salvar alterações" : "Criar usuário"}
                   </Button>
                   <Button
                     variant="ghost"
                     onClick={handleCancelEdit}
-                    className="rounded-full px-6"
-                  >
+                                      >
                     Cancelar
                   </Button>
                 </div>
@@ -554,7 +579,6 @@ export default function Page() {
             </Card>
           </div>
         )}
-      </div>
-    </div>
+    </DashboardPage>
   )
 }

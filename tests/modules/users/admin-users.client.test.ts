@@ -18,8 +18,17 @@ describe("admin users client", () => {
       "@/modules/users/api/admin-users.client"
     )
 
-    mockFetchOnce({ items: [], nextCursor: null })
-    await fetchAdminUsersPage({
+    mockFetchOnce({
+      items: [],
+      nextCursor: null,
+      stats: {
+        totalUsersCount: 20,
+        disabledUsersCount: 2,
+        teacherUsersCount: 4,
+        adminUsersCount: 3,
+      },
+    })
+    const first = await fetchAdminUsersPage({
       idToken: "token",
       pageSize: 10,
       cursor: null,
@@ -30,6 +39,12 @@ describe("admin users client", () => {
       cursor: null,
     })
 
+    expect(first.stats).toEqual({
+      totalUsersCount: 20,
+      disabledUsersCount: 2,
+      teacherUsersCount: 4,
+      adminUsersCount: 3,
+    })
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(fetch).toHaveBeenCalledWith(
       "/api/admin/users?pageSize=10",
@@ -46,7 +61,19 @@ describe("admin users client", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ uid: "new", initialPassword: "Secret123!" }),
+        json: async () => ({
+          uid: "new",
+          name: "User",
+          email: "user@example.com",
+          role: "user",
+          team: null,
+          disabled: false,
+          isRobot: false,
+          photoURL: null,
+          createdAt: null,
+          updatedAt: null,
+          initialPassword: "Secret123!",
+        }),
       } as Response)
 
     const result = await upsertAdminUser("token", {
@@ -60,7 +87,19 @@ describe("admin users client", () => {
       "/api/admin/users",
       expect.objectContaining({ method: "POST" })
     )
-    expect(result).toEqual({ uid: "new", initialPassword: "Secret123!" })
+    expect(result).toEqual({
+      uid: "new",
+      name: "User",
+      email: "user@example.com",
+      role: "user",
+      team: null,
+      disabled: false,
+      isRobot: false,
+      photoURL: null,
+      createdAt: null,
+      updatedAt: null,
+      initialPassword: "Secret123!",
+    })
   })
 
   it("uses PATCH for updates", async () => {

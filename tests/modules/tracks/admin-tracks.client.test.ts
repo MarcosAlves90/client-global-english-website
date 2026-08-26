@@ -19,19 +19,44 @@ describe("admin tracks client", () => {
       "@/modules/tracks/api/admin-tracks.client"
     )
 
-    mockFetchOnce([{ id: "t1" }])
+    mockFetchOnce([
+      {
+        id: "t1",
+        courseId: "course-1",
+        title: "Track 1",
+        description: "Desc",
+        order: 1,
+        userIds: [],
+      },
+    ])
     await fetchAdminCourseTracks("token", "course-1")
     await fetchAdminCourseTracks("token", "course-1")
     expect(fetch).toHaveBeenCalledTimes(1)
 
-    mockFetchOnce({ id: "t2" })
+    mockFetchOnce({
+      id: "t2",
+      courseId: "course-1",
+      title: "Track 2",
+      description: "Desc",
+      order: 2,
+      userIds: [],
+    })
     await createAdminCourseTrack("token", {
       courseId: "course-1",
       title: "Track",
       description: "Desc",
     })
 
-    mockFetchOnce([{ id: "t3" }])
+    mockFetchOnce([
+      {
+        id: "t3",
+        courseId: "course-1",
+        title: "Track 3",
+        description: "Desc",
+        order: 3,
+        userIds: [],
+      },
+    ])
     await fetchAdminCourseTracks("token", "course-1")
     expect(fetch).toHaveBeenCalledTimes(3)
   })

@@ -1,55 +1,26 @@
-﻿import type { NextRequest } from "next/server"
+import type { DocumentData } from "firebase-admin/firestore"
+import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
-import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
-import { deleteCloudinaryAssetsByUrls, isCloudinaryUrl } from "@/lib/cloudinary-admin"
+import admin, { adminDb } from "@/lib/firebase/admin"
+import { parseActivityDate, validateActivitySchedule } from "@/lib/activities/deadlines"
+import { assertHasRole, assertIsAdmin } from "@/lib/firebase/admin-request"
+import { areUsersEnrolledInCourse } from "@/lib/auth/course-access"
+import { canManageCourseAsTeacher } from "@/lib/firebase/teacher-access"
+import {
+  deleteCloudinaryAssetsByUrls,
+  isCloudinaryUrl,
+} from "@/lib/cloudinary-admin"
+import {
+  normalizeCloudinaryUrlItems,
+} from "@/lib/cloudinary-url"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import {
+  createActivityBodySchema,
+  deleteActivityBodySchema,
+  updateActivityBodySchema,
+} from "@/lib/contracts/admin"
 import type { Activity } from "@/lib/firebase/types"
-
-type CreateActivityBody = {
-  courseId?: string
-  trackId?: string
-  title?: string
-  type?: "lesson" | "quiz" | "assignment" | "project"
-  order?: number
-  estimatedMinutes?: number
-  visibility?: "module" | "users" | "private"
-  userIds?: string[]
-  releaseAt?: string | null
-  attachments?: { name?: string; url?: string; type?: string }[]
-  questions?: {
-    id?: string
-    type?: "essay" | "single_choice" | "multiple_choice" | "true_false" | "short_answer"
-    prompt?: string
-    options?: string[]
-    correctAnswers?: string[]
-    points?: number
-    required?: boolean
-  }[]
-}
-
-async function assertIsAdmin(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.split(" ")[1]
-  if (!token) {
-    return { ok: false, status: 401, message: "Missing auth token" }
-  }
-
-  try {
-    const decoded = await adminAuth.verifyIdToken(token)
-    const doc = await adminDb.collection(COLLECTIONS.users).doc(decoded.uid).get()
-    const data = doc.data()
-
-    if (data?.role === "admin") {
-      return { ok: true, uid: decoded.uid }
-    }
-
-    return { ok: false, status: 403, message: "Admin access required" }
-  } catch (err) {
-    console.error("token verification failed", err)
-    return { ok: false, status: 401, message: "Invalid auth token" }
-  }
-}
 
 function normalizeUserIds(input?: unknown) {
   if (!Array.isArray(input)) {
@@ -63,15 +34,9 @@ function normalizeUserIds(input?: unknown) {
   return Array.from(new Set(cleaned))
 }
 
-function resolveReleaseAt(input?: string | null) {
-  if (!input) {
-    return null
-  }
-  const parsed = new Date(input)
-  if (Number.isNaN(parsed.getTime())) {
-    return null
-  }
-  return admin.firestore.Timestamp.fromDate(parsed)
+function resolveDate(input?: string | null) {
+  const parsed = parseActivityDate(input)
+  return parsed ? admin.firestore.Timestamp.fromDate(parsed) : null
 }
 
 const ATTACHMENT_TYPES = new Set(["pdf", "video", "link", "audio"])
@@ -100,12 +65,14 @@ function normalizeAttachments(input?: unknown) {
     .map((item) => item.url)
 
   return {
-    attachments: mapped.filter((item) => isCloudinaryUrl(item.url)),
+    attachments: normalizeCloudinaryUrlItems(
+      mapped.filter((item) => isCloudinaryUrl(item.url))
+    ),
     invalidUrls,
   }
 }
 
-function normalizeQuestions(input?: unknown) {
+function normalizeQuestions(input?: unknown): NonNullable<Activity["questions"]> {
   if (!Array.isArray(input)) {
     return []
   }
@@ -116,7 +83,8 @@ function normalizeQuestions(input?: unknown) {
         item?.type === "single_choice" ||
         item?.type === "multiple_choice" ||
         item?.type === "true_false" ||
-        item?.type === "short_answer"
+        item?.type === "short_answer" ||
+        item?.type === "audio_response"
           ? item.type
           : "essay"
       const prompt = typeof item?.prompt === "string" ? item.prompt.trim() : ""
@@ -137,6 +105,16 @@ function normalizeQuestions(input?: unknown) {
         typeof item?.id === "string" && item.id.trim()
           ? item.id.trim()
           : `q-${index + 1}`
+      const promptAudioItems = normalizeCloudinaryUrlItems(
+        item?.promptAudio && typeof item.promptAudio === "object"
+          ? [{
+              name: typeof item.promptAudio.name === "string" ? item.promptAudio.name.trim() : "Áudio da questão",
+              url: typeof item.promptAudio.url === "string" ? item.promptAudio.url.trim() : "",
+              type: "audio" as const,
+            }]
+          : []
+      )
+      const promptAudio = promptAudioItems[0]
 
       return {
         id,
@@ -146,6 +124,7 @@ function normalizeQuestions(input?: unknown) {
         correctAnswers,
         points,
         required,
+        ...(promptAudio ? { promptAudio } : {}),
       }
     })
     .filter((item) => item.prompt)
@@ -185,6 +164,35 @@ async function resolveNextOrder(trackId: string) {
   return maxOrder + 1
 }
 
+function mapActivityDoc(docSnap: {
+  id: string
+  data: () => DocumentData | undefined
+}): Activity {
+  const data = docSnap.data() ?? {}
+  return {
+    id: docSnap.id,
+    courseId: typeof data.courseId === "string" ? data.courseId : "",
+    trackId: typeof data.trackId === "string" ? data.trackId : "",
+    title: typeof data.title === "string" ? data.title : "",
+    type:
+      data.type === "quiz" || data.type === "assignment" || data.type === "project"
+        ? data.type
+        : "lesson",
+    order: Number(data.order ?? 0),
+    estimatedMinutes: Number(data.estimatedMinutes ?? 0),
+    visibility:
+      data.visibility === "module" || data.visibility === "users" || data.visibility === "private"
+        ? data.visibility
+        : "private",
+    userIds: Array.isArray(data.userIds) ? data.userIds : [],
+    releaseAt: data.releaseAt?.toDate?.() ?? null,
+    dueAt: data.dueAt?.toDate?.() ?? null,
+    closeAt: data.closeAt?.toDate?.() ?? null,
+    attachments: normalizeAttachments(data.attachments).attachments,
+    questions: normalizeQuestions(data.questions),
+  }
+}
+
 export async function GET(req: NextRequest) {
   const authCheck = await assertIsAdmin(req)
   if (!authCheck.ok) {
@@ -207,23 +215,7 @@ export async function GET(req: NextRequest) {
       .where("courseId", "==", courseId)
       .get()
 
-    const activities: Activity[] = snapshot.docs.map((docSnap) => {
-      const data = docSnap.data()
-      return {
-        id: docSnap.id,
-        courseId: data.courseId,
-        trackId: data.trackId,
-        title: data.title ?? "",
-        type: data.type ?? "lesson",
-        order: Number(data.order ?? 0),
-        estimatedMinutes: Number(data.estimatedMinutes ?? 0),
-        visibility: data.visibility ?? "private",
-        userIds: Array.isArray(data.userIds) ? data.userIds : [],
-        releaseAt: data.releaseAt?.toDate?.() ?? null,
-        attachments: Array.isArray(data.attachments) ? data.attachments : [],
-        questions: Array.isArray(data.questions) ? data.questions : [],
-      }
-    })
+    const activities: Activity[] = snapshot.docs.map(mapActivityDoc)
 
     activities.sort((a, b) => a.order - b.order)
 
@@ -238,7 +230,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authCheck = await assertIsAdmin(req)
+  const authCheck = await assertHasRole(req, ["teacher", "admin"])
   if (!authCheck.ok) {
     return NextResponse.json(
       { error: authCheck.message },
@@ -246,13 +238,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: CreateActivityBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = createActivityBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const courseId = body.courseId?.trim()
   const trackId = body.trackId?.trim()
@@ -261,6 +260,9 @@ export async function POST(req: NextRequest) {
   const estimatedMinutes = Number(body.estimatedMinutes ?? 0)
   const visibility = body.visibility ?? "private"
   const { attachments, invalidUrls } = normalizeAttachments(body.attachments)
+  const invalidQuestionAudioUrls = (body.questions ?? [])
+    .map((question) => question.promptAudio?.url?.trim() ?? "")
+    .filter((url) => url && !isCloudinaryUrl(url))
   const questions = normalizeQuestions(body.questions)
 
   if (!courseId || !trackId || !title || !type || estimatedMinutes <= 0) {
@@ -270,9 +272,25 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  if (!(await canManageCourseAsTeacher({ ...authCheck, courseId }))) {
+    return NextResponse.json({ error: "Course access denied" }, { status: 403 })
+  }
+
+  const trackSnapshot = await adminDb.collection(COLLECTIONS.tracks).doc(trackId).get()
+  if (!trackSnapshot.exists || trackSnapshot.data()?.courseId !== courseId) {
+    return NextResponse.json({ error: "Track does not belong to course" }, { status: 400 })
+  }
+
   if (invalidUrls.length > 0) {
     return NextResponse.json(
       { error: "attachments must use Cloudinary URLs" },
+      { status: 400 }
+    )
+  }
+
+  if (invalidQuestionAudioUrls.length > 0) {
+    return NextResponse.json(
+      { error: "question audio must use Cloudinary URLs" },
       { status: 400 }
     )
   }
@@ -285,12 +303,44 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  if (authCheck.role === "teacher" && visibility === "users") {
+    const enrollmentsSnapshot = await adminDb
+      .collection(COLLECTIONS.enrollments)
+      .where("courseId", "==", courseId)
+      .get()
+    const enrollmentUserIds = enrollmentsSnapshot.docs.map(
+      (item) => item.data()?.userId
+    )
+
+    if (!areUsersEnrolledInCourse(userIds, enrollmentUserIds)) {
+      return NextResponse.json(
+        { error: "Selected users must be enrolled in the course" },
+        { status: 403 }
+      )
+    }
+  }
+
   let order = parseOrder(body.order)
   if (order === null) {
     order = await resolveNextOrder(trackId)
   }
 
-  const releaseAt = visibility === "private" ? null : resolveReleaseAt(body.releaseAt)
+  const releaseAtInput = visibility === "private" ? null : body.releaseAt
+  const scheduleValidation = validateActivitySchedule({
+    releaseAt: releaseAtInput,
+    dueAt: body.dueAt,
+    closeAt: body.closeAt,
+  })
+  if (!scheduleValidation.ok) {
+    return NextResponse.json(
+      { error: scheduleValidation.message },
+      { status: 400 }
+    )
+  }
+
+  const releaseAt = resolveDate(releaseAtInput)
+  const dueAt = resolveDate(body.dueAt)
+  const closeAt = resolveDate(body.closeAt)
   const now = admin.firestore.FieldValue.serverTimestamp()
 
   try {
@@ -306,6 +356,8 @@ export async function POST(req: NextRequest) {
       visibility,
       userIds: visibility === "users" ? userIds : [],
       releaseAt,
+      dueAt,
+      closeAt,
       attachments,
       questions,
       createdAt: now,
@@ -324,6 +376,8 @@ export async function POST(req: NextRequest) {
       visibility,
       userIds: visibility === "users" ? userIds : [],
       releaseAt: releaseAt ? releaseAt.toDate() : null,
+      dueAt: dueAt ? dueAt.toDate() : null,
+      closeAt: closeAt ? closeAt.toDate() : null,
       attachments,
       questions,
     }
@@ -338,6 +392,53 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  const authCheck = await assertIsAdmin(req)
+  if (!authCheck.ok) {
+    return NextResponse.json({ error: authCheck.message }, { status: authCheck.status })
+  }
+
+  let rawBody: unknown
+  try {
+    rawBody = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  const parsedBody = updateActivityBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const id = parsedBody.data.id?.trim()
+  if (!id || parsedBody.data.attachments === undefined) {
+    return NextResponse.json({ error: "id and attachments are required" }, { status: 400 })
+  }
+
+  const { attachments, invalidUrls } = normalizeAttachments(parsedBody.data.attachments)
+  if (invalidUrls.length > 0) {
+    return NextResponse.json({ error: "attachments must use Cloudinary URLs" }, { status: 400 })
+  }
+
+  try {
+    const ref = adminDb.collection(COLLECTIONS.activities).doc(id)
+    const snap = await ref.get()
+    if (!snap.exists) {
+      return NextResponse.json({ error: "Activity not found" }, { status: 404 })
+    }
+
+    await ref.update({
+      attachments,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: authCheck.uid,
+    })
+    return NextResponse.json(mapActivityDoc(await ref.get()))
+  } catch (err) {
+    console.error("update activity failed", err)
+    return NextResponse.json({ error: "Could not update activity" }, { status: 500 })
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   const authCheck = await assertIsAdmin(req)
   if (!authCheck.ok) {
@@ -347,15 +448,20 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  let body: { id?: string }
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const id = body.id?.trim()
+  const parsedBody = deleteActivityBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const id = parsedBody.data.id.trim()
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }
@@ -369,11 +475,15 @@ export async function DELETE(req: NextRequest) {
 
     const data = snap.data()
     const attachments = Array.isArray(data?.attachments) ? data.attachments : []
-    const urls = attachments
-      .map((item: { url?: unknown }) =>
+    const questions = Array.isArray(data?.questions) ? data.questions : []
+    const urls = [
+      ...attachments.map((item: { url?: unknown }) =>
         typeof item?.url === "string" ? item.url : null
-      )
-      .filter((value: string | null): value is string => Boolean(value))
+      ),
+      ...questions.map((item: { promptAudio?: { url?: unknown } }) =>
+        typeof item?.promptAudio?.url === "string" ? item.promptAudio.url : null
+      ),
+    ].filter((value: string | null): value is string => Boolean(value))
 
     await deleteCloudinaryAssetsByUrls(urls)
     await ref.delete()

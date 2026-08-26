@@ -12,8 +12,8 @@ import {
   Video,
 } from "lucide-react"
 
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import type { Material } from "@/lib/firebase/types"
 
@@ -66,27 +66,26 @@ export function StudentMaterialCard({ material, className }: StudentMaterialCard
   return (
     <Card
       className={cn(
-        "group flex h-full flex-col overflow-hidden border-primary/15 bg-card/50 py-0 backdrop-blur-sm transition-all duration-300",
-        "hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10",
+        "ge-surface-interactive group flex h-full flex-col overflow-hidden py-0",
         className
       )}
     >
       <CardContent className="flex flex-1 flex-col gap-4 p-5">
         <div className="flex items-start justify-between gap-3">
-          <div className="rounded-2xl border border-primary/15 bg-primary/10 p-3 text-primary transition-transform duration-300 group-hover:scale-105">
+          <div className="ge-icon-tile size-11 rounded-full transition-transform duration-300 group-hover:scale-105">
             <Icon className="size-5" />
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-background/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
+          <span className="ge-chip">
             <Sparkles className="size-3 text-primary/70" />
             {typeLabels[baseType] || "Material"}
           </span>
         </div>
 
         <div className="space-y-1.5">
-          <h3 className="line-clamp-2 text-base font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
+          <h3 className="line-clamp-2 text-base font-semibold tracking-[-0.025em] text-foreground transition-colors group-hover:text-primary">
             {material.title}
           </h3>
-          <p className="line-clamp-2 text-sm text-muted-foreground/80">
+          <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
             {hasMarkdown
               ? "Material com leitura guiada e apoio para estudo continuo."
               : "Conteudo de apoio para acelerar seu progresso no curso."}
@@ -95,24 +94,24 @@ export function StudentMaterialCard({ material, className }: StudentMaterialCard
 
         <div className="flex flex-wrap gap-2">
           {statChips.map((chip) => (
-            <span
-              key={chip}
-              className="rounded-full border border-primary/10 bg-primary/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/80"
-            >
+            <span key={chip} className="ge-chip bg-primary/5">
               {chip}
             </span>
           ))}
         </div>
 
-        <div className="mt-auto flex items-center gap-2 border-t border-primary/10 pt-4">
-          <Button className="w-full rounded-full font-semibold" asChild>
-            <Link href={`/dashboard/materials/${material.id}`}>
-              Ver material completo
-            </Link>
+        <div className="mt-auto flex items-center gap-2 border-t border-border/60 pt-4">
+          <Button className="w-full" asChild>
+            <Link href={`/dashboard/materials/${material.id}`}>Ver material completo</Link>
           </Button>
           {primaryLink ? (
-            <Button variant="outline" size="icon" className="rounded-full shrink-0" asChild>
-              <a href={primaryLink} target="_blank" rel="noreferrer" aria-label="Abrir link principal do material">
+            <Button variant="outline" size="icon" className="shrink-0" asChild>
+              <a
+                href={primaryLink}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Abrir link principal do material"
+              >
                 <ExternalLink className="size-4" />
               </a>
             </Button>

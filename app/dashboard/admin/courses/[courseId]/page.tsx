@@ -1,39 +1,43 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
-import {
-  ArrowLeft,
-  BookOpenCheck,
-  ClipboardList,
-  Layers3,
-  Users2,
-  Sparkles,
-  Settings2,
-  Calendar,
-  BarChart3,
-  ChevronRight
-} from "lucide-react"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { ArrowLeft, ClipboardList, Layers3, Pencil, Settings2, Users2 } from "lucide-react"
+import { toast } from "sonner"
 
-import { DashboardHeader } from "@/components/dashboard-header"
+import { DashboardNotice } from "@/components/dashboard/dashboard-feedback"
+import { DashboardPage } from "@/components/dashboard/dashboard-page"
+import { DashboardSectionHeader } from "@/components/dashboard/dashboard-section-header"
+import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/hooks/use-auth"
-import type { AdminCourseSummary } from "@/lib/firebase/types"
-import { fetchAdminCourses } from "@/modules/courses"
-import { cn } from "@/lib/utils"
+import { deleteMediaByUrl } from "@/lib/cloudinary-actions"
+import type { AdminCourseSummary, AdminUserSummary } from "@/lib/firebase/types"
+import { fetchAdminCourses, saveAdminCourse } from "@/modules/courses"
+import {
+  AdminCourseForm,
+  createAdminCourseFormValue,
+  type AdminCourseFormValue,
+} from "@/modules/courses/ui/admin-course-form"
+import { fetchAdminTeachers } from "@/modules/users"
 
 export default function Page() {
   const { role, isFirebaseReady, user } = useAuth()
   const params = useParams<{ courseId?: string }>()
-  const courseId = Array.isArray(params?.courseId)
-    ? params.courseId[0]
-    : params?.courseId
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const courseId = Array.isArray(params?.courseId) ? params.courseId[0] : params?.courseId
 
   const [course, setCourse] = React.useState<AdminCourseSummary | null>(null)
+  const [teachers, setTeachers] = React.useState<AdminUserSummary[]>([])
+  const [form, setForm] = React.useState<AdminCourseFormValue>(() => createAdminCourseFormValue())
+  const [editing, setEditing] = React.useState(searchParams.get("edit") === "1")
   const [loadingCourse, setLoadingCourse] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [editError, setEditError] = React.useState<string | null>(null)
 
   const breadcrumbItems = React.useMemo(
     () => [
@@ -53,13 +57,11 @@ export default function Page() {
     try {
       setLoadingCourse(true)
       setError(null)
-      const idToken = user ? await user.getIdToken() : null
-      const data = await fetchAdminCourses(idToken, { force })
+      const data = await fetchAdminCourses(user ? await user.getIdToken() : null, { force })
       const match = data.find((item) => item.id === courseId) ?? null
       setCourse(match)
-      if (!match) {
-        setError("Curso não encontrado.")
-      }
+      if (match) setForm(createAdminCourseFormValue(match))
+      if (!match) setError("Curso não encontrado.")
     } catch {
       setError("Não foi possível carregar o curso.")
     } finally {
@@ -68,183 +70,185 @@ export default function Page() {
   }, [courseId, user])
 
   React.useEffect(() => {
-    if (!isFirebaseReady || role !== "admin") {
-      return
-    }
-
+    if (!isFirebaseReady || role !== "admin") return
     void loadCourse()
   }, [isFirebaseReady, role, loadCourse])
 
+  React.useEffect(() => {
+    async function loadTeachers() {
+      if (!isFirebaseReady || role !== "admin" || !user) return
+      try {
+        setTeachers(await fetchAdminTeachers(await user.getIdToken()))
+      } catch {
+        setTeachers([])
+      }
+    }
+    void loadTeachers()
+  }, [isFirebaseReady, role, user])
+
+
+  const closeEditor = React.useCallback(async () => {
+    const persistedCoverUrl = course?.coverUrl ?? ""
+    if (form.coverUrl && form.coverUrl !== persistedCoverUrl) {
+      try {
+        await deleteMediaByUrl(form.coverUrl)
+      } catch (cleanupError) {
+        console.error("Unsaved course cover cleanup failed", cleanupError)
+      }
+    }
+    setEditing(false)
+    setEditError(null)
+    setForm(createAdminCourseFormValue(course))
+    if (courseId) router.replace(`/dashboard/admin/courses/${courseId}`)
+  }, [course, courseId, form.coverUrl, router])
+
+  const handleSave = async () => {
+    if (!courseId || !form.title.trim() || !form.description.trim()) {
+      setEditError("Título e descrição são obrigatórios.")
+      return
+    }
+    const durationWeeks = Number(form.durationWeeks)
+    if (!Number.isFinite(durationWeeks) || durationWeeks <= 0) {
+      setEditError("Duração deve ser um número maior que zero.")
+      return
+    }
+
+    const previousCoverUrl = course?.coverUrl ?? ""
+
+    try {
+      setSaving(true)
+      setEditError(null)
+      await saveAdminCourse(user ? await user.getIdToken() : null, {
+        id: courseId,
+        title: form.title.trim(),
+        description: form.description.trim(),
+        level: form.level,
+        durationWeeks,
+        coverUrl: form.coverUrl.trim() || null,
+        status: form.status,
+        teacherIds: form.teacherIds,
+      })
+      if (previousCoverUrl && form.coverUrl !== previousCoverUrl) {
+        try {
+          await deleteMediaByUrl(previousCoverUrl)
+        } catch (cleanupError) {
+          console.error("Previous course cover cleanup failed", cleanupError)
+        }
+      }
+      await loadCourse(true)
+      toast.success("Curso atualizado")
+      setEditing(false)
+      router.replace(`/dashboard/admin/courses/${courseId}`)
+    } catch {
+      setEditError("Não foi possível salvar o curso.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (role !== "admin") {
     return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center p-6">
-        <Card className="max-w-md border-destructive/20 bg-destructive/5 text-center">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold flex items-center justify-center gap-2">
-              <span className="size-2 rounded-full bg-destructive animate-ping" />
-              Acesso Restrito
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Esta área é exclusiva para administradores da plataforma.
-            <div className="mt-6">
-              <Button asChild variant="outline" size="sm">
-                <Link href="/dashboard">Voltar ao Início</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <DashboardPage title="Curso" description="Área administrativa do curso.">
+        <DashboardNotice tone="danger">Esta área é exclusiva para administradores.</DashboardNotice>
+      </DashboardPage>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background/50">
-      <DashboardHeader
-        title={course?.title ?? "Curso"}
-        breadcrumbItems={breadcrumbItems}
-        description="Analise métricas e gerencie o conteúdo do curso."
-        action={
-          <div className="flex items-center gap-2">
-            <Button asChild variant="ghost" size="sm" className="hidden sm:flex hover:bg-primary/5">
-              <Link href="/dashboard/admin/courses">
-                <ArrowLeft className="mr-2 size-4" />
-                Voltar
-              </Link>
-            </Button>
-            <Button asChild size="sm" className="shadow-lg shadow-primary/20">
-              <Link href={`/dashboard/admin/courses/${courseId}/manage`}>
-                <Settings2 className="mr-2 size-4" />
-                Gerenciar
-              </Link>
-            </Button>
-          </div>
-        }
-      />
+    <DashboardPage
+      title={course?.title ?? "Curso"}
+      breadcrumbItems={breadcrumbItems}
+      description="Consulte e edite os dados do curso no próprio contexto antes de gerenciar sua estrutura."
+      action={
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
+            <Link href="/dashboard/admin/courses">
+              <ArrowLeft className="size-4" />
+              Cursos
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant={editing ? "outline" : "default"}
+            size="sm"
+            disabled={!course}
+            onClick={() => {
+              if (editing) void closeEditor()
+              else {
+                setEditing(true)
+                router.replace(`/dashboard/admin/courses/${courseId}?edit=1`)
+              }
+            }}
+          >
+            <Pencil className="size-4" />
+            {editing ? "Fechar edição" : "Editar curso"}
+          </Button>
+          <Button asChild size="sm" disabled={!courseId}>
+            <Link href={`/dashboard/admin/courses/${courseId}/manage`}>
+              <Settings2 className="size-4" />
+              Gerenciar curso
+            </Link>
+          </Button>
+        </div>
+      }
+      contentClassName="gap-6"
+    >
+      {!isFirebaseReady ? <DashboardNotice>Firebase não configurado. Os dados administrativos estão indisponíveis.</DashboardNotice> : null}
+      {error ? <DashboardNotice tone="danger">{error}</DashboardNotice> : null}
 
-      <div className="flex flex-col gap-8 p-6 lg:p-10">
-        {!isFirebaseReady ? (
-          <div className="rounded-2xl border border-dashed border-amber-500/20 bg-amber-500/5 p-4 text-xs font-medium text-amber-500/80 backdrop-blur-sm animate-in fade-in slide-in-from-top-2">
-            Firebase em processo de sincronização...
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive backdrop-blur-sm">
-            {error}
-          </div>
-        ) : null}
-
-        {/* Course Summary Hero Card */}
-        <div className="grid gap-6 lg:grid-cols-[1.5fr,1fr]">
-          <Card className="relative overflow-hidden border-primary/20 bg-card/40 backdrop-blur-xl group hover:border-primary/30 transition-all duration-500">
-            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-              <BookOpenCheck className="size-32 text-primary" />
+      {editing && course ? (
+        <section className="space-y-4">
+          <DashboardSectionHeader
+            title="Editar curso"
+            description="Atualize os dados básicos e professores responsáveis sem sair do curso."
+            icon={Pencil}
+          />
+          <AdminCourseForm
+            title="Dados do curso"
+            value={form}
+            teachers={teachers}
+            submitting={saving}
+            error={editError}
+            submitLabel="Salvar alterações"
+            onChange={setForm}
+            onSubmit={() => void handleSave()}
+            initialCoverUrl={course.coverUrl}
+            onCancel={() => void closeEditor()}
+          />
+        </section>
+      ) : (
+        <Card>
+          <CardHeader><CardTitle className="text-lg">Visão geral</CardTitle></CardHeader>
+          <CardContent className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="space-y-3">
+              {loadingCourse ? (
+                <div className="space-y-2" aria-label="Carregando curso">
+                  <div className="h-4 w-3/4 animate-pulse rounded-md bg-muted" />
+                  <div className="h-4 w-1/2 animate-pulse rounded-md bg-muted" />
+                </div>
+              ) : (
+                <>
+                  <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{course?.description || "Este curso ainda não possui descrição."}</p>
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span className="ge-chip">{course?.level ?? "Nível não definido"}</span>
+                    <span className="ge-chip">{course?.status ?? "Status não definido"}</span>
+                    <span className="ge-chip">{course ? `${course.durationWeeks} semanas` : "—"}</span>
+                  </div>
+                </>
+              )}
             </div>
+            <p className="max-w-sm text-xs leading-5 text-muted-foreground">
+              Use “Editar curso” para dados básicos e “Gerenciar curso” para módulos, materiais e atividades.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
-            <CardHeader>
-              <div className="flex items-center gap-2 text-primary font-bold uppercase tracking-widest text-[10px] mb-2">
-                <Sparkles className="size-3" />
-                Administração de Conteúdo
-              </div>
-              <CardTitle className="text-3xl font-bold tracking-tighter sm:text-4xl text-foreground">
-                {loadingCourse ? (
-                  <div className="h-10 w-64 bg-primary/10 rounded-lg animate-pulse" />
-                ) : course?.title ?? "-"}
-              </CardTitle>
-            </CardHeader>
-
-            <CardContent className="space-y-6">
-              <div className="text-muted-foreground leading-relaxed text-sm sm:text-base max-w-xl">
-                {course?.description ||
-                  (loadingCourse ? (
-                    <div className="space-y-2">
-                      <div className="h-4 w-full bg-muted/40 rounded animate-pulse" />
-                      <div className="h-4 w-3/4 bg-muted/40 rounded animate-pulse" />
-                    </div>
-                  ) : "Este curso ainda não possui uma descrição estruturada.")}
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                {[
-                  { label: "Status", value: course?.status, color: "text-primary border-primary/20 bg-primary/5" },
-                  { label: "Nível", value: course?.level, color: "text-emerald-500 border-emerald-500/20 bg-emerald-500/5" },
-                  { label: "Duração", value: `${course?.durationWeeks} semanas`, color: "text-blue-500 border-blue-500/20 bg-blue-500/5" },
-                ].map((tag) => (
-                  <span key={tag.label} className={cn("rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-tight", tag.color)}>
-                    {tag.value ?? "-"}
-                  </span>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Quick Stats Grid */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[
-              { label: "Engajamento", value: course?.studentsCount ?? 0, icon: Users2, detail: "Alunos ativos", color: "text-primary" },
-              { label: "Estrutura", value: course?.modulesCount ?? 0, icon: Layers3, detail: "Módulos criados", color: "text-emerald-500" },
-              { label: "Interações", value: course?.activitiesCount ?? 0, icon: ClipboardList, detail: "Exercícios no total", color: "text-blue-500" },
-              { label: "Cronograma", value: course?.durationWeeks ?? 0, icon: Calendar, detail: "Total de semanas", color: "text-purple-500" },
-            ].map((item) => (
-              <Card key={item.label} className="border-primary/5 bg-card/60 backdrop-blur-md group hover:border-primary/20 hover:-translate-y-1 transition-all duration-300">
-                <CardContent className="p-6 flex flex-col justify-between h-full">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={cn("size-8 rounded-full flex items-center justify-center bg-current/10", item.color)}>
-                      <item.icon className="size-4" />
-                    </div>
-                    <ChevronRight className="size-4 text-muted-foreground/20 group-hover:text-primary transition-colors" />
-                  </div>
-                  <div>
-                    <div className="text-3xl font-bold tracking-tighter mb-1">{item.value}</div>
-                    <div className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/40">{item.label}</div>
-                    <div className="text-[10px] font-medium text-muted-foreground/60">{item.detail}</div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        {/* Quick Links Section */}
-        <div className="grid gap-6 md:grid-cols-3">
-          <Link href={`/dashboard/admin/courses/${courseId}/manage?section=modules`} className="group">
-            <Card className="h-full border-dashed border-primary/20 bg-primary/1 hover:bg-primary/5 transition-colors cursor-pointer">
-              <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-sm font-bold tracking-tight">Gerir Módulos</CardTitle>
-                <Layers3 className="size-4 text-primary opacity-50 group-hover:opacity-100 transition-opacity" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground leading-relaxed">Organize e ordene os tópicos principais.</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href={`/dashboard/admin/courses/${courseId}/manage?section=materials`} className="group">
-            <Card className="h-full border-dashed border-emerald-500/20 bg-emerald-500/1 hover:bg-emerald-500/5 transition-colors cursor-pointer">
-              <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-sm font-bold tracking-tight">Arquivos e Aulas</CardTitle>
-                <BookOpenCheck className="size-4 text-emerald-500 opacity-50 group-hover:opacity-100 transition-opacity" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground leading-relaxed">Suba PDfs, vídeos e textos markdown.</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href={`/dashboard/admin/courses/${courseId}/manage?section=activities`} className="group">
-            <Card className="h-full border-dashed border-blue-500/20 bg-blue-500/1 hover:bg-blue-500/5 transition-colors cursor-pointer">
-              <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-sm font-bold tracking-tight">Banco de Atividades</CardTitle>
-                <BarChart3 className="size-4 text-blue-500 opacity-50 group-hover:opacity-100 transition-opacity" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground leading-relaxed">Crie quizzes e projetos de avaliação.</p>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <DashboardStatCard title="Alunos vinculados" value={course?.studentsCount ?? "—"} icon={Users2} loading={loadingCourse} />
+        <DashboardStatCard title="Módulos" value={course?.modulesCount ?? "—"} icon={Layers3} loading={loadingCourse} />
+        <DashboardStatCard title="Atividades" value={course?.activitiesCount ?? "—"} icon={ClipboardList} loading={loadingCourse} />
       </div>
-    </div>
+    </DashboardPage>
   )
 }

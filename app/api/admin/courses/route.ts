@@ -1,10 +1,25 @@
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
-import admin, { adminAuth, adminDb } from "@/lib/firebase/admin"
+import admin, { adminDb } from "@/lib/firebase/admin"
+import { assertIsAdmin } from "@/lib/firebase/admin-request"
 import { deleteCloudinaryAssetsByUrls } from "@/lib/cloudinary-admin"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import {
+  deleteDocsInBatches,
+  extractAttachmentUrlsFromDocs,
+} from "@/lib/firebase/admin-firestore-utils"
+import {
+  normalizeCloudinaryUrlValue,
+  isCloudinaryUrl,
+} from "@/lib/cloudinary-url"
+import {
+  createCourseBodySchema,
+  deleteCourseBodySchema,
+  updateCourseBodySchema,
+} from "@/lib/contracts/admin"
 import type { AdminCourseSummary } from "@/lib/firebase/types"
+import { buildAdminCourseCatalog } from "@/modules/courses/server/admin-course-summary"
 
 const COURSE_STATUS_OPTIONS = [
   "Inscrições abertas",
@@ -16,16 +31,6 @@ const COURSE_STATUS_OPTIONS = [
 
 type CourseStatus = (typeof COURSE_STATUS_OPTIONS)[number]
 
-type CreateCourseBody = {
-  id?: string
-  title?: string
-  description?: string
-  level?: "Beginner" | "Intermediate" | "Advanced"
-  durationWeeks?: number
-  coverUrl?: string | null
-  status?: string
-}
-
 function resolveCourseStatus(status?: string): CourseStatus {
   const inputStatus = status?.trim()
   if (inputStatus && COURSE_STATUS_OPTIONS.includes(inputStatus as CourseStatus)) {
@@ -34,63 +39,19 @@ function resolveCourseStatus(status?: string): CourseStatus {
   return "Inscrições abertas"
 }
 
-async function deleteDocsInBatches(
-  docs: FirebaseFirestore.QueryDocumentSnapshot[]
-) {
-  if (!docs.length) return
-  let batch = adminDb.batch()
-  let count = 0
-  for (const doc of docs) {
-    batch.delete(doc.ref)
-    count += 1
-    if (count >= 450) {
-      await batch.commit()
-      batch = adminDb.batch()
-      count = 0
-    }
-  }
-  if (count > 0) {
-    await batch.commit()
-  }
-}
-
-function extractAttachmentUrlsFromDocs(
-  docs: FirebaseFirestore.QueryDocumentSnapshot[]
-) {
-  const urls: string[] = []
-  docs.forEach((docSnap) => {
-    const data = docSnap.data()
-    const attachments = Array.isArray(data?.attachments) ? data.attachments : []
-    attachments.forEach((attachment: { url?: unknown }) => {
-      if (typeof attachment?.url === "string" && attachment.url.trim()) {
-        urls.push(attachment.url.trim())
-      }
-    })
-  })
-  return urls
-}
-
-async function assertIsAdmin(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")
-  const token = authHeader?.split(" ")[1]
-  if (!token) {
-    return { ok: false, status: 401, message: "Missing auth token" }
+function normalizeUserIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
   }
 
-  try {
-    const decoded = await adminAuth.verifyIdToken(token)
-    const doc = await adminDb.collection(COLLECTIONS.users).doc(decoded.uid).get()
-    const data = doc.data()
-
-    if (data?.role === "admin") {
-      return { ok: true, uid: decoded.uid }
-    }
-
-    return { ok: false, status: 403, message: "Admin access required" }
-  } catch (err) {
-    console.error("token verification failed", err)
-    return { ok: false, status: 401, message: "Invalid auth token" }
-  }
+  return Array.from(
+    new Set(
+      value
+        .filter((id): id is string => typeof id === "string")
+        .map((id) => id.trim())
+        .filter(Boolean)
+    )
+  )
 }
 
 export async function GET(req: NextRequest) {
@@ -103,71 +64,38 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const includeMetrics =
+      new URL(req.url).searchParams.get("includeMetrics") === "true"
     const coursesSnapshot = await adminDb.collection(COLLECTIONS.courses).get()
-
-    const courses = await Promise.all(
-      coursesSnapshot.docs.map(async (docSnap): Promise<AdminCourseSummary> => {
-        const data = docSnap.data()
-
-        const [tracksSnapshot, enrollmentsSnapshot, activitiesSnapshot] = await Promise.all([
-          adminDb
-            .collection(COLLECTIONS.tracks)
-            .where("courseId", "==", docSnap.id)
-            .get(),
-          adminDb
-            .collection(COLLECTIONS.enrollments)
-            .where("courseId", "==", docSnap.id)
-            .get(),
-          adminDb
-            .collection(COLLECTIONS.activities)
-            .where("courseId", "==", docSnap.id)
-            .get(),
-        ])
-
-        const trackUserIds = new Set<string>()
-        tracksSnapshot.docs.forEach((trackSnap) => {
-          const trackData = trackSnap.data()
-          const ids = Array.isArray(trackData.userIds) ? trackData.userIds : []
-          ids.forEach((id: string) => {
-            if (typeof id === "string" && id.trim()) {
-              trackUserIds.add(id)
-            }
-          })
-        })
-
-        const enrollmentUserIds = new Set<string>()
-        enrollmentsSnapshot.docs.forEach((enrollmentSnap) => {
-          const enrollmentData = enrollmentSnap.data()
-          const id = enrollmentData.userId
-          if (typeof id === "string" && id.trim()) {
-            enrollmentUserIds.add(id)
-          }
-        })
-
-        const studentsCount = new Set([
-          ...trackUserIds.values(),
-          ...enrollmentUserIds.values(),
-        ]).size
-
-        return {
-          id: docSnap.id,
-          title: (data.title as string) ?? "",
-          description: (data.description as string) ?? "",
-          level:
-            ((data.level as "Beginner" | "Intermediate" | "Advanced") ??
-              "Beginner"),
-          durationWeeks: Number(data.durationWeeks ?? 0),
-          coverUrl: (data.coverUrl as string | null) ?? null,
-          status: (data.status as string) ?? "Inscrições abertas",
-          modulesCount: tracksSnapshot.size,
-          studentsCount,
-          activitiesCount: activitiesSnapshot.size,
-        }
+    if (coursesSnapshot.empty) {
+      if (!includeMetrics) {
+        return NextResponse.json([])
+      }
+      return NextResponse.json({
+        items: [],
+        metrics: {
+          coursesCount: 0,
+          uniqueStudentsCount: 0,
+          modulesCount: 0,
+          activitiesCount: 0,
+        },
       })
-    )
+    }
 
-    courses.sort((a, b) => a.title.localeCompare(b.title))
-    return NextResponse.json(courses)
+    const [tracksSnapshot, enrollmentsSnapshot, activitiesSnapshot] = await Promise.all([
+      adminDb.collection(COLLECTIONS.tracks).get(),
+      adminDb.collection(COLLECTIONS.enrollments).get(),
+      adminDb.collection(COLLECTIONS.activities).get(),
+    ])
+
+    const catalog = buildAdminCourseCatalog({
+      courses: coursesSnapshot.docs,
+      tracks: tracksSnapshot.docs,
+      enrollments: enrollmentsSnapshot.docs,
+      activities: activitiesSnapshot.docs,
+    })
+
+    return NextResponse.json(includeMetrics ? catalog : catalog.items)
   } catch (err) {
     console.error("list courses failed", err)
     return NextResponse.json({ error: "Could not list courses" }, { status: 500 })
@@ -183,19 +111,27 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: CreateCourseBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = createCourseBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const title = body.title?.trim() ?? ""
   const description = body.description?.trim() ?? ""
   const level = body.level ?? "Beginner"
   const durationWeeks = Number(body.durationWeeks)
   const status = resolveCourseStatus(body.status)
+  const teacherIds = normalizeUserIds(body.teacherIds)
 
   if (!title || !description || !Number.isFinite(durationWeeks) || durationWeeks <= 0) {
     return NextResponse.json(
@@ -209,13 +145,18 @@ export async function POST(req: NextRequest) {
   try {
     const ref = adminDb.collection(COLLECTIONS.courses).doc()
 
+    const coverUrl = body.coverUrl && isCloudinaryUrl(body.coverUrl.trim())
+      ? normalizeCloudinaryUrlValue(body.coverUrl) ?? null
+      : body.coverUrl?.trim() || null
+
     await ref.set({
       title,
       description,
       level,
       durationWeeks,
-      coverUrl: body.coverUrl?.trim() || null,
+      coverUrl,
       status,
+      teacherIds,
       createdAt: now,
       updatedAt: now,
       createdBy: authCheck.uid,
@@ -227,11 +168,12 @@ export async function POST(req: NextRequest) {
       description,
       level,
       durationWeeks,
-      coverUrl: body.coverUrl?.trim() || null,
+      coverUrl,
       status,
       modulesCount: 0,
       studentsCount: 0,
       activitiesCount: 0,
+      teacherIds,
     }
 
     return NextResponse.json(result, { status: 201 })
@@ -250,13 +192,20 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
-  let body: CreateCourseBody
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const parsedBody = updateCourseBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const body = parsedBody.data
 
   const id = body.id?.trim()
   if (!id) {
@@ -302,11 +251,18 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (body.coverUrl !== undefined) {
-    updates.coverUrl = body.coverUrl?.trim() || null
+    const trimmedCoverUrl = body.coverUrl?.trim() || ""
+    updates.coverUrl = isCloudinaryUrl(trimmedCoverUrl)
+      ? normalizeCloudinaryUrlValue(trimmedCoverUrl) ?? null
+      : trimmedCoverUrl || null
   }
 
   if (body.status !== undefined) {
     updates.status = resolveCourseStatus(body.status)
+  }
+
+  if (body.teacherIds !== undefined) {
+    updates.teacherIds = normalizeUserIds(body.teacherIds)
   }
 
   try {
@@ -330,15 +286,20 @@ export async function DELETE(req: NextRequest) {
     )
   }
 
-  let body: { id?: string }
+  let rawBody: unknown
 
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const id = body.id?.trim()
+  const parsedBody = deleteCourseBodySchema.safeParse(rawBody)
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
+
+  const id = parsedBody.data.id.trim()
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }
@@ -382,10 +343,10 @@ export async function DELETE(req: NextRequest) {
     ]
 
     await deleteCloudinaryAssetsByUrls(attachmentUrls)
-    await deleteDocsInBatches(tracksSnapshot.docs)
-    await deleteDocsInBatches(activitiesSnapshot.docs)
-    await deleteDocsInBatches(materialsSnapshot.docs)
-    await deleteDocsInBatches(enrollmentsSnapshot.docs)
+    await deleteDocsInBatches(adminDb, tracksSnapshot.docs)
+    await deleteDocsInBatches(adminDb, activitiesSnapshot.docs)
+    await deleteDocsInBatches(adminDb, materialsSnapshot.docs)
+    await deleteDocsInBatches(adminDb, enrollmentsSnapshot.docs)
     await courseRef.delete()
 
     return NextResponse.json({ ok: true })

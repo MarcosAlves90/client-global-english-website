@@ -2,69 +2,126 @@
 
 import { v2 as cloudinary } from "cloudinary"
 
-if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+import {
+  getCloudinaryPublicIdFromUrl,
+  requireCloudinaryCloudName,
+} from "@/lib/cloudinary-url"
+import {
+  getAudioCloudinaryUploadOptions,
+  isAudioFile,
+  validateAudioFile,
+} from "@/lib/media/audio"
+
+function getCloudinaryClient() {
+  const cloudName = requireCloudinaryCloudName()
+  const apiKey = process.env.CLOUDINARY_API_KEY
+  const apiSecret = process.env.CLOUDINARY_API_SECRET
+
+  if (!apiKey || !apiSecret) {
     throw new Error("Cloudinary environment variables are missing.")
+  }
+
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+    secure: true,
+  })
+
+  return cloudinary
 }
 
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-    secure: true,
-})
+export type UploadedMedia = {
+  public_id: string
+  secure_url: string
+  resource_type: "image" | "video" | "raw"
+  bytes: number
+  format?: string
+}
+
+export async function uploadMedia(formData: FormData, subfolder: string = "general") {
+  const file = formData.get("file") as File | null
+  if (!file) {
+    throw new Error("No file provided.")
+  }
+
+  const audio = isAudioFile(file)
+  if (audio) {
+    const validation = validateAudioFile(file)
+    if (!validation.ok) {
+      throw new Error(validation.message)
+    }
+  }
+
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+  const options = audio
+    ? {
+        folder: `global-english/${subfolder}`,
+        ...getAudioCloudinaryUploadOptions(),
+      }
+    : {
+        folder: `global-english/${subfolder}`,
+        resource_type: "auto" as const,
+      }
+
+  return new Promise<UploadedMedia>((resolve, reject) => {
+    getCloudinaryClient().uploader.upload_stream(options, (error, result) => {
+      if (error) {
+        reject(error instanceof Error ? error : new Error(String(error)))
+        return
+      }
+      if (!result) {
+        reject(new Error("Upload failed: No result from Cloudinary."))
+        return
+      }
+      resolve({
+        public_id: result.public_id,
+        secure_url: result.secure_url,
+        resource_type:
+          result.resource_type === "video" || result.resource_type === "raw"
+            ? result.resource_type
+            : "image",
+        bytes: Number(result.bytes ?? 0),
+        format: result.format,
+      })
+    }).end(buffer)
+  })
+}
 
 export async function uploadImage(formData: FormData, subfolder: string = "general") {
-    const file = formData.get("file") as File
-    if (!file) {
-        throw new Error("No file provided.")
-    }
-
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    return new Promise<{ public_id: string; secure_url: string }>((resolve, reject) => {
-        cloudinary.uploader.upload_stream(
-            {
-                folder: `global-english/${subfolder}`,
-            },
-            (error, result) => {
-                if (error) {
-                    reject(error)
-                    return
-                }
-                if (!result) {
-                    reject(new Error("Upload failed: No result from Cloudinary."))
-                    return
-                }
-                resolve({
-                    public_id: result.public_id,
-                    secure_url: result.secure_url,
-                })
-            }
-        ).end(buffer)
-    })
+  return uploadMedia(formData, subfolder)
 }
 
 export async function getPublicIdFromUrl(url: string): Promise<string | null> {
-    if (!url || !url.includes("cloudinary.com")) return null
+  return getCloudinaryPublicIdFromUrl(url)
+}
 
-    // Extract the part after /upload/v<numeric>/
-    // Example: https://res.cloudinary.com/demo/image/upload/v12345/global-english/avatars/foobar.jpg
-    const parts = url.split("/")
-    const uploadIndex = parts.indexOf("upload")
-    if (uploadIndex === -1) return null
+export async function deleteMedia(
+  publicId: string,
+  resourceType: "image" | "video" | "raw" = "image"
+) {
+  if (!publicId) return
+  try {
+    return await getCloudinaryClient().uploader.destroy(publicId, {
+      resource_type: resourceType,
+      invalidate: true,
+    })
+  } catch (error) {
+    console.error("Cloudinary delete failed:", error)
+  }
+}
 
-    // The public ID is everything from parts[uploadIndex + 2] to the end, excluding the extension
-    // We skip the version (v12345)
-    const publicIdWithExtension = parts.slice(uploadIndex + 2).join("/")
-    return publicIdWithExtension.replace(/\.[^/.]+$/, "")
+export async function deleteMediaByUrl(url: string) {
+  const publicId = getCloudinaryPublicIdFromUrl(url)
+  if (!publicId) return
+
+  for (const resourceType of ["image", "video", "raw"] as const) {
+    const result = await deleteMedia(publicId, resourceType)
+    if (result?.result === "ok") return result
+  }
 }
 
 export async function deleteImage(publicId: string) {
-    if (!publicId) return
-    try {
-        return await cloudinary.uploader.destroy(publicId)
-    } catch (error) {
-        console.error("Cloudinary delete failed:", error)
-    }
+  return deleteMedia(publicId, "image")
 }

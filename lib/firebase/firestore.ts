@@ -1,6 +1,8 @@
-﻿import {
+import {
   collection,
   doc,
+  documentId,
+  getCountFromServer,
   getDoc,
   getDocs,
   query,
@@ -8,20 +10,26 @@
   setDoc,
   where,
 } from "firebase/firestore"
+import { runSingleFlight } from "@/lib/async/single-flight"
 import { db, hasFirebaseConfig } from "@/lib/firebase/client"
 import { COLLECTIONS } from "@/lib/firebase/collections"
+import { isContentAvailableToUser } from "@/lib/firebase/content-access"
+import {
+  normalizeCloudinaryUrlItems,
+  normalizeCloudinaryUrlValue,
+} from "@/lib/cloudinary-url"
 import type {
   Activity,
   ActivityAnswerValue,
   ActivityProgress,
   ActivityProgressStatus,
-  AdminCourseSummary,
   AdminOverview,
-  AdminUserSummary,
   Course,
   DashboardCourse,
   Enrollment,
   Material,
+  NotificationPreferences,
+  SupportTicket,
   Track,
   UserProfile,
   UserRole,
@@ -36,6 +44,26 @@ function getDbOrThrow() {
 }
 
 const FIRESTORE_IN_LIMIT = 10
+
+const enrollmentRequests = new Map<string, Promise<Enrollment[]>>()
+const visibleTrackRequests = new Map<string, Promise<Track[]>>()
+const visibleActivityRequests = new Map<string, Promise<Activity[]>>()
+const visibleMaterialRequests = new Map<string, Promise<Material[]>>()
+const activityProgressListRequests = new Map<string, Promise<ActivityProgress[]>>()
+
+function getUserCourseRequestKey(uid: string, courseIds: string[]) {
+  return `${uid}:${[...courseIds].sort().join(",")}`
+}
+
+function getEnrollmentCourseIds(enrollments: Enrollment[]) {
+  return Array.from(
+    new Set(
+      enrollments
+        .map((enrollment) => enrollment.courseId?.trim())
+        .filter((courseId): courseId is string => Boolean(courseId))
+    )
+  )
+}
 
 function chunkArray<T>(items: T[], size = FIRESTORE_IN_LIMIT): T[][] {
   const chunks: T[][] = []
@@ -53,7 +81,11 @@ function isFirestorePermissionDenied(error: unknown) {
   return code.toLowerCase().replace("firestore/", "") === "permission-denied"
 }
 
-async function fetchEnrollmentsWithTrackFallback(
+function readStringField(value: unknown) {
+  return typeof value === "string" ? value : ""
+}
+
+async function loadEnrollmentsWithTrackFallback(
   uid: string
 ): Promise<Enrollment[]> {
   const firestore = getDbOrThrow()
@@ -116,7 +148,13 @@ async function fetchEnrollmentsWithTrackFallback(
   }))
 }
 
-async function fetchTracksVisibleToUserByCourseIds(
+function fetchEnrollmentsWithTrackFallback(uid: string) {
+  return runSingleFlight(enrollmentRequests, uid, () =>
+    loadEnrollmentsWithTrackFallback(uid)
+  )
+}
+
+async function loadTracksVisibleToUserByCourseIds(
   courseIds: string[],
   uid: string
 ): Promise<Track[]> {
@@ -181,7 +219,14 @@ async function fetchTracksVisibleToUserByCourseIds(
   return Array.from(deduped.values())
 }
 
-async function fetchActivitiesVisibleToUserByCourseIds(
+function fetchTracksVisibleToUserByCourseIds(courseIds: string[], uid: string) {
+  const key = getUserCourseRequestKey(uid, courseIds)
+  return runSingleFlight(visibleTrackRequests, key, () =>
+    loadTracksVisibleToUserByCourseIds(courseIds, uid)
+  )
+}
+
+async function loadActivitiesVisibleToUserByCourseIds(
   courseIds: string[],
   uid: string
 ): Promise<Activity[]> {
@@ -211,7 +256,11 @@ async function fetchActivitiesVisibleToUserByCourseIds(
           visibility: data.visibility ?? "module",
           userIds: Array.isArray(data.userIds) ? data.userIds : [],
           releaseAt: data.releaseAt?.toDate?.() ?? null,
-          attachments: Array.isArray(data.attachments) ? data.attachments : [],
+          dueAt: data.dueAt?.toDate?.() ?? null,
+          closeAt: data.closeAt?.toDate?.() ?? null,
+          attachments: normalizeCloudinaryUrlItems(
+            Array.isArray(data.attachments) ? data.attachments : []
+          ),
           questions: Array.isArray(data.questions) ? data.questions : [],
         })
       })
@@ -243,7 +292,11 @@ async function fetchActivitiesVisibleToUserByCourseIds(
           visibility: data.visibility ?? "module",
           userIds: Array.isArray(data.userIds) ? data.userIds : [],
           releaseAt: data.releaseAt?.toDate?.() ?? null,
-          attachments: Array.isArray(data.attachments) ? data.attachments : [],
+          dueAt: data.dueAt?.toDate?.() ?? null,
+          closeAt: data.closeAt?.toDate?.() ?? null,
+          attachments: normalizeCloudinaryUrlItems(
+            Array.isArray(data.attachments) ? data.attachments : []
+          ),
           questions: Array.isArray(data.questions) ? data.questions : [],
         })
       })
@@ -259,7 +312,14 @@ async function fetchActivitiesVisibleToUserByCourseIds(
   return Array.from(deduped.values())
 }
 
-async function fetchMaterialsVisibleToUserByCourseIds(
+function fetchActivitiesVisibleToUserByCourseIds(courseIds: string[], uid: string) {
+  const key = getUserCourseRequestKey(uid, courseIds)
+  return runSingleFlight(visibleActivityRequests, key, () =>
+    loadActivitiesVisibleToUserByCourseIds(courseIds, uid)
+  )
+}
+
+async function loadMaterialsVisibleToUserByCourseIds(
   courseIds: string[],
   uid: string
 ): Promise<Material[]> {
@@ -285,12 +345,14 @@ async function fetchMaterialsVisibleToUserByCourseIds(
           trackId: data.trackId ?? undefined,
           title: data.title ?? "",
           type: data.type ?? undefined,
-          url: data.url ?? "",
+          url: normalizeCloudinaryUrlValue(data.url ?? null) ?? "",
           visibility: data.visibility ?? "module",
           userIds: Array.isArray(data.userIds) ? data.userIds : [],
           releaseAt: data.releaseAt?.toDate?.() ?? null,
           markdown: data.markdown ?? "",
-          attachments: Array.isArray(data.attachments) ? data.attachments : [],
+          attachments: normalizeCloudinaryUrlItems(
+            Array.isArray(data.attachments) ? data.attachments : []
+          ),
         })
       })
     } catch (error) {
@@ -317,12 +379,14 @@ async function fetchMaterialsVisibleToUserByCourseIds(
           trackId: data.trackId ?? undefined,
           title: data.title ?? "",
           type: data.type ?? undefined,
-          url: data.url ?? "",
+          url: normalizeCloudinaryUrlValue(data.url ?? null) ?? "",
           visibility: data.visibility ?? "module",
           userIds: Array.isArray(data.userIds) ? data.userIds : [],
           releaseAt: data.releaseAt?.toDate?.() ?? null,
           markdown: data.markdown ?? "",
-          attachments: Array.isArray(data.attachments) ? data.attachments : [],
+          attachments: normalizeCloudinaryUrlItems(
+            Array.isArray(data.attachments) ? data.attachments : []
+          ),
         })
       })
     } catch (error) {
@@ -337,6 +401,13 @@ async function fetchMaterialsVisibleToUserByCourseIds(
   return Array.from(deduped.values())
 }
 
+
+function fetchMaterialsVisibleToUserByCourseIds(courseIds: string[], uid: string) {
+  const key = getUserCourseRequestKey(uid, courseIds)
+  return runSingleFlight(visibleMaterialRequests, key, () =>
+    loadMaterialsVisibleToUserByCourseIds(courseIds, uid)
+  )
+}
 
 export async function fetchUserProfile(uid: string): Promise<UserProfile | null> {
   const firestore = getDbOrThrow()
@@ -361,7 +432,13 @@ export async function fetchUserProfile(uid: string): Promise<UserProfile | null>
     mustChangePassword: data.mustChangePassword ?? false,
     createdAt: data.createdAt?.toDate?.() ?? null,
     updatedAt: data.updatedAt?.toDate?.() ?? null,
-    photoURL: data.photoURL ?? null,
+    photoURL: normalizeCloudinaryUrlValue(data.photoURL ?? null) ?? null,
+    notificationPreferences: {
+      activityUpdates: data.notificationPreferences?.activityUpdates ?? true,
+      gradesAndFeedback: data.notificationPreferences?.gradesAndFeedback ?? true,
+      weeklySummary: data.notificationPreferences?.weeklySummary ?? false,
+      marketing: data.notificationPreferences?.marketing ?? false,
+    },
   } satisfies UserProfile
 }
 
@@ -376,6 +453,64 @@ export async function updateUserProfile(uid: string, data: Partial<UserProfile>)
     },
     { merge: true }
   )
+}
+
+
+
+export async function updateUserNotificationPreferences(
+  uid: string,
+  preferences: NotificationPreferences
+) {
+  await updateUserProfile(uid, { notificationPreferences: preferences })
+}
+
+export async function createSupportTicket(params: {
+  uid: string
+  subject: string
+  message: string
+}) {
+  const firestore = getDbOrThrow()
+  const ticketRef = doc(collection(firestore, COLLECTIONS.supportTickets))
+  const now = serverTimestamp()
+
+  await setDoc(ticketRef, {
+    userId: params.uid,
+    subject: params.subject,
+    message: params.message,
+    status: "open",
+    createdAt: now,
+    updatedAt: now,
+  })
+
+  return ticketRef.id
+}
+
+export async function fetchUserSupportTickets(uid: string): Promise<SupportTicket[]> {
+  const firestore = getDbOrThrow()
+  const snapshot = await getDocs(
+    query(
+      collection(firestore, COLLECTIONS.supportTickets),
+      where("userId", "==", uid)
+    )
+  )
+
+  return snapshot.docs
+    .map((docSnap) => {
+      const data = docSnap.data()
+      return {
+        id: docSnap.id,
+        userId: typeof data.userId === "string" ? data.userId : uid,
+        subject: typeof data.subject === "string" ? data.subject : "",
+        message: typeof data.message === "string" ? data.message : "",
+        status: data.status === "resolved" ? "resolved" : "open",
+        createdAt: data.createdAt?.toDate?.() ?? null,
+        updatedAt: data.updatedAt?.toDate?.() ?? null,
+      } satisfies SupportTicket
+    })
+    .sort(
+      (left, right) =>
+        (right.createdAt?.getTime() ?? 0) - (left.createdAt?.getTime() ?? 0)
+    )
 }
 
 export async function setUserMustChangePassword(params: {
@@ -394,8 +529,73 @@ export async function setUserMustChangePassword(params: {
   )
 }
 
-export async function fetchUserDashboard(uid: string): Promise<DashboardCourse[]> {
+function mapCourseSnapshot(courseSnap: { id: string; data: () => Record<string, unknown> }): Course {
+  const data = courseSnap.data()
+  return {
+    id: courseSnap.id,
+    title: (data.title as string | undefined) ?? "",
+    description: (data.description as string | undefined) ?? "",
+    level: (data.level as Course["level"] | undefined) ?? "Beginner",
+    durationWeeks: Number(data.durationWeeks ?? 0),
+    coverUrl: normalizeCloudinaryUrlValue(readStringField(data.coverUrl)) ?? undefined,
+  }
+}
+
+async function fetchCoursesByIds(courseIds: string[]): Promise<Course[]> {
   const firestore = getDbOrThrow()
+  const chunks = chunkArray(courseIds)
+
+  const loadChunk = async (idsChunk: string[]) => {
+    try {
+      const snapshot = await getDocs(
+        query(
+          collection(firestore, COLLECTIONS.courses),
+          where(documentId(), "in", idsChunk)
+        )
+      )
+      return snapshot.docs.map(mapCourseSnapshot)
+    } catch (error) {
+      if (!isFirestorePermissionDenied(error)) {
+        throw error
+      }
+
+      const fallback = await Promise.all(
+        idsChunk.map(async (courseId): Promise<Course | null> => {
+          try {
+            const snapshot = await getDoc(
+              doc(firestore, COLLECTIONS.courses, courseId)
+            )
+            return snapshot.exists() ? mapCourseSnapshot(snapshot) : null
+          } catch (fallbackError) {
+            if (isFirestorePermissionDenied(fallbackError)) {
+              return null
+            }
+            throw fallbackError
+          }
+        })
+      )
+
+      return fallback.filter((course): course is Course => course !== null)
+    }
+  }
+
+  return (await Promise.all(chunks.map(loadChunk))).flat()
+}
+
+function groupByCourseId<T extends { courseId: string }>(items: T[]) {
+  const grouped = new Map<string, T[]>()
+  items.forEach((item) => {
+    const entries = grouped.get(item.courseId)
+    if (entries) {
+      entries.push(item)
+    } else {
+      grouped.set(item.courseId, [item])
+    }
+  })
+  return grouped
+}
+
+export async function fetchUserDashboard(uid: string): Promise<DashboardCourse[]> {
   const now = new Date()
   const enrollments = await fetchEnrollmentsWithTrackFallback(uid)
 
@@ -403,77 +603,35 @@ export async function fetchUserDashboard(uid: string): Promise<DashboardCourse[]
     return []
   }
 
-  const courseIds = Array.from(
-    new Set(enrollments.map((enrollment) => enrollment.courseId))
-  )
-  const courses = (
-    await Promise.all(
-      courseIds.map(async (courseId): Promise<Course | null> => {
-        let courseSnap
-        try {
-          courseSnap = await getDoc(doc(firestore, COLLECTIONS.courses, courseId))
-        } catch (error) {
-          if (isFirestorePermissionDenied(error)) {
-            return null
-          }
-          throw error
-        }
-        if (!courseSnap.exists()) {
-          return null
-        }
-        const data = courseSnap.data()
-        return {
-          id: courseSnap.id,
-          title: data.title ?? "",
-          description: data.description ?? "",
-          level: data.level ?? "Beginner",
-          durationWeeks: data.durationWeeks ?? 0,
-          coverUrl: data.coverUrl ?? undefined,
-        } satisfies Course
-      })
-    )
-  ).filter((course): course is Course => course !== null)
-
-  const [tracks, activities] = await Promise.all([
+  const courseIds = getEnrollmentCourseIds(enrollments)
+  const [courses, tracks, activities] = await Promise.all([
+    fetchCoursesByIds(courseIds),
     fetchTracksVisibleToUserByCourseIds(courseIds, uid),
     fetchActivitiesVisibleToUserByCourseIds(courseIds, uid),
   ])
 
+  const courseById = new Map(courses.map((course) => [course.id, course] as const))
+  const tracksByCourseId = groupByCourseId(tracks)
+  const activitiesByCourseId = groupByCourseId(activities)
+
   const dashboardCourses = enrollments.map(
     (enrollment): DashboardCourse | null => {
-      const course = courses.find((item) => item?.id === enrollment.courseId)
+      const course = courseById.get(enrollment.courseId)
       if (!course) {
         return null
       }
-      const courseTracks = tracks
-        .filter((track) => track.courseId === enrollment.courseId)
+      const courseTracks = (tracksByCourseId.get(enrollment.courseId) ?? [])
         .filter(
           (track) =>
             !track.userIds?.length || track.userIds?.includes(enrollment.userId)
         )
         .sort((a, b) => a.order - b.order)
       const availableTrackIds = new Set(courseTracks.map((track) => track.id))
-      const courseActivities = activities
-        .filter((activity) => activity.courseId === enrollment.courseId)
+      const courseActivities = (activitiesByCourseId.get(enrollment.courseId) ?? [])
         .filter((activity) => availableTrackIds.has(activity.trackId))
-        .filter((activity) => {
-          const visibility = activity.visibility ?? "module"
-          if (visibility === "private") {
-            return false
-          }
-          if (visibility === "users") {
-            return activity.userIds?.includes(enrollment.userId)
-          }
-          return true
-        })
-        .filter((activity) => {
-          if (!activity.releaseAt) return true
-          const releaseAt =
-            activity.releaseAt instanceof Date
-              ? activity.releaseAt
-              : new Date(activity.releaseAt)
-          return releaseAt <= now
-        })
+        .filter((activity) =>
+          isContentAvailableToUser(activity, enrollment.userId, now)
+        )
         .sort((a, b) => a.order - b.order)
 
       return {
@@ -498,9 +656,7 @@ export async function fetchUserMaterials(uid: string): Promise<Material[]> {
     return []
   }
 
-  const courseIds = Array.from(
-    new Set(enrollments.map((enrollment) => enrollment.courseId))
-  )
+  const courseIds = getEnrollmentCourseIds(enrollments)
   const tracks = await fetchTracksVisibleToUserByCourseIds(courseIds, uid)
   const availableTrackIds = new Set(tracks.map((track) => track.id))
   const materials = await fetchMaterialsVisibleToUserByCourseIds(courseIds, uid)
@@ -509,22 +665,7 @@ export async function fetchUserMaterials(uid: string): Promise<Material[]> {
     .filter((material) =>
       material.trackId ? availableTrackIds.has(material.trackId) : true
     )
-    .filter((material) => {
-      const visibility = material.visibility ?? "module"
-      if (visibility === "private") return false
-      if (visibility === "users") {
-        return material.userIds?.includes(uid)
-      }
-      return true
-    })
-    .filter((material) => {
-      if (!material.releaseAt) return true
-      const releaseAt =
-        material.releaseAt instanceof Date
-          ? material.releaseAt
-          : new Date(material.releaseAt)
-      return releaseAt <= now
-    })
+    .filter((material) => isContentAvailableToUser(material, uid, now))
     .sort((a, b) => a.title.localeCompare(b.title))
 }
 
@@ -536,41 +677,24 @@ export async function fetchUserActivities(uid: string): Promise<Activity[]> {
     return []
   }
 
-  const courseIds = Array.from(
-    new Set(enrollments.map((enrollment) => enrollment.courseId))
-  )
+  const courseIds = getEnrollmentCourseIds(enrollments)
   const tracks = await fetchTracksVisibleToUserByCourseIds(courseIds, uid)
   const availableTrackIds = new Set(tracks.map((track) => track.id))
   const activities = await fetchActivitiesVisibleToUserByCourseIds(courseIds, uid)
 
   return activities
     .filter((activity) => availableTrackIds.has(activity.trackId))
-    .filter((activity) => {
-      const visibility = activity.visibility ?? "module"
-      if (visibility === "private") return false
-      if (visibility === "users") {
-        return activity.userIds?.includes(uid)
-      }
-      return true
-    })
-    .filter((activity) => {
-      if (!activity.releaseAt) return true
-      const releaseAt =
-        activity.releaseAt instanceof Date
-          ? activity.releaseAt
-          : new Date(activity.releaseAt)
-      return releaseAt <= now
-    })
+    .filter((activity) => isContentAvailableToUser(activity, uid, now))
     .sort((a, b) => a.order - b.order)
 }
 
 function mapActivityProgress(docId: string, data: Record<string, unknown>): ActivityProgress {
   return {
     id: docId,
-    userId: String(data.userId ?? ""),
-    activityId: String(data.activityId ?? ""),
-    courseId: String(data.courseId ?? ""),
-    trackId: String(data.trackId ?? ""),
+    userId: readStringField(data.userId),
+    activityId: readStringField(data.activityId),
+    courseId: readStringField(data.courseId),
+    trackId: readStringField(data.trackId),
     status: (data.status ?? "not_started") as ActivityProgressStatus,
     answers:
       data.answers && typeof data.answers === "object"
@@ -581,6 +705,20 @@ function mapActivityProgress(docId: string, data: Record<string, unknown>): Acti
     completionPercent: Number(data.completionPercent ?? 0),
     scorePercent:
       typeof data.scorePercent === "number" ? Number(data.scorePercent) : null,
+    gradingStatus:
+      data.gradingStatus === "graded" || data.gradingStatus === "revision_requested"
+        ? data.gradingStatus
+        : "pending",
+    teacherScorePercent:
+      typeof data.teacherScorePercent === "number"
+        ? Number(data.teacherScorePercent)
+        : null,
+    teacherFeedback:
+      typeof data.teacherFeedback === "string" ? data.teacherFeedback : null,
+    gradedBy: typeof data.gradedBy === "string" ? data.gradedBy : null,
+    gradedAt: data.gradedAt && typeof data.gradedAt === "object" && "toDate" in data.gradedAt
+      ? (data.gradedAt as { toDate: () => Date }).toDate()
+      : null,
     submittedAt: data.submittedAt && typeof data.submittedAt === "object" && "toDate" in data.submittedAt
       ? (data.submittedAt as { toDate: () => Date }).toDate()
       : null,
@@ -615,7 +753,7 @@ export async function fetchUserActivityProgress(uid: string, activityId: string)
   return mapActivityProgress(snapshot.id, data)
 }
 
-export async function fetchUserActivityProgressList(uid: string): Promise<ActivityProgress[]> {
+async function loadUserActivityProgressList(uid: string): Promise<ActivityProgress[]> {
   const firestore = getDbOrThrow()
   let snapshot
   try {
@@ -643,6 +781,12 @@ export async function fetchUserActivityProgressList(uid: string): Promise<Activi
     })
 }
 
+export function fetchUserActivityProgressList(uid: string): Promise<ActivityProgress[]> {
+  return runSingleFlight(activityProgressListRequests, uid, () =>
+    loadUserActivityProgressList(uid)
+  )
+}
+
 export async function upsertUserActivityProgress(params: {
   uid: string
   activityId: string
@@ -660,11 +804,15 @@ export async function upsertUserActivityProgress(params: {
   const docId = `${params.uid}_${params.activityId}`
   const ref = doc(firestore, COLLECTIONS.activityProgress, docId)
   const snapshot = await getDoc(ref)
+  const existingData = snapshot.exists() ? snapshot.data() : null
+  const isRevisionResubmission =
+    params.markSubmitted && existingData?.gradingStatus === "revision_requested"
 
   await setDoc(
     ref,
     {
       ...(snapshot.exists() ? {} : { createdAt: serverTimestamp() }),
+      ...(isRevisionResubmission ? { gradingStatus: "pending" } : {}),
       userId: params.uid,
       activityId: params.activityId,
       courseId: params.courseId,
@@ -682,148 +830,15 @@ export async function upsertUserActivityProgress(params: {
   )
 }
 
-export async function fetchAdminUsers(): Promise<AdminUserSummary[]> {
-  const firestore = getDbOrThrow()
-  const snapshot = await getDocs(collection(firestore, COLLECTIONS.users))
-
-  return snapshot.docs
-    .map((docSnap) => {
-      const data = docSnap.data()
-      return {
-        uid: data.uid ?? docSnap.id,
-        name: data.name ?? "",
-        email: data.email ?? "",
-        role: (data.role ?? "user") as UserRole,
-        team: data.team ?? null,
-        isRobot: data.isRobot ?? false,
-        createdAt: data.createdAt?.toDate?.() ?? null,
-        updatedAt: data.updatedAt?.toDate?.() ?? null,
-      } satisfies AdminUserSummary
-    })
-    .sort((a, b) => a.name.localeCompare(b.name))
-}
-
-export async function updateAdminUser(params: {
-  uid: string
-  name: string
-  email: string
-  role: UserRole
-  team?: string | null
-  isRobot?: boolean
-}) {
-  const firestore = getDbOrThrow()
-  const userRef = doc(firestore, COLLECTIONS.users, params.uid)
-
-  await setDoc(
-    userRef,
-    {
-      uid: params.uid,
-      name: params.name,
-      email: params.email,
-      role: params.role,
-      team: params.team ?? null,
-      isRobot: params.isRobot ?? false,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  )
-}
-
-export async function fetchAdminCourses(): Promise<AdminCourseSummary[]> {
-  const firestore = getDbOrThrow()
-  const coursesSnapshot = await getDocs(
-    collection(firestore, COLLECTIONS.courses)
-  )
-
-  const courseBase = coursesSnapshot.docs.map((docSnap) => {
-    const data = docSnap.data()
-    return {
-      id: docSnap.id,
-      title: data.title ?? "",
-      description: data.description ?? "",
-      level: (data.level ?? "Beginner") as "Beginner" | "Intermediate" | "Advanced",
-      durationWeeks: data.durationWeeks ?? 0,
-      coverUrl: data.coverUrl ?? null,
-      status: data.status ?? "Inscrições abertas",
-    }
-  })
-
-  const courses = await Promise.all(
-    courseBase.map(async (course) => {
-      const [tracksSnapshot, enrollmentsSnapshot, activitiesSnapshot] =
-        await Promise.all([
-          getDocs(
-            query(
-              collection(firestore, COLLECTIONS.tracks),
-              where("courseId", "==", course.id)
-            )
-          ),
-          getDocs(
-            query(
-              collection(firestore, COLLECTIONS.enrollments),
-              where("courseId", "==", course.id)
-            )
-          ),
-          getDocs(
-            query(
-              collection(firestore, COLLECTIONS.activities),
-              where("courseId", "==", course.id)
-            )
-          ),
-        ])
-
-      const trackUserIds = new Set<string>()
-      tracksSnapshot.docs.forEach((trackSnap) => {
-        const data = trackSnap.data()
-        const ids = Array.isArray(data.userIds) ? data.userIds : []
-        ids.forEach((id: string) => {
-          if (typeof id === "string" && id.trim()) {
-            trackUserIds.add(id)
-          }
-        })
-      })
-
-      const enrollmentUserIds = new Set<string>()
-      enrollmentsSnapshot.docs.forEach((enrollmentSnap) => {
-        const data = enrollmentSnap.data()
-        const id = data.userId
-        if (typeof id === "string" && id.trim()) {
-          enrollmentUserIds.add(id)
-        }
-      })
-
-      const studentsCount = new Set([
-        ...trackUserIds.values(),
-        ...enrollmentUserIds.values(),
-      ]).size
-
-      return {
-        id: course.id,
-        title: course.title,
-        description: course.description,
-        level: course.level,
-        durationWeeks: course.durationWeeks,
-        coverUrl: course.coverUrl,
-        status: course.status,
-        modulesCount: tracksSnapshot.size,
-        studentsCount,
-        activitiesCount: activitiesSnapshot.size,
-      } satisfies AdminCourseSummary
-    })
-  )
-
-  return courses.sort((a, b) => a.title.localeCompare(b.title))
-}
-
 export async function fetchAdminOverview(): Promise<AdminOverview> {
   const firestore = getDbOrThrow()
   const [usersSnapshot, coursesSnapshot] = await Promise.all([
-    getDocs(collection(firestore, COLLECTIONS.users)),
-    getDocs(collection(firestore, COLLECTIONS.courses)),
+    getCountFromServer(collection(firestore, COLLECTIONS.users)),
+    getCountFromServer(collection(firestore, COLLECTIONS.courses)),
   ])
 
   return {
-    usersCount: usersSnapshot.size,
-    coursesCount: coursesSnapshot.size,
+    usersCount: usersSnapshot.data().count,
+    coursesCount: coursesSnapshot.data().count,
   }
 }

@@ -3,9 +3,6 @@ import {
     Video,
     Link as LinkIcon,
     FileAudio,
-    BookOpenCheck,
-    ClipboardList,
-    Layers3,
 } from "lucide-react"
 import React from "react"
 
@@ -32,13 +29,3 @@ export const ACTIVITY_TYPE_LABELS = {
     assignment: "Atividade",
     project: "Projeto",
 } as const
-
-export const ACTIVITY_TYPE_ICONS: Record<
-    keyof typeof ACTIVITY_TYPE_LABELS,
-    React.ComponentType<{ className?: string }>
-> = {
-    lesson: BookOpenCheck,
-    quiz: ClipboardList,
-    assignment: FileText,
-    project: Layers3,
-}

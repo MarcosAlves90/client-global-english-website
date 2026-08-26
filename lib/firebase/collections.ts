@@ -6,5 +6,6 @@ export const COLLECTIONS = {
   materials: "materials",
   enrollments: "enrollments",
   activityProgress: "activityProgress",
+  supportTickets: "supportTickets",
 }
 

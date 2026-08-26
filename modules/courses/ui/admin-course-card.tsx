@@ -1,161 +1,117 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import Link from "next/link";
-import {
-    BookOpenCheck,
-    ClipboardList,
-    Layers3,
-    Calendar,
-    Users2,
-    X,
-} from "lucide-react";
+import * as React from "react"
+import Link from "next/link"
+import { BookOpenCheck, ClipboardList, Layers3, MoreHorizontal, Pencil, Trash2, Users2 } from "lucide-react"
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { optimizeCloudinaryUrl } from "@/lib/cloudinary-url";
-import { cn } from "@/lib/utils";
-import type { AdminCourseSummary } from "@/lib/firebase/types";
-
-import {
-    STATUS_STYLES,
-    type CourseStatus,
-} from "@/modules/courses/model/course";
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { optimizeCloudinaryUrl } from "@/lib/cloudinary-url"
+import type { AdminCourseSummary } from "@/lib/firebase/types"
 
 type AdminCourseCardProps = {
-    course: AdminCourseSummary;
-    onEdit: (course: AdminCourseSummary) => void;
-    onDelete: (course: AdminCourseSummary) => void;
-    deleting?: boolean;
-};
+  course: AdminCourseSummary
+  onDelete: (course: AdminCourseSummary) => void
+  deleting?: boolean
+}
 
-export function AdminCourseCard({
-    course,
-    onEdit,
-    onDelete,
-    deleting = false,
-}: AdminCourseCardProps) {
-    const [imageError, setImageError] = React.useState(false);
+export function AdminCourseCard({ course, onDelete, deleting = false }: AdminCourseCardProps) {
+  const [imageError, setImageError] = React.useState(false)
 
-    React.useEffect(() => {
-        setImageError(false);
-    }, [course.coverUrl]);
+  React.useEffect(() => {
+    setImageError(false)
+  }, [course.coverUrl])
 
-    return (
-        <Card className="group flex py-0 rounded-b-none h-full flex-col overflow-hidden border-primary/20 bg-card/40 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1.5 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5">
-            <div className="relative aspect-16/10 w-full overflow-hidden border-b border-primary/20 bg-muted/30">
-                {course.coverUrl && !imageError ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                        src={optimizeCloudinaryUrl(course.coverUrl, {
-                            width: 960,
-                            height: 540,
-                            crop: "fill",
-                            gravity: "auto",
-                        })}
-                        alt={course.title}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        onError={() => setImageError(true)}
-                    />
-                ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-zinc-200 dark:bg-zinc-800">
-                        <BookOpenCheck className="size-10 text-zinc-400 dark:text-zinc-500" />
-                    </div>
-                )}
-
-                <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-                    <span
-                        className={cn(
-                            "inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider shadow-lg backdrop-blur-md border border-white/5",
-                            STATUS_STYLES[
-                            (course.status as CourseStatus) ??
-                            "Inscrições abertas"
-                            ] ?? STATUS_STYLES["Inscrições abertas"],
-                        )}
-                    >
-                        {course.status}
-                    </span>
-                </div>
-
-                <div className="absolute right-3 top-3">
-                    <span className="rounded-full bg-black/40 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-lg backdrop-blur-md border border-white/5">
-                        {course.level}
-                    </span>
-                </div>
+  return (
+    <Card className="ge-surface group flex h-full flex-col overflow-hidden py-0 transition-colors hover:border-primary/20">
+      <div className="relative aspect-[16/9] w-full overflow-hidden border-b border-border/70 bg-muted">
+        {course.coverUrl && !imageError ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={optimizeCloudinaryUrl(course.coverUrl, {
+              width: 960,
+              height: 540,
+              crop: "fill",
+              gravity: "auto",
+            })}
+            alt={course.title}
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.01]"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-muted">
+            <div className="ge-icon-tile size-12">
+              <BookOpenCheck className="size-5" />
             </div>
+          </div>
+        )}
+      </div>
 
-            <CardContent className="flex flex-1 flex-col px-4 pb-4">
-                <div className="mb-4">
-                    <h3 className="line-clamp-1 text-base font-bold text-foreground">
-                        {course.title}
-                    </h3>
-                    <p className="mt-1.5 line-clamp-2 min-h-8 text-xs text-muted-foreground leading-relaxed">
-                        {course.description ||
-                            "Sem descrição disponível para este treinamento."}
-                    </p>
-                </div>
+      <CardContent className="flex flex-1 flex-col p-4">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="line-clamp-1 text-base font-semibold text-foreground">{course.title}</h3>
+            <p className="mt-1 line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">
+              {course.description || "Sem descrição."}
+            </p>
+          </div>
+          <MoreHorizontal className="mt-1 size-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+        </div>
 
-                <div className="mt-auto grid grid-cols-3 gap-2 border-y border-primary/5 py-3">
-                    <div className="flex flex-col items-center justify-center gap-1 border-r border-primary/5">
-                        <Users2 className="size-3.5 text-primary/60" />
-                        <span className="text-xs font-bold text-foreground">
-                            {course.studentsCount}
-                        </span>
-                        <span className="text-[9px] uppercase tracking-tighter text-muted-foreground font-medium">Alunos</span>
-                    </div>
-                    <div className="flex flex-col items-center justify-center gap-1 border-r border-primary/5">
-                        <Layers3 className="size-3.5 text-primary/60" />
-                        <span className="text-xs font-bold text-foreground">
-                            {course.modulesCount}
-                        </span>
-                        <span className="text-[9px] uppercase tracking-tighter text-muted-foreground font-medium">Módulos</span>
-                    </div>
-                    <div className="flex flex-col items-center justify-center gap-1">
-                        <ClipboardList className="size-3.5 text-primary/60" />
-                        <span className="text-xs font-bold text-foreground">
-                            {course.activitiesCount}
-                        </span>
-                        <span className="text-[9px] uppercase tracking-tighter text-muted-foreground font-medium">Ativs.</span>
-                    </div>
-                </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Badge variant="outline">{course.level}</Badge>
+          <Badge variant="outline" className="border-primary/15 bg-primary/5 text-primary">
+            {course.status}
+          </Badge>
+        </div>
 
-                <div className="mt-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-1.5 text-muted-foreground/60">
-                        <Calendar className="size-3.5" />
-                        <span className="text-[10px] font-bold">
-                            {course.durationWeeks} Sems.
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className="size-8 text-muted-foreground hover:bg-primary/10 hover:text-primary rounded-full transition-all"
-                            onClick={() => onEdit(course)}
-                        >
-                            <Calendar className="size-4" />
-                        </Button>
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className="size-8 text-destructive hover:bg-destructive/10 rounded-full transition-all"
-                            onClick={() => onDelete(course)}
-                            disabled={deleting}
-                        >
-                            <X className="size-4" />
-                        </Button>
-                        <Button
-                            size="sm"
-                            className="h-8 px-4 text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg shadow-primary/10 hover:shadow-primary/20 transition-all active:scale-95"
-                            asChild
-                        >
-                            <Link href={`/dashboard/admin/courses/${course.id}`}>
-                                Abrir
-                            </Link>
-                        </Button>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    );
+        <div className="mt-4 grid grid-cols-3 divide-x divide-border/70 rounded-2xl border border-border/70 bg-muted/35 py-2">
+          <AdminCourseMetric icon={Users2} label="Alunos" value={course.studentsCount} />
+          <AdminCourseMetric icon={Layers3} label="Módulos" value={course.modulesCount} />
+          <AdminCourseMetric icon={ClipboardList} label="Atividades" value={course.activitiesCount} />
+        </div>
+
+        <div className="mt-auto flex items-center justify-between gap-2 pt-4">
+          <Button size="sm" asChild>
+            <Link href={`/dashboard/admin/courses/${course.id}`}>Abrir curso</Link>
+          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className="text-muted-foreground"
+              asChild
+            >
+              <Link href={`/dashboard/admin/courses/${course.id}?edit=1`} aria-label={`Editar ${course.title}`}>
+                <Pencil className="size-4" />
+              </Link>
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => onDelete(course)}
+              disabled={deleting}
+              aria-label={`Excluir ${course.title}`}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function AdminCourseMetric({ icon: Icon, label, value }: Readonly<{ icon: React.ComponentType<{ className?: string }>; label: string; value: React.ReactNode }>) {
+  return (
+    <div className="flex min-w-0 flex-col items-center gap-0.5 px-2 text-center">
+      <Icon className="size-3.5 text-muted-foreground" />
+      <span className="text-sm font-semibold text-foreground">{value}</span>
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+    </div>
+  )
 }

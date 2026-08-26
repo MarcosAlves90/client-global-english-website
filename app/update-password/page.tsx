@@ -77,10 +77,14 @@ export default function UpdatePasswordPage() {
 
   return (
     <div className="min-h-svh bg-background">
-      <div className="mx-auto flex min-h-svh max-w-4xl items-center justify-center px-6 py-10">
-        <Card className="w-full max-w-md">
+      <div className="hidden" aria-hidden="true">
+        <div className="absolute -top-32 left-1/2 size-96 -translate-x-1/2 rounded-full bg-primary/12 blur-[110px]" />
+        <div className="absolute -bottom-40 right-0 size-80 rounded-full bg-sky-400/8 blur-[100px]" />
+      </div>
+      <div className="relative mx-auto flex min-h-svh max-w-4xl items-center justify-center px-6 py-10">
+        <Card className="w-full max-w-md shadow-sm">
           <CardHeader className="text-center">
-            <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+            <div className="ge-icon-tile mx-auto size-12">
               <Lock className="size-5" />
             </div>
             <CardTitle className="mt-4 text-xl">Crie uma nova senha</CardTitle>

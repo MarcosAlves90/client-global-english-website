@@ -1,162 +1,53 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
-import {
-  BarChart3,
-  BookOpen,
-  ClipboardList,
-  Sparkles,
-} from "lucide-react"
 
-import { DashboardHeader } from "@/components/dashboard-header"
-import { DashboardSectionHeader } from "@/components/dashboard-section-header"
-import { DashboardStatCard } from "@/components/dashboard-stat-card"
-import { MotionItem } from "@/components/ui/micro-motion"
-import { StudentCourseCard } from "@/modules/courses/ui/student-course-card"
+import { DashboardEmptyState, DashboardNotice } from "@/components/dashboard/dashboard-feedback"
+import { DashboardPage } from "@/components/dashboard/dashboard-page"
+import { SearchField } from "@/components/dashboard/search-field"
+import { SegmentedControl } from "@/components/dashboard/segmented-control"
 import { useAuth } from "@/hooks/use-auth"
-
-import { fetchUserDashboard } from "@/lib/firebase/firestore"
 import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
+import { fetchUserDashboard } from "@/lib/firebase/firestore"
 import type { DashboardCourse } from "@/lib/firebase/types"
+import { StudentCourseCard } from "@/modules/courses/ui/student-course-card"
+import { BookOpen } from "lucide-react"
 
-// Status constants removed as they are now handled by StudentCourseCard
+type CourseFilter = "active" | "completed" | "all"
 
 export default function Page() {
   const { isFirebaseReady, user } = useAuth()
   const [courses, setCourses] = React.useState<DashboardCourse[]>([])
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-
-  const loadCourses = React.useCallback(async () => {
-    if (!isFirebaseReady || !user) {
-      setCourses([])
-      return
-    }
-
-    try {
-      setLoading(true)
-      setError(null)
-      const data = await fetchUserDashboard(user.uid)
-      setCourses(data)
-    } catch (error) {
-      setError(
-        toFriendlyFirestoreLoadError(
-          error,
-          "Não foi possível carregar seus cursos."
-        )
-      )
-    } finally {
-      setLoading(false)
-    }
-  }, [isFirebaseReady, user])
+  const [query, setQuery] = React.useState("")
+  const [filter, setFilter] = React.useState<CourseFilter>("active")
 
   React.useEffect(() => {
-    if (!isFirebaseReady || !user) {
-      setCourses([])
-      return
+    async function load() {
+      if (!isFirebaseReady || !user) { setCourses([]); return }
+      try { setLoading(true); setError(null); setCourses(await fetchUserDashboard(user.uid)) }
+      catch (loadError) { setError(toFriendlyFirestoreLoadError(loadError, "Não foi possível carregar seus cursos.")) }
+      finally { setLoading(false) }
     }
+    void load()
+  }, [isFirebaseReady, user])
 
-    void loadCourses()
-  }, [isFirebaseReady, user, loadCourses])
-
-  const stats = React.useMemo(
-    () => ({
-      courses: courses.length,
-      tracks: courses.reduce((acc, course) => acc + course.tracks.length, 0),
-      activities: courses.reduce(
-        (acc, course) => acc + course.activities.length,
-        0
-      ),
-      avgProgress: courses.length
-        ? Math.round(
-          courses.reduce(
-            (acc, course) => acc + (course.enrollment.progress ?? 0),
-            0
-          ) / courses.length
-        )
-        : 0,
-    }),
-    [courses]
-  )
+  const filtered = courses.filter((course) => {
+    const matchesQuery = `${course.title} ${course.description} ${course.level}`.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))
+    const matchesFilter = filter === "all" || (filter === "completed" ? course.enrollment.status === "completed" : course.enrollment.status !== "completed")
+    return matchesQuery && matchesFilter
+  })
 
   return (
-    <div className="ge-page-enter">
-      <DashboardHeader
-        title="Cursos"
-        description="Gerencie seus cursos ativos e descubra novas trilhas."
-      />
-
-      <div className="flex flex-col gap-6 p-6">
-        {!isFirebaseReady ? (
-          <div className="rounded-2xl border border-dashed bg-accent/40 p-4 text-sm text-muted-foreground">
-            Firebase não configurado. Conecte para visualizar seus cursos.
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="rounded-2xl border border-dashed border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MotionItem delay={40}>
-            <DashboardStatCard title="Cursos" value={stats.courses} icon={BookOpen} />
-          </MotionItem>
-          <MotionItem delay={80}>
-            <DashboardStatCard title="Módulos" value={stats.tracks} icon={ClipboardList} />
-          </MotionItem>
-          <MotionItem delay={120}>
-            <DashboardStatCard
-              title="Atividades"
-              value={stats.activities}
-              icon={BarChart3}
-            />
-          </MotionItem>
-          <MotionItem delay={160}>
-            <DashboardStatCard
-              title="Progresso médio"
-              value={`${stats.avgProgress}%`}
-              icon={Sparkles}
-            />
-          </MotionItem>
-        </div>
-
-        <DashboardSectionHeader
-          title="Meus Conteúdos"
-          description="Acesse seus cursos e acompanhe sua evolução."
-          icon={BookOpen}
-        />
-
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {loading ? (
-            <div className="col-span-full flex h-64 items-center justify-center text-muted-foreground animate-pulse">
-              Organizando seus materiais...
-            </div>
-          ) : courses.length === 0 ? (
-            <div className="col-span-full flex flex-col gap-4 rounded-2xl border border-dashed border-primary/20 bg-primary/5 p-12 text-center backdrop-blur-sm">
-              <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <BookOpen className="size-8" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-lg font-bold tracking-tight text-foreground">
-                  Nenhum curso ativo
-                </p>
-                <p className="text-sm text-muted-foreground/60">
-                  Você ainda não possui matrículas ativas na plataforma.
-                </p>
-              </div>
-            </div>
-          ) : (
-            courses.map((course, index) => (
-              <MotionItem key={course.id} delay={120 + index * 45} lift>
-                <StudentCourseCard course={course} />
-              </MotionItem>
-            ))
-          )}
-        </div>
-
-      </div>
-    </div>
+    <DashboardPage
+      title="Cursos"
+      description="Encontre um curso e continue diretamente do conteúdo que está estudando."
+      toolbar={<><SearchField value={query} onChange={setQuery} placeholder="Buscar cursos..." className="relative min-w-0 flex-1 sm:max-w-sm" /><SegmentedControl value={filter} onChange={setFilter} options={[{ value: "active", label: "Em andamento" }, { value: "completed", label: "Concluídos" }, { value: "all", label: "Todos" }]} ariaLabel="Filtrar cursos" /></>}
+    >
+      {!isFirebaseReady ? <DashboardNotice>Firebase não configurado. Conecte para visualizar seus cursos.</DashboardNotice> : null}
+      {error ? <DashboardNotice tone="danger">{error}</DashboardNotice> : null}
+      {loading ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[0,1,2].map((item) => <div key={item} className="h-80 animate-pulse rounded-2xl bg-muted" />)}</div> : filtered.length === 0 ? <DashboardEmptyState icon={BookOpen} title={query ? "Nenhum curso encontrado" : "Nenhum curso nesta categoria"} description={query ? "Tente buscar por outro nome, nível ou palavra-chave." : "Quando houver cursos disponíveis, eles aparecerão aqui."} /> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{filtered.map((course) => <StudentCourseCard key={course.id} course={course} />)}</div>}
+    </DashboardPage>
   )
 }

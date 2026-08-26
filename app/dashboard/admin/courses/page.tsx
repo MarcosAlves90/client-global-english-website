@@ -1,100 +1,82 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
-import {
-  BookOpenCheck,
-  ClipboardList,
-  Layers3,
-  Search,
-  Sparkles,
-  Users2,
-  AlertCircle,
-  Plus,
-} from "lucide-react"
+import { BookOpenCheck, ClipboardList, Layers3, Plus, Users2 } from "lucide-react"
 
-import { DashboardHeader } from "@/components/dashboard-header"
-import { DashboardStatCard } from "@/components/dashboard-stat-card"
-import { DashboardSectionHeader } from "@/components/dashboard-section-header"
-import { useAuth } from "@/hooks/use-auth"
+import { DashboardNotice } from "@/components/dashboard/dashboard-feedback"
+import { DashboardPage } from "@/components/dashboard/dashboard-page"
+import { DashboardSectionHeader } from "@/components/dashboard/dashboard-section-header"
+import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
+import { SearchField } from "@/components/dashboard/search-field"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import type { AdminCourseSummary } from "@/lib/firebase/types"
+import { NativeSelect } from "@/components/ui/native-select"
+import { useAuth } from "@/hooks/use-auth"
+import { deleteMediaByUrl } from "@/lib/cloudinary-actions"
+import type { AdminCourseCatalogMetrics, AdminCourseSummary, AdminUserSummary } from "@/lib/firebase/types"
 import {
   AdminCourseCard,
-  COURSE_STATUS_OPTIONS,
   deleteAdminCourse,
-  fetchAdminCourses,
+  fetchAdminCourseCatalog,
   saveAdminCourse,
-  type CourseStatus,
 } from "@/modules/courses"
-import Image from "next/image"
-import { optimizeCloudinaryUrl } from "@/lib/cloudinary-url"
-import { uploadImage, deleteImage, getPublicIdFromUrl } from "@/lib/cloudinary-actions"
-import { toast } from "sonner"
-import { Loader2, Upload } from "lucide-react"
-
-type CreateCourseForm = {
-  title: string
-  description: string
-  level: "Beginner" | "Intermediate" | "Advanced"
-  durationWeeks: string
-  coverUrl: string
-  status: CourseStatus
-}
-
-const selectClassName =
-  "bg-card text-foreground border-input h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+import {
+  AdminCourseForm,
+  createAdminCourseFormValue,
+  type AdminCourseFormValue,
+} from "@/modules/courses/ui/admin-course-form"
+import { fetchAdminTeachers } from "@/modules/users"
 
 export default function Page() {
   const { role, isFirebaseReady, user } = useAuth()
   const [courses, setCourses] = React.useState<AdminCourseSummary[]>([])
+  const [metrics, setMetrics] = React.useState<AdminCourseCatalogMetrics>({
+    coursesCount: 0,
+    uniqueStudentsCount: 0,
+    modulesCount: 0,
+    activitiesCount: 0,
+  })
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [showCreate, setShowCreate] = React.useState(false)
-  const [editingCourseId, setEditingCourseId] = React.useState<string | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [createError, setCreateError] = React.useState<string | null>(null)
   const [deleteError, setDeleteError] = React.useState<string | null>(null)
-  const [deletingCourseId, setDeletingCourseId] = React.useState<string | null>(
-    null
-  )
+  const [deletingCourseId, setDeletingCourseId] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [isUploading, setIsUploading] = React.useState(false)
-  const coverInputRef = React.useRef<HTMLInputElement>(null)
-  const [form, setForm] = React.useState<CreateCourseForm>({
-    title: "",
-    description: "",
-    level: "Beginner",
-    durationWeeks: "4",
-    coverUrl: "",
-    status: "Inscrições abertas",
-  })
+  const [levelFilter, setLevelFilter] = React.useState<"all" | AdminCourseFormValue["level"]>("all")
+  const [teachers, setTeachers] = React.useState<AdminUserSummary[]>([])
+  const [form, setForm] = React.useState<AdminCourseFormValue>(() => createAdminCourseFormValue())
 
-  const isEditing = editingCourseId !== null
-  const breadcrumbItems = React.useMemo(() => [{ label: "Admin", href: "/dashboard/admin" }, { label: "Cursos" }], [])
+  const breadcrumbItems = React.useMemo(
+    () => [{ label: "Admin", href: "/dashboard/admin" }, { label: "Cursos" }],
+    []
+  )
 
   const resetForm = React.useCallback(() => {
-    setForm({
-      title: "",
-      description: "",
-      level: "Beginner",
-      durationWeeks: "4",
-      coverUrl: "",
-      status: "Inscrições abertas",
-    })
-    setEditingCourseId(null)
+    setForm(createAdminCourseFormValue())
     setCreateError(null)
   }, [])
+
+  const discardCreateDraft = React.useCallback(async () => {
+    if (form.coverUrl) {
+      try {
+        await deleteMediaByUrl(form.coverUrl)
+      } catch (cleanupError) {
+        console.error("Course cover draft cleanup failed", cleanupError)
+      }
+    }
+    resetForm()
+  }, [form.coverUrl, resetForm])
 
   const loadCourses = React.useCallback(async (force?: boolean) => {
     try {
       setLoading(true)
       setError(null)
       const idToken = user ? await user.getIdToken() : null
-      const data = await fetchAdminCourses(idToken, { force })
-      setCourses(data)
+      const data = await fetchAdminCourseCatalog(idToken, { force })
+      setCourses(data.items)
+      setMetrics(data.metrics)
     } catch {
       setError("Não foi possível carregar os cursos.")
     } finally {
@@ -103,12 +85,21 @@ export default function Page() {
   }, [user])
 
   React.useEffect(() => {
-    if (!isFirebaseReady || role !== "admin") {
-      return
-    }
-
+    if (!isFirebaseReady || role !== "admin") return
     void loadCourses()
   }, [isFirebaseReady, role, loadCourses])
+
+  React.useEffect(() => {
+    async function loadTeachers() {
+      if (!isFirebaseReady || role !== "admin" || !user) return
+      try {
+        setTeachers(await fetchAdminTeachers(await user.getIdToken()))
+      } catch {
+        setTeachers([])
+      }
+    }
+    void loadTeachers()
+  }, [isFirebaseReady, role, user])
 
   const handleSubmitCourse = async () => {
     if (!form.title.trim() || !form.description.trim()) {
@@ -125,94 +116,34 @@ export default function Page() {
     try {
       setCreating(true)
       setCreateError(null)
-      const idToken = user ? await user.getIdToken() : null
-      await saveAdminCourse(idToken, {
-        ...(isEditing ? { id: editingCourseId ?? undefined } : {}),
+      await saveAdminCourse(user ? await user.getIdToken() : null, {
         title: form.title.trim(),
         description: form.description.trim(),
         level: form.level,
         durationWeeks,
         coverUrl: form.coverUrl.trim() || null,
         status: form.status,
+        teacherIds: form.teacherIds,
       })
-
       resetForm()
       setShowCreate(false)
-      await loadCourses()
+      await loadCourses(true)
     } catch {
-      setCreateError(
-        isEditing
-          ? "Não foi possível salvar o curso."
-          : "Não foi possível criar o curso."
-      )
+      setCreateError("Não foi possível criar o curso.")
     } finally {
       setCreating(false)
     }
   }
 
-  const handleCoverUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    try {
-      setIsUploading(true)
-      const formData = new FormData()
-      formData.append("file", file)
-      const result = await uploadImage(formData, "covers")
-
-      // Delete previous image from Cloudinary if it exists in the form
-      if (form.coverUrl) {
-        const publicId = await getPublicIdFromUrl(form.coverUrl)
-        if (publicId) {
-          await deleteImage(publicId)
-        }
-      }
-
-      setForm(prev => ({ ...prev, coverUrl: result.secure_url }))
-      toast.success("Capa enviada com sucesso!")
-    } catch (error) {
-      console.error("Upload failed:", error)
-      toast.error("Falha no envio da capa.")
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const handleEditCourse = (course: AdminCourseSummary) => {
-    const status = COURSE_STATUS_OPTIONS.includes(course.status as CourseStatus)
-      ? (course.status as CourseStatus)
-      : "Inscrições abertas"
-
-    setEditingCourseId(course.id)
-    setCreateError(null)
-    setForm({
-      title: course.title,
-      description: course.description,
-      level: course.level,
-      durationWeeks: String(course.durationWeeks || 1),
-      coverUrl: course.coverUrl ?? "",
-      status,
-    })
-    setShowCreate(true)
-  }
-
   const handleDeleteCourse = async (course: AdminCourseSummary) => {
-    const confirmed = window.confirm(
-      `Tem certeza que deseja excluir o curso "${course.title}"? Esta ação removerá módulos, materiais e atividades relacionadas.`
-    )
-    if (!confirmed) {
+    if (!window.confirm(`Tem certeza que deseja excluir o curso "${course.title}"? Esta ação removerá módulos, materiais e atividades relacionadas.`)) {
       return
     }
 
     try {
       setDeletingCourseId(course.id)
       setDeleteError(null)
-      const idToken = user ? await user.getIdToken() : null
-      await deleteAdminCourse(idToken, course.id)
-      if (editingCourseId === course.id) {
-        resetForm()
-        setShowCreate(false)
-      }
+      await deleteAdminCourse(user ? await user.getIdToken() : null, course.id)
       await loadCourses(true)
     } catch {
       setDeleteError("Não foi possível excluir o curso.")
@@ -222,349 +153,144 @@ export default function Page() {
   }
 
   const filteredCourses = React.useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    if (!query) return courses
-    return courses.filter(
-      (course) =>
-        course.title.toLowerCase().includes(query) ||
-        course.status.toLowerCase().includes(query)
-    )
-  }, [courses, searchQuery])
-
-  const totalStudents = React.useMemo(
-    () => courses.reduce((acc, course) => acc + course.studentsCount, 0),
-    [courses]
-  )
-  const totalModules = React.useMemo(
-    () => courses.reduce((acc, course) => acc + course.modulesCount, 0),
-    [courses]
-  )
-  const totalActivities = React.useMemo(
-    () => courses.reduce((acc, course) => acc + course.activitiesCount, 0),
-    [courses]
-  )
+    const query = searchQuery.trim().toLocaleLowerCase("pt-BR")
+    return courses.filter((course) => {
+      const matchesSearch =
+        !query ||
+        course.title.toLocaleLowerCase("pt-BR").includes(query) ||
+        course.status.toLocaleLowerCase("pt-BR").includes(query) ||
+        course.description.toLocaleLowerCase("pt-BR").includes(query)
+      const matchesLevel = levelFilter === "all" || course.level === levelFilter
+      return matchesSearch && matchesLevel
+    })
+  }, [courses, levelFilter, searchQuery])
 
   if (role !== "admin") {
     return (
       <div className="p-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Acesso restrito</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Esta área é exclusiva para administradores.
-          </CardContent>
+          <CardHeader><CardTitle className="text-base">Acesso restrito</CardTitle></CardHeader>
+          <CardContent className="text-sm text-muted-foreground">Esta área é exclusiva para administradores.</CardContent>
         </Card>
       </div>
     )
   }
 
   return (
-    <div>
-      <DashboardHeader
-        title="Gerenciar cursos"
-        breadcrumbItems={breadcrumbItems}
-        description="Gerencie catálogo, módulos e matrículas corporativas."
-        action={
-          <Button
-            size="sm"
-            onClick={() => {
-              if (showCreate) {
-                setShowCreate(false)
-                resetForm()
-                return
-              }
+    <DashboardPage
+      title="Gerenciar cursos"
+      breadcrumbItems={breadcrumbItems}
+      description="Gerencie o catálogo e abra cada curso para editar seus dados ou conteúdo."
+      contentClassName="gap-8"
+      action={
+        <Button
+          size="sm"
+          onClick={() => {
+            if (showCreate) {
+              setShowCreate(false)
+              void discardCreateDraft()
+            } else {
               resetForm()
               setShowCreate(true)
-            }}
-          >
-            {showCreate ? "Fechar" : "Novo curso"}
-          </Button>
-        }
-      />
-
-      <div className="flex flex-col gap-8 p-6">
-        {/* Error States */}
-        {!isFirebaseReady && (
-          <div className="rounded-xl border border-dashed bg-accent/40 p-4 text-xs text-muted-foreground">
-            Firebase não configurado. Conecte para visualizar cursos reais.
-          </div>
-        )}
-        {(error || deleteError) && (
-          <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-xs text-destructive">
-            {error || deleteError}
-          </div>
-        )}
-
-        {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <DashboardStatCard
-            title="Catálogo"
-            value={courses.length}
-            icon={Layers3}
-            description="Cursos cadastrados"
-            loading={loading}
-          />
-          <DashboardStatCard
-            title="Alunos ativos"
-            value={totalStudents}
-            icon={Users2}
-            description="Total em cursos"
-            loading={loading}
-          />
-          <DashboardStatCard
-            title="Estrutura"
-            value={totalModules}
-            icon={ClipboardList}
-            description="Módulos publicados"
-            loading={loading}
-          />
-          <DashboardStatCard
-            title="Atividades"
-            value={totalActivities}
-            icon={BookOpenCheck}
-            description="Total interativo"
-            loading={loading}
-          />
-        </div>
-
-        {/* List Section */}
-        <div className="space-y-4">
-          <DashboardSectionHeader
-            title="Catálogo de cursos"
-            description="Gerencie o que está visível para os alunos e acompanhe métricas de engajamento."
-            icon={BookOpenCheck}
-            action={
-              <div className="flex items-center gap-2 max-lg:w-full">
-                <div className="relative max-lg:w-full">
-                  <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar cursos..."
-                    className="h-9 w-full pl-9 lg:w-75 bg-card/40 backdrop-blur-sm border-primary/20 transition-all focus:border-primary/30"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-full border-primary/20 hover:border-primary/30"
-                  onClick={() => setSearchQuery("")}
-                >
-                  Limpar
-                </Button>
-              </div>
             }
+          }}
+        >
+          <Plus className="size-4" />
+          {showCreate ? "Fechar" : "Novo curso"}
+        </Button>
+      }
+      toolbar={
+        <>
+          <SearchField
+            value={searchQuery}
+            onChange={setSearchQuery}
+            ariaLabel="Buscar cursos"
+            placeholder="Buscar por título, status ou descrição..."
+            className="relative min-w-0 flex-1 sm:max-w-md"
           />
+          <NativeSelect
+            aria-label="Filtrar cursos por nível"
+            value={levelFilter}
+            onChange={(event) => setLevelFilter(event.target.value as "all" | AdminCourseFormValue["level"])}
+            className="w-full sm:w-48"
+          >
+            <option value="all">Todos os níveis</option>
+            <option value="Beginner">Beginner</option>
+            <option value="Intermediate">Intermediate</option>
+            <option value="Advanced">Advanced</option>
+          </NativeSelect>
+          <span className="ml-auto text-xs text-muted-foreground">{filteredCourses.length} de {courses.length} cursos</span>
+        </>
+      }
+    >
+      {!isFirebaseReady ? <DashboardNotice className="text-xs">Firebase não configurado. Conecte para visualizar cursos reais.</DashboardNotice> : null}
+      {error || deleteError ? <DashboardNotice tone="danger" className="text-xs">{error || deleteError}</DashboardNotice> : null}
 
-          <div className="rounded-xl bg-card/30 backdrop-blur-sm border border-primary/5 p-1 transition-all">
-            {loading ? (
-              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground animate-pulse">
-                Sincronizando catálogo...
-              </div>
-            ) : filteredCourses.length === 0 ? (
-              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground border border-dashed border-primary/20 rounded-lg m-2">
-                {searchQuery ? "Nenhum curso corresponde à busca." : "Nenhum curso cadastrado."}
-              </div>
-            ) : (
-              <div className="grid gap-4 p-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                {filteredCourses.map((course) => (
-                  <AdminCourseCard
-                    key={course.id}
-                    course={course}
-                    onEdit={handleEditCourse}
-                    onDelete={handleDeleteCourse}
-                    deleting={deletingCourseId === course.id}
-                  />
-                ))}
-              </div>
-            )}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <DashboardStatCard title="Catálogo" value={metrics.coursesCount} icon={Layers3} description="Cursos cadastrados" loading={loading} />
+        <DashboardStatCard title="Alunos únicos" value={metrics.uniqueStudentsCount} icon={Users2} description="Pessoas vinculadas ao catálogo" loading={loading} />
+        <DashboardStatCard title="Estrutura" value={metrics.modulesCount} icon={ClipboardList} description="Módulos publicados" loading={loading} />
+        <DashboardStatCard title="Atividades" value={metrics.activitiesCount} icon={BookOpenCheck} description="Total interativo" loading={loading} />
+      </div>
+
+      <section className="space-y-4">
+        <DashboardSectionHeader
+          title="Catálogo de cursos"
+          description="Abra um curso para visualizar, editar dados básicos ou gerenciar módulos, materiais e atividades."
+          icon={BookOpenCheck}
+        />
+
+        {loading ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-72 animate-pulse rounded-2xl border border-border bg-muted/45" />
+            ))}
           </div>
-        </div>
-
-        {/* Form Section */}
-        {showCreate && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <DashboardSectionHeader
-              title={isEditing ? "Editar curso" : "Novo treinamento"}
-              description={isEditing ? "Modifique título, descrição ou status operacional do curso." : "Defina os parâmetros iniciais para o seu novo treinamento na Global English."}
-              icon={isEditing ? Sparkles : Plus}
-            />
-
-            <Card className="border-primary/20 bg-card/40 backdrop-blur-sm overflow-hidden border-dashed">
-              <CardHeader className="border-b border-primary/5 bg-primary/1">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <div className="size-2 rounded-full bg-primary animate-pulse" />
-                  Propriedades Técnicas
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-6 md:grid-cols-2 pt-6">
-                <div className="space-y-2 md:col-span-2">
-                  <Label required htmlFor="course-title">Título do curso</Label>
-                  <Input
-                    id="course-title"
-                    placeholder="Ex.: Inglês para negociações internacionais"
-                    value={form.title}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, title: event.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <Label required htmlFor="course-description">Descrição</Label>
-                  <textarea
-                    id="course-description"
-                    className="bg-card text-foreground border-input min-h-28 w-full rounded-md border p-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                    placeholder="Resumo do objetivo, público-alvo e entregáveis"
-                    value={form.description}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, description: event.target.value }))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {form.description.length} caracteres
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="course-level">Nível</Label>
-                  <select
-                    id="course-level"
-                    className={selectClassName}
-                    value={form.level}
-                    onChange={(event) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        level: event.target.value as CreateCourseForm["level"],
-                      }))
-                    }
-                  >
-                    <option value="Beginner">Beginner</option>
-                    <option value="Intermediate">Intermediate</option>
-                    <option value="Advanced">Advanced</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label required htmlFor="course-duration">Duração (semanas)</Label>
-                  <Input
-                    id="course-duration"
-                    type="number"
-                    min={1}
-                    value={form.durationWeeks}
-                    onChange={(event) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        durationWeeks: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="course-status">Status operacional</Label>
-                  <select
-                    id="course-status"
-                    className={selectClassName}
-                    value={form.status}
-                    onChange={(event) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        status: event.target.value as CourseStatus,
-                      }))
-                    }
-                  >
-                    {COURSE_STATUS_OPTIONS.map((status) => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Capa do curso</Label>
-                  <div className="flex items-center gap-4">
-                    {form.coverUrl && (
-                      <div className="relative size-11 rounded-lg overflow-hidden border border-primary/20">
-                        <Image
-                          src={optimizeCloudinaryUrl(form.coverUrl, {
-                            width: 160,
-                            height: 160,
-                            crop: "fill",
-                            gravity: "auto",
-                          })}
-                          alt="Capa"
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    )}
-                    <input
-                      type="file"
-                      ref={coverInputRef}
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleCoverUpload}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-11 flex-1 border-dashed"
-                      onClick={() => coverInputRef.current?.click()}
-                      disabled={isUploading}
-                    >
-                      {isUploading ? <Loader2 className="size-4 animate-spin mr-2" /> : <Upload className="size-4 mr-2" />}
-                      {isUploading ? "Enviando..." : form.coverUrl ? "Alterar Capa" : "Upload da Capa"}
-                    </Button>
-                  </div>
-                </div>
-
-
-                <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground md:col-span-2">
-                  Dica: prefira títulos curtos e objetivos. Isso melhora conversão na
-                  vitrine e facilita busca interna.
-                </div>
-
-                {createError && (
-                  <div className="md:col-span-2 text-sm text-destructive flex items-center gap-2">
-                    <AlertCircle className="size-4" />
-                    {createError}
-                  </div>
-                )}
-
-                <div className="md:col-span-2 flex items-center gap-3 pt-6 border-t border-primary/5 mt-2">
-                  <Button
-                    onClick={handleSubmitCourse}
-                    disabled={creating}
-                    className="rounded-full px-10 shadow-lg shadow-primary/20 transition-all active:scale-95"
-                  >
-                    {creating ? "Sincronizando..." : isEditing ? "Salvar alterações" : "Publicar curso"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={resetForm}
-                    className="rounded-full px-6"
-                    disabled={creating}
-                  >
-                    Limpar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => { setShowCreate(false); resetForm(); }}
-                    className="rounded-full"
-                    disabled={creating}
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+        ) : filteredCourses.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-muted/25 p-10 text-center">
+            <p className="text-sm font-medium">Nenhum curso encontrado</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {searchQuery || levelFilter !== "all" ? "Ajuste a busca ou os filtros para ver outros resultados." : "Crie o primeiro curso para iniciar o catálogo."}
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filteredCourses.map((course) => (
+              <AdminCourseCard
+                key={course.id}
+                course={course}
+                onDelete={handleDeleteCourse}
+                deleting={deletingCourseId === course.id}
+              />
+            ))}
           </div>
         )}
-      </div>
-    </div>
+      </section>
+
+      {showCreate ? (
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <DashboardSectionHeader
+            title="Novo curso"
+            description="Cadastre os dados básicos. A edição posterior acontece dentro da página do próprio curso."
+            icon={Plus}
+          />
+          <AdminCourseForm
+            title="Dados do curso"
+            value={form}
+            teachers={teachers}
+            submitting={creating}
+            error={createError}
+            submitLabel="Criar curso"
+            onChange={setForm}
+            onSubmit={() => void handleSubmitCourse()}
+            onReset={() => void discardCreateDraft()}
+            onCancel={() => {
+              setShowCreate(false)
+              void discardCreateDraft()
+            }}
+          />
+        </div>
+      ) : null}
+    </DashboardPage>
   )
 }
