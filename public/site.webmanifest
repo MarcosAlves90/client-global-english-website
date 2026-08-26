@@ -1,6 +1,13 @@
-﻿{
-  "name": "Global English",
+{
+  "name": "Global English Learning Hub",
   "short_name": "Global English",
+  "description": "Cursos, atividades, materiais, agenda, notas, progresso e feedback em uma plataforma organizada para aprender e ensinar inglês.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#15121f",
+  "theme_color": "#15121f",
   "icons": [
     {
       "src": "/android-chrome-192x192.png",
@@ -12,8 +19,5 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ],
-  "theme_color": "#ffffff",
-  "background_color": "#ffffff",
-  "display": "standalone"
+  ]
 }

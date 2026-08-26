@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import "@uiw/react-md-editor/markdown-editor.css"
@@ -26,15 +26,18 @@ export const metadata: Metadata = {
     template: "%s | Global English",
   },
   description: siteConfig.description,
-  applicationName: siteConfig.name,
+  applicationName: siteConfig.productName,
+  category: siteConfig.category,
+  creator: siteConfig.name,
+  publisher: siteConfig.name,
   manifest: "/site.webmanifest",
-  keywords: [
-    "curso de inglÃªs",
-    "plataforma de inglÃªs",
-    "trilhas de inglÃªs",
-    "atividades de inglÃªs",
-    "Global English",
-  ],
+  keywords: [...siteConfig.keywords],
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+  },
   alternates: {
     canonical: "/",
   },
@@ -54,7 +57,7 @@ export const metadata: Metadata = {
         }),
         width: 1200,
         height: 630,
-        alt: `${siteConfig.name} - Preview`,
+        alt: `${siteConfig.name} — plataforma de ensino de inglês`,
       },
     ],
   },
@@ -70,6 +73,11 @@ export const metadata: Metadata = {
       }),
     ],
   },
+}
+
+export const viewport: Viewport = {
+  colorScheme: "dark",
+  themeColor: "#15121f",
 }
 
 export default function RootLayout({

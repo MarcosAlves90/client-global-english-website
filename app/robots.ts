@@ -3,17 +3,17 @@ import type { MetadataRoute } from "next"
 import { getMetadataBase } from "@/lib/seo"
 
 export default function robots(): MetadataRoute.Robots {
-  const base = getMetadataBase()
+  const origin = getMetadataBase().origin
 
   return {
     rules: [
       {
         userAgent: "*",
-        allow: ["/", "/login", "/signup", "/api/og"],
-        disallow: ["/dashboard", "/update-password", "/api"],
+        allow: ["/", "/api/og"],
+        disallow: ["/dashboard", "/update-password", "/api/"],
       },
     ],
-    sitemap: `${base.origin}/sitemap.xml`,
-    host: base.origin,
+    sitemap: `${origin}/sitemap.xml`,
+    host: origin,
   }
 }

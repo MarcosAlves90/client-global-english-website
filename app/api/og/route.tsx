@@ -94,7 +94,7 @@ export async function GET(request: Request) {
                 Global English
               </span>
               <span style={{ fontSize: 16, color: "rgba(245, 242, 255, 0.75)" }}>
-                Plataforma de ensino de inglês
+                Learning Hub para alunos e professores
               </span>
             </div>
           </div>
@@ -127,7 +127,7 @@ export async function GET(request: Request) {
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 18, color: "rgba(245, 242, 255, 0.72)" }}>
-              Fluência com trilhas, cursos e atividades em um só lugar
+              Cursos, atividades, agenda, notas, materiais e feedback em um só lugar
             </span>
             <span
               style={{

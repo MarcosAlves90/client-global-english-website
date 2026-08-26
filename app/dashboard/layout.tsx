@@ -5,15 +5,15 @@ import { buildPageMetadata } from "@/lib/seo"
 
 export const metadata: Metadata = {
   ...buildPageMetadata({
-    title: "Área do Aluno",
+    title: "Dashboard",
     description:
-      "Painel interno da Global English para acompanhamento de cursos, atividades e progresso.",
+      "Área autenticada da Global English para alunos, professores e administradores acompanharem cursos, atividades, agenda, notas e progresso.",
     path: "/dashboard",
     noIndex: true,
   }),
   title: {
-    default: "Área do Aluno",
-    template: "%s | Dashboard Global English",
+    default: "Dashboard",
+    template: "%s | Global English",
   },
 }
 

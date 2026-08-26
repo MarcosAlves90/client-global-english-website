@@ -6,6 +6,7 @@ export const metadata: Metadata = buildPageMetadata({
   title: "Cadastro",
   description: "Informações sobre acesso e cadastro na plataforma Global English.",
   path: "/signup",
+  noIndex: true,
 })
 
 export default function SignupLayout({ children }: { children: React.ReactNode }) {

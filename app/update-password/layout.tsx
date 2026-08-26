@@ -5,7 +5,7 @@ import { buildPageMetadata } from "@/lib/seo"
 export const metadata: Metadata = buildPageMetadata({
   title: "Atualizar Senha",
   description:
-    "Atualize sua senha para continuar acessando a área do aluno com segurança.",
+    "Atualize sua senha para continuar acessando a plataforma Global English com segurança.",
   path: "/update-password",
   noIndex: true,
 })

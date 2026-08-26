@@ -7,6 +7,7 @@ export const metadata: Metadata = buildPageMetadata({
   description:
     "Acesse sua conta na plataforma Global English para continuar seus cursos e atividades.",
   path: "/login",
+  noIndex: true,
 })
 
 export default function LoginLayout({

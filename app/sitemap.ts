@@ -3,27 +3,13 @@ import type { MetadataRoute } from "next"
 import { getMetadataBase } from "@/lib/seo"
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = getMetadataBase().origin
-  const now = new Date()
+  const origin = getMetadataBase().origin
 
   return [
     {
-      url: `${base}/`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 1,
-    },
-    {
-      url: `${base}/login`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.9,
-    },
-    {
-      url: `${base}/signup`,
-      lastModified: now,
+      url: `${origin}/`,
       changeFrequency: "monthly",
-      priority: 0.8,
+      priority: 1,
     },
   ]
 }
