@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added structured `WebSite` and `EducationalOrganization` JSON-LD for the public site.
+- Added regression coverage for metadata, crawler policy, sitemap, and structured-data sanitization.
+
+### Changed
+
+- Refreshed site-wide SEO metadata to reflect the 0.10.0 learning experience, including courses, activities, materials, agenda, grades, progress, and teacher feedback.
+- Updated canonical URLs, Open Graph metadata, Twitter cards, dynamic social previews, keywords, and application metadata.
+- Updated `robots.txt`, sitemap generation, and the web app manifest to match the current public/private route boundaries and dark visual identity.
+
+### Fixed
+
+- Prevented login, signup, dashboard, password-update, and private API surfaces from being indexed as public content.
+- Removed authentication pages from the sitemap and stopped generating artificial `lastModified` timestamps on every sitemap build.
+- Fixed corrupted Portuguese SEO text such as `inglÃªs` in root metadata.
+
 ## [0.10.0] - 2026-08-26
 
 ### Added
