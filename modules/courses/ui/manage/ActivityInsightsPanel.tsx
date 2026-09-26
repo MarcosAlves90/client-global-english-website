@@ -4,6 +4,7 @@ import * as React from "react"
 import { ChevronDown, Loader2, Target, X } from "lucide-react"
 
 import { ActivityAnswerValueView, formatActivityAnswerValue } from "@/components/activities/activity-answer-value"
+import { sortActivitiesAlphabetically } from "@/lib/activities/sorting"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -58,15 +59,6 @@ function buildTrackMap(tracks: Track[]) {
     return new Map(tracks.map((track) => [track.id, track] as const))
 }
 
-function sortActivities(activities: Activity[], trackById: Map<string, Track>) {
-    return [...activities].sort((a, b) => {
-        const left = trackById.get(a.trackId)?.order ?? 0
-        const right = trackById.get(b.trackId)?.order ?? 0
-        if (left !== right) return left - right
-        return (a.title ?? "").localeCompare(b.title ?? "")
-    })
-}
-
 function getResponsesForActivity(activityId: string | null, activityResponses: AdminActivityResponse[]) {
     if (!activityId) return []
     return activityResponses.filter((response) => response.activityId === activityId)
@@ -92,7 +84,7 @@ export function ActivityInsightsPanel({
     const [expandedResponseId, setExpandedResponseId] = React.useState<string | null>(null)
 
     const trackById = React.useMemo(() => buildTrackMap(tracks), [tracks])
-    const activitiesOrdered = React.useMemo(() => sortActivities(activities, trackById), [activities, trackById])
+    const activitiesOrdered = React.useMemo(() => sortActivitiesAlphabetically(activities), [activities])
 
     React.useEffect(() => {
         if (!activitiesOrdered.length) {

@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "change_contract_sha256": "f003dec9f113aa91fde516c3f42912c5e9cb46d8917e0307e7e6d41674bed71b",
+  "git_object_format": "sha1",
+  "base_commit": "7a0e8c1dde925d8e129865d6f37198f8b7895b0f",
+  "base_tree": "73038d10029148130d1e8f15fb7a21c595c37730",
+  "strategy": "red_green",
+  "steps": [
+    {
+      "id": "PLAN-001",
+      "kind": "test",
+      "objective": "Add or update tests for AC-ACTIVITY-ORDER",
+      "requirements": [
+        "REQ-ACTIVITY-ORDER"
+      ],
+      "acceptance_criteria": [
+        "AC-ACTIVITY-ORDER"
+      ],
+      "allowed_paths": [
+        "tests/components/mobile-navigation.test.tsx",
+        "tests/lib/activity-sorting.test.ts"
+      ]
+    },
+    {
+      "id": "PLAN-002",
+      "kind": "test",
+      "objective": "Add or update tests for AC-STUDENT-NAVIGATION",
+      "requirements": [
+        "REQ-STUDENT-NAVIGATION"
+      ],
+      "acceptance_criteria": [
+        "AC-STUDENT-NAVIGATION"
+      ],
+      "allowed_paths": [
+        "tests/components/mobile-navigation.test.tsx",
+        "tests/lib/activity-sorting.test.ts"
+      ],
+      "depends_on": [
+        "PLAN-001"
+      ]
+    },
+    {
+      "id": "PLAN-003",
+      "kind": "proof",
+      "objective": "Capture the contract's Red regression proof",
+      "depends_on": [
+        "PLAN-002"
+      ],
+      "contract_proofs": [
+        "regression"
+      ]
+    },
+    {
+      "id": "PLAN-004",
+      "kind": "implementation",
+      "objective": "Implement REQ-ACTIVITY-ORDER",
+      "requirements": [
+        "REQ-ACTIVITY-ORDER"
+      ],
+      "acceptance_criteria": [
+        "AC-ACTIVITY-ORDER"
+      ],
+      "allowed_paths": [
+        "README.md",
+        "app/dashboard/activities/page.tsx",
+        "app/dashboard/agenda/page.tsx",
+        "app/dashboard/courses/[courseId]/page.tsx",
+        "app/dashboard/grades/page.tsx",
+        "app/dashboard/page.tsx",
+        "app/dashboard/teacher/courses/[courseId]/page.tsx",
+        "app/dashboard/teacher/gradebook/page.tsx",
+        "components/dashboard/mobile-navigation.tsx",
+        "docs/POLIS.md",
+        "lib/activities/sorting.ts",
+        "modules/courses/ui/manage/ActivityInsightsPanel.tsx",
+        ".polis/README.md",
+        ".polis/contracts/activity-navigation-sorting.draft.json",
+        ".polis/policy.json",
+        "tests/components/mobile-navigation.test.tsx",
+        "tests/lib/activity-sorting.test.ts"
+      ],
+      "depends_on": [
+        "PLAN-003"
+      ]
+    },
+    {
+      "id": "PLAN-005",
+      "kind": "implementation",
+      "objective": "Implement REQ-STUDENT-NAVIGATION",
+      "requirements": [
+        "REQ-STUDENT-NAVIGATION"
+      ],
+      "acceptance_criteria": [
+        "AC-STUDENT-NAVIGATION"
+      ],
+      "allowed_paths": [
+        "README.md",
+        "app/dashboard/activities/page.tsx",
+        "app/dashboard/agenda/page.tsx",
+        "app/dashboard/courses/[courseId]/page.tsx",
+        "app/dashboard/grades/page.tsx",
+        "app/dashboard/page.tsx",
+        "app/dashboard/teacher/courses/[courseId]/page.tsx",
+        "app/dashboard/teacher/gradebook/page.tsx",
+        "components/dashboard/mobile-navigation.tsx",
+        "docs/POLIS.md",
+        "lib/activities/sorting.ts",
+        "modules/courses/ui/manage/ActivityInsightsPanel.tsx",
+        ".polis/README.md",
+        ".polis/contracts/activity-navigation-sorting.draft.json",
+        ".polis/policy.json",
+        "tests/components/mobile-navigation.test.tsx",
+        "tests/lib/activity-sorting.test.ts"
+      ],
+      "depends_on": [
+        "PLAN-004"
+      ]
+    },
+    {
+      "id": "PLAN-006",
+      "kind": "validation",
+      "objective": "Run the locked proof commands and enabled Project Policy gates",
+      "depends_on": [
+        "PLAN-005"
+      ],
+      "contract_proofs": [
+        "regression",
+        "behavior",
+        "affected"
+      ],
+      "project_gates": [
+        "test.complete"
+      ]
+    }
+  ]
+}

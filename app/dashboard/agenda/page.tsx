@@ -9,6 +9,7 @@ import { DashboardPage } from "@/components/dashboard/dashboard-page"
 import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/hooks/use-auth"
 import { getActivityTiming, parseActivityDate } from "@/lib/activities/deadlines"
+import { sortActivitiesAlphabetically } from "@/lib/activities/sorting"
 import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
 import { fetchUserActivities, fetchUserActivityProgressList, fetchUserDashboard } from "@/lib/firebase/firestore"
 
@@ -46,9 +47,9 @@ export default function Page() {
     {!isFirebaseReady ? <DashboardNotice>Firebase não configurado. A agenda depende dos dados reais da plataforma.</DashboardNotice> : null}
     {error ? <DashboardNotice tone="danger">{error}</DashboardNotice> : null}
     {loading ? <div className="h-48 animate-pulse rounded-2xl bg-muted" /> : activities.length === 0 ? <DashboardEmptyState icon={CalendarDays} title="Agenda vazia" description="Nenhuma atividade está disponível para sua conta." /> : <div className="space-y-5">
-      {overdue.length ? <section><div className="mb-2 flex items-center gap-2"><AlertTriangle className="size-4 text-destructive" /><h2 className="font-semibold">Atrasadas</h2></div><Card className="overflow-hidden py-0"><CardContent className="divide-y divide-border p-0">{overdue.map((item) => row(item, true))}</CardContent></Card></section> : null}
-      {Array.from(groups.values()).map((group) => <section key={dayKey(group.date)}><div className="mb-2"><h2 className="font-semibold capitalize">{dayLabel(group.date, now)}</h2><p className="text-xs text-muted-foreground">{new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(group.date)}</p></div><Card className="overflow-hidden py-0"><CardContent className="divide-y divide-border p-0">{group.items.map((item) => row(item))}</CardContent></Card></section>)}
-      {withoutDeadline.length ? <section><div className="mb-2 flex items-center gap-2"><Clock3 className="size-4 text-muted-foreground" /><h2 className="font-semibold">Sem prazo definido</h2></div><Card className="overflow-hidden py-0"><CardContent className="divide-y divide-border p-0">{withoutDeadline.map((item) => row(item))}</CardContent></Card></section> : null}
+      {overdue.length ? <section><div className="mb-2 flex items-center gap-2"><AlertTriangle className="size-4 text-destructive" /><h2 className="font-semibold">Atrasadas</h2></div><Card className="overflow-hidden py-0"><CardContent className="divide-y divide-border p-0">{sortActivitiesAlphabetically(overdue).map((item) => row(item, true))}</CardContent></Card></section> : null}
+      {Array.from(groups.values()).map((group) => <section key={dayKey(group.date)}><div className="mb-2"><h2 className="font-semibold capitalize">{dayLabel(group.date, now)}</h2><p className="text-xs text-muted-foreground">{new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(group.date)}</p></div><Card className="overflow-hidden py-0"><CardContent className="divide-y divide-border p-0">{sortActivitiesAlphabetically(group.items).map((item) => row(item))}</CardContent></Card></section>)}
+      {withoutDeadline.length ? <section><div className="mb-2 flex items-center gap-2"><Clock3 className="size-4 text-muted-foreground" /><h2 className="font-semibold">Sem prazo definido</h2></div><Card className="overflow-hidden py-0"><CardContent className="divide-y divide-border p-0">{sortActivitiesAlphabetically(withoutDeadline).map((item) => row(item))}</CardContent></Card></section> : null}
     </div>}
   </DashboardPage>
 }

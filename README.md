@@ -73,6 +73,7 @@ The repository does not define a deployment provider, promotion flow, rollback p
 - [Testing](docs/TESTING.md)
 - [Administrative API](docs/API.md)
 - [Build and deployment](docs/DEPLOYMENT.md)
+- [POLIS artifact locations and workflow](docs/POLIS.md)
 - [Changelog](CHANGELOG.md)
 
 ## License

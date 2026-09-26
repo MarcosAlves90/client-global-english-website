@@ -16,6 +16,7 @@ import {
   calculateFinalGradeAverage,
   getGradebookEntryState,
 } from "@/lib/activities/grading"
+import { sortActivitiesAlphabetically } from "@/lib/activities/sorting"
 import type { AdminCourseSummary, TeacherGradebook } from "@/lib/firebase/types"
 import {
   buildGradebookProgressMap,
@@ -84,6 +85,11 @@ export default function Page() {
   React.useEffect(() => {
     void loadGradebook()
   }, [loadGradebook])
+
+  const activitiesAlphabetically = React.useMemo(
+    () => sortActivitiesAlphabetically(gradebook?.activities ?? []),
+    [gradebook?.activities]
+  )
 
   if (role !== "teacher" && role !== "admin") {
     return (
@@ -157,7 +163,7 @@ export default function Page() {
               <thead>
                 <tr className="border-b bg-muted/40 text-left">
                   <th className="sticky left-0 z-10 min-w-56 bg-muted/90 p-3 font-semibold">Aluno</th>
-                  {gradebook.activities.map((activity) => (
+                  {activitiesAlphabetically.map((activity) => (
                     <th key={activity.id} className="min-w-40 p-3 align-bottom font-semibold">
                       <span className="block">{activity.title}</span>
                       <span className="mt-1 block text-xs font-normal text-muted-foreground">
@@ -178,7 +184,7 @@ export default function Page() {
                         <p className="font-semibold">{student.name || student.email || student.uid}</p>
                         {student.email ? <p className="text-xs text-muted-foreground">{student.email}</p> : null}
                       </td>
-                      {gradebook.activities.map((activity) => {
+                      {activitiesAlphabetically.map((activity) => {
                         const item = progressMap.get(`${student.uid}:${activity.id}`) ?? null
                         const state = getGradebookEntryState(item)
                         return (
@@ -222,7 +228,7 @@ export default function Page() {
                     <div className="text-right"><p className="text-xs text-muted-foreground">Média</p><p className="text-lg font-semibold">{average === null ? "—" : `${average}%`}</p></div>
                   </div>
                   <div className="mt-4 divide-y divide-border rounded-xl border border-border">
-                    {gradebook.activities.map((activity) => {
+                    {activitiesAlphabetically.map((activity) => {
                       const item = progressMap.get(`${student.uid}:${activity.id}`) ?? null
                       const state = getGradebookEntryState(item)
                       return <div key={activity.id} className="flex items-center justify-between gap-3 px-3 py-2.5"><div className="min-w-0"><p className="truncate text-sm font-medium">{activity.title}</p><p className="text-xs text-muted-foreground">{stateLabels[state]}</p></div><span className="shrink-0 text-sm font-semibold">{state === "graded" && typeof item?.teacherScorePercent === "number" ? `${item.teacherScorePercent}%` : "—"}</span></div>
