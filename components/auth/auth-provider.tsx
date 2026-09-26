@@ -1,10 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { onAuthStateChanged, type User } from "firebase/auth"
-import { signOutUser } from "@/lib/firebase/auth"
-import { auth, hasFirebaseConfig } from "@/lib/firebase/client"
-import { fetchUserProfile } from "@/lib/firebase/firestore"
+import type { User } from "firebase/auth"
 import type { UserProfile, UserRole } from "@/lib/firebase/types"
 
 type AuthContextValue = {
@@ -15,6 +12,7 @@ type AuthContextValue = {
   isFirebaseReady: boolean
   refreshProfile: () => Promise<void>
   signOut: () => Promise<void>
+  ensureAuthInitialized: () => void
 }
 
 const AuthContext = React.createContext<AuthContextValue>({
@@ -25,6 +23,7 @@ const AuthContext = React.createContext<AuthContextValue>({
   isFirebaseReady: false,
   refreshProfile: async () => { },
   signOut: async () => { },
+  ensureAuthInitialized: () => { },
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -32,13 +31,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = React.useState<UserRole | null>(null)
   const [profile, setProfile] = React.useState<UserProfile | null>(null)
   const [loading, setLoading] = React.useState(true)
-  const isFirebaseReady = hasFirebaseConfig && Boolean(auth)
+  const [isFirebaseReady, setIsFirebaseReady] = React.useState(false)
+  const authInitializationStarted = React.useRef(false)
+  const unsubscribeAuth = React.useRef<(() => void) | null>(null)
 
   const loadProfile = React.useCallback(async (firebaseUser: User) => {
     try {
+      const { fetchUserProfile } = await import("@/lib/firebase/firestore")
       const profile = await fetchUserProfile(firebaseUser.uid)
 
       if (profile?.disabled) {
+        const { signOutUser } = await import("@/lib/firebase/auth")
         await signOutUser()
         setRole(null)
         setProfile(null)
@@ -53,52 +56,80 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  React.useEffect(() => {
-    if (!isFirebaseReady || !auth) {
-      setUser(null)
-      setRole(null)
-      setProfile(null)
-      setLoading(false)
+  const ensureAuthInitialized = React.useCallback(() => {
+    if (authInitializationStarted.current) {
       return
     }
+    authInitializationStarted.current = true
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser)
+    void (async () => {
+      try {
+        const [{ onAuthStateChanged }, { auth, hasFirebaseConfig }] = await Promise.all([
+          import("firebase/auth"),
+          import("@/lib/firebase/client"),
+        ])
+        const firebaseReady = hasFirebaseConfig && Boolean(auth)
+        setIsFirebaseReady(firebaseReady)
 
-      if (!firebaseUser) {
+        if (!firebaseReady || !auth) {
+          setUser(null)
+          setRole(null)
+          setProfile(null)
+          setLoading(false)
+          return
+        }
+
+        unsubscribeAuth.current = onAuthStateChanged(auth, async (firebaseUser) => {
+          setUser(firebaseUser)
+
+          if (!firebaseUser) {
+            setRole(null)
+            setProfile(null)
+            setLoading(false)
+            return
+          }
+
+          try {
+            await loadProfile(firebaseUser)
+          } catch {
+            setRole("user")
+            setProfile(null)
+          } finally {
+            setLoading(false)
+          }
+        })
+      } catch {
+        setIsFirebaseReady(false)
+        setUser(null)
         setRole(null)
         setProfile(null)
         setLoading(false)
-        return
       }
-
-      try {
-        await loadProfile(firebaseUser)
-      } catch {
-        setRole("user")
-        setProfile(null)
-      } finally {
-        setLoading(false)
-      }
-    })
-
-    return () => unsubscribe()
-  }, [isFirebaseReady, loadProfile])
-
-  const refreshProfile = React.useCallback(async () => {
-    if (!auth?.currentUser) {
-      return
-    }
-    await loadProfile(auth.currentUser)
+    })()
   }, [loadProfile])
 
+  React.useEffect(() => {
+    return () => unsubscribeAuth.current?.()
+  }, [])
+
+  const refreshProfile = React.useCallback(async () => {
+    if (!isFirebaseReady) {
+      return
+    }
+    const { auth } = await import("@/lib/firebase/client")
+    if (auth?.currentUser) {
+      await loadProfile(auth.currentUser)
+    }
+  }, [isFirebaseReady, loadProfile])
+
   const signOut = React.useCallback(async () => {
+    const { signOutUser } = await import("@/lib/firebase/auth")
     await signOutUser()
   }, [])
 
   return (
     <AuthContext.Provider
-      value={{ user, role, profile, loading, isFirebaseReady, refreshProfile, signOut }}
+      value={{ user, role, profile, loading, isFirebaseReady, refreshProfile, signOut, ensureAuthInitialized }}
     >
       {children}
     </AuthContext.Provider>

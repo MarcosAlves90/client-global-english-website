@@ -1,0 +1,279 @@
+{
+  "schema_version": 5,
+  "kind": "defect",
+  "scope": {
+    "allowed_paths": [
+      "PERF.md",
+      "app/layout.tsx",
+      "app/dashboard/loading.tsx",
+      "app/dashboard/dashboard-layout-client.tsx",
+      "app/login/page.tsx",
+      "app/signup/page.tsx",
+      "app/update-password/page.tsx",
+      "components/auth/auth-provider.tsx",
+      "components/auth/session-loading.tsx",
+      "hooks/use-auth.ts",
+      "lib/firebase/firestore.ts",
+      "modules/courses/ui/manage/MaterialManagement.tsx",
+      "app/dashboard/materials/[materialId]/page.tsx",
+      "tests/components/auth-provider-lazy-init.test.tsx",
+      "tests/lib/firestore-parallel-fetch.test.ts",
+      ".polis/contracts/performance-first-slice.draft.json",
+      ".polis/contracts/performance-first-slice.locked.json",
+      ".polis/plans/performance-first-slice.json",
+      ".polis/plans/performance-policy-plan.json",
+      ".polis/artifacts/platform-performance/regression.patch",
+      ".polis/artifacts/platform-performance/platform-performance.polis"
+    ]
+  },
+  "test_scope": {
+    "allowed_paths": [
+      "tests/components/auth-provider-lazy-init.test.tsx",
+      "tests/lib/firestore-parallel-fetch.test.ts"
+    ]
+  },
+  "development_method": "strict_sdd_tdd_v1",
+  "specification": {
+    "objective": "Reduzir custo medido de JavaScript/renderização pública e latência de leitura do aluno, preservando os limites seguros de cache.",
+    "requirements": [
+      {
+        "id": "REQ-PUBLIC-AUTH-DEFER",
+        "statement": "Rotas públicas sem consumidor de useAuth não inicializam Firebase Auth/Firestore nem carregam perfil; rotas autenticadas preservam user, role, profile, readiness, refresh e sign-out."
+      },
+      {
+        "id": "REQ-USER-QUERY-PARALLELISM",
+        "statement": "Após resolver inscrições e courseIds, leituras independentes de trilhas e materiais/atividades iniciam em paralelo, mantendo filtros de visibilidade, atribuição, disponibilidade e ordenação."
+      },
+      {
+        "id": "REQ-ON-DEMAND-STYLES",
+        "statement": "CSS de editor e preview Markdown é carregado apenas pelas rotas que consomem esses componentes."
+      },
+      {
+        "id": "REQ-LOADING-RENDER",
+        "statement": "Telas protegidas mostram estado acessível enquanto sessão resolve e o segmento dashboard oferece fallback streaming."
+      },
+      {
+        "id": "REQ-SAFE-CACHING",
+        "statement": "Cache estático existente é mantido; dados Firebase por usuário não entram em cache compartilhado; single-flight existente continua ativo."
+      }
+    ],
+    "acceptance_criteria": [
+      {
+        "id": "AC-LANDING-JS",
+        "statement": "A rota / não referencia runtime Auth/Firestore e sua soma de JS gzip cai de 358338 para no máximo 286670 bytes.",
+        "requirements": [
+          "REQ-PUBLIC-AUTH-DEFER"
+        ],
+        "proof": "regression"
+      },
+      {
+        "id": "AC-AUTH-COMPAT",
+        "statement": "Sem consumidor de useAuth não há listener/perfil; com consumidor auth inicializa uma vez.",
+        "requirements": [
+          "REQ-PUBLIC-AUTH-DEFER"
+        ],
+        "proof": "regression"
+      },
+      {
+        "id": "AC-QUERY-PARALLEL",
+        "statement": "Loaders de materiais e atividades iniciam consultas de trilha e conteúdo antes de qualquer uma concluir e retornam os itens permitidos.",
+        "requirements": [
+          "REQ-USER-QUERY-PARALLELISM"
+        ],
+        "proof": "regression"
+      },
+      {
+        "id": "AC-LOCAL-STYLES",
+        "statement": "/ deixa de importar CSS Markdown e rotas de editor/preview mantêm esses estilos.",
+        "requirements": [
+          "REQ-ON-DEMAND-STYLES"
+        ],
+        "proof": "regression"
+      },
+      {
+        "id": "AC-LOADING-UI",
+        "statement": "Dashboard, login, signup e atualização de senha mostram estado de carregamento acessível durante verificação; dashboard tem fallback de segmento.",
+        "requirements": [
+          "REQ-LOADING-RENDER"
+        ],
+        "proof": "regression"
+      },
+      {
+        "id": "AC-CACHE-SAFETY",
+        "statement": "A rota estática amostrada continua sendo cache hit e respostas de dados personalizados não recebem cache compartilhado novo.",
+        "requirements": [
+          "REQ-SAFE-CACHING"
+        ],
+        "proof": "regression"
+      }
+    ],
+    "invariants": [
+      {
+        "id": "INV-AUTH-STATE",
+        "statement": "O AuthProvider permanece estável na árvore raiz para preservar estado entre navegações."
+      },
+      {
+        "id": "INV-CONTENT-ACCESS",
+        "statement": "Consultas continuam filtrando atribuição de usuário, trilha acessível e disponibilidade temporal."
+      },
+      {
+        "id": "INV-PRIVATE-DATA",
+        "statement": "Resultados associados a uid não são armazenados em cache compartilhado."
+      }
+    ],
+    "forbidden_states": [
+      {
+        "id": "FORBID-PUBLIC-FIREBASE",
+        "statement": "Uma rota pública sem useAuth dispara inicialização Firebase, listener de auth ou getDoc de perfil."
+      },
+      {
+        "id": "FORBID-CONTENT-WATERFALL",
+        "statement": "Uma consulta de conteúdo independente espera a consulta de trilhas concluir."
+      },
+      {
+        "id": "FORBID-PRIVATE-CACHE",
+        "statement": "Dados Firestore por usuário recebem cache compartilhado ou público."
+      }
+    ],
+    "inputs": [
+      {
+        "id": "IN-AUTH-CONSUMER",
+        "statement": "Presença de consumidor useAuth na página e estado atual do Firebase."
+      },
+      {
+        "id": "IN-ENROLLMENTS",
+        "statement": "Inscrições e IDs de cursos retornados para o uid."
+      },
+      {
+        "id": "IN-ROUTE",
+        "statement": "Rota pública ou protegida, assets e status de carregamento de segmento."
+      }
+    ],
+    "outputs": [
+      {
+        "id": "OUT-INITIAL-ASSETS",
+        "statement": "Assets iniciais públicos sem runtime Firebase Auth/Firestore e sem CSS Markdown."
+      },
+      {
+        "id": "OUT-STUDENT-DATA",
+        "statement": "Materiais/atividades permitidos após consultas independentes concorrentes."
+      },
+      {
+        "id": "OUT-LOADING-STATE",
+        "statement": "Indicador acessível até que a sessão resolva e o conteúdo da rota seja exibido."
+      }
+    ],
+    "failure_semantics": [
+      {
+        "id": "FAIL-AUTH",
+        "statement": "Prova falha se auth for inicializado sem consumidor ou se não iniciar ao montar consumidor."
+      },
+      {
+        "id": "FAIL-QUERIES",
+        "statement": "Prova falha se uma leitura de conteúdo ainda não tiver começado antes da leitura de trilhas terminar."
+      },
+      {
+        "id": "FAIL-BUNDLE",
+        "statement": "Validação falha se a rota pública exceder 286670 bytes gzip ou incluir runtime Firebase."
+      }
+    ]
+  },
+  "behavior": {
+    "argv": [
+      "npm",
+      "run",
+      "verify"
+    ],
+    "cwd": ".",
+    "timeout_seconds": 3600,
+    "environment": {
+      "mode": "clean",
+      "pass": [
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "SystemRoot",
+        "COMSPEC",
+        "PATHEXT",
+        "USERPROFILE",
+        "LOCALAPPDATA",
+        "FIREBASE_PROJECT_ID",
+        "FIREBASE_CLIENT_EMAIL",
+        "FIREBASE_PRIVATE_KEY",
+        "NEXT_PUBLIC_FIREBASE_API_KEY",
+        "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+        "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+        "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+        "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+        "NEXT_PUBLIC_FIREBASE_APP_ID",
+        "NEXT_PUBLIC_LOGIN_HERO_PUBLIC_ID",
+        "NEXT_PUBLIC_SIGNUP_HERO_PUBLIC_ID",
+        "NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME"
+      ]
+    }
+  },
+  "affected": {
+    "argv": [
+      "npm",
+      "run",
+      "test",
+      "--",
+      "tests/components/auth-provider-lazy-init.test.tsx",
+      "tests/lib/firestore-parallel-fetch.test.ts"
+    ],
+    "cwd": ".",
+    "timeout_seconds": 1200,
+    "environment": {
+      "mode": "clean",
+      "pass": [
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "SystemRoot",
+        "COMSPEC",
+        "PATHEXT",
+        "USERPROFILE",
+        "LOCALAPPDATA"
+      ]
+    }
+  },
+  "regression": {
+    "mode": "red_green",
+    "command": {
+      "argv": [
+        "npm",
+        "run",
+        "test",
+        "--",
+        "tests/components/auth-provider-lazy-init.test.tsx",
+        "tests/lib/firestore-parallel-fetch.test.ts"
+      ],
+      "cwd": ".",
+      "timeout_seconds": 1200,
+      "environment": {
+        "mode": "clean",
+        "pass": [
+          "PATH",
+          "HOME",
+          "TMPDIR",
+          "TMP",
+          "TEMP",
+          "SystemRoot",
+          "COMSPEC",
+          "PATHEXT",
+          "USERPROFILE",
+          "LOCALAPPDATA"
+        ]
+      }
+    },
+    "baseline_exit_code": 1,
+    "baseline_output_contains": [
+      "does not initialize Firebase until an auth consumer requires it",
+      "starts track and content reads in parallel after enrollment"
+    ]
+  }
+}

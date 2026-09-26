@@ -4,6 +4,7 @@ import { AuthLayout } from "@/components/auth/auth-layout"
 import { LoginForm } from "@/components/auth/login-form"
 import { useRedirectIfAuthenticated } from "@/hooks/use-redirect-if-authenticated"
 import { buildCloudinaryUrl } from "@/lib/cloudinary-url"
+import { SessionLoading } from "@/components/auth/session-loading"
 
 const LOGIN_HERO_PUBLIC_ID = process.env.NEXT_PUBLIC_LOGIN_HERO_PUBLIC_ID?.trim()
 if (!LOGIN_HERO_PUBLIC_ID) throw new Error("Missing env: NEXT_PUBLIC_LOGIN_HERO_PUBLIC_ID")
@@ -11,7 +12,7 @@ const LOGIN_HERO_IMAGE = buildCloudinaryUrl(LOGIN_HERO_PUBLIC_ID)
 
 export default function LoginPage() {
   const { isChecking } = useRedirectIfAuthenticated()
-  if (isChecking) return null
+  if (isChecking) return <SessionLoading label="Verificando sua sessão..." />
 
   return (
     <AuthLayout

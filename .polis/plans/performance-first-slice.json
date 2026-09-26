@@ -1,0 +1,328 @@
+{
+  "schema_version": 1,
+  "change_contract_sha256": "4c7960d1d55b54a98913c80861c6feff25e67aa55032f5f69e2d4203ad5378b2",
+  "git_object_format": "sha1",
+  "base_commit": "b003ba787b37a92966460269e74b886c4e8507ed",
+  "base_tree": "2a612cb0477d8577a403606cb7f4b51b1c7f6e35",
+  "strategy": "red_green",
+  "steps": [
+    {
+      "id": "PLAN-001",
+      "kind": "test",
+      "objective": "Add or update tests for AC-LANDING-JS",
+      "requirements": [
+        "REQ-PUBLIC-AUTH-DEFER"
+      ],
+      "acceptance_criteria": [
+        "AC-LANDING-JS"
+      ],
+      "allowed_paths": [
+        "tests/components/auth-provider-lazy-init.test.tsx",
+        "tests/lib/firestore-parallel-fetch.test.ts"
+      ]
+    },
+    {
+      "id": "PLAN-002",
+      "kind": "test",
+      "objective": "Add or update tests for AC-AUTH-COMPAT",
+      "requirements": [
+        "REQ-PUBLIC-AUTH-DEFER"
+      ],
+      "acceptance_criteria": [
+        "AC-AUTH-COMPAT"
+      ],
+      "allowed_paths": [
+        "tests/components/auth-provider-lazy-init.test.tsx",
+        "tests/lib/firestore-parallel-fetch.test.ts"
+      ],
+      "depends_on": [
+        "PLAN-001"
+      ]
+    },
+    {
+      "id": "PLAN-003",
+      "kind": "test",
+      "objective": "Add or update tests for AC-QUERY-PARALLEL",
+      "requirements": [
+        "REQ-USER-QUERY-PARALLELISM"
+      ],
+      "acceptance_criteria": [
+        "AC-QUERY-PARALLEL"
+      ],
+      "allowed_paths": [
+        "tests/components/auth-provider-lazy-init.test.tsx",
+        "tests/lib/firestore-parallel-fetch.test.ts"
+      ],
+      "depends_on": [
+        "PLAN-002"
+      ]
+    },
+    {
+      "id": "PLAN-004",
+      "kind": "test",
+      "objective": "Add or update tests for AC-LOCAL-STYLES",
+      "requirements": [
+        "REQ-ON-DEMAND-STYLES"
+      ],
+      "acceptance_criteria": [
+        "AC-LOCAL-STYLES"
+      ],
+      "allowed_paths": [
+        "tests/components/auth-provider-lazy-init.test.tsx",
+        "tests/lib/firestore-parallel-fetch.test.ts"
+      ],
+      "depends_on": [
+        "PLAN-003"
+      ]
+    },
+    {
+      "id": "PLAN-005",
+      "kind": "test",
+      "objective": "Add or update tests for AC-LOADING-UI",
+      "requirements": [
+        "REQ-LOADING-RENDER"
+      ],
+      "acceptance_criteria": [
+        "AC-LOADING-UI"
+      ],
+      "allowed_paths": [
+        "tests/components/auth-provider-lazy-init.test.tsx",
+        "tests/lib/firestore-parallel-fetch.test.ts"
+      ],
+      "depends_on": [
+        "PLAN-004"
+      ]
+    },
+    {
+      "id": "PLAN-006",
+      "kind": "test",
+      "objective": "Add or update tests for AC-CACHE-SAFETY",
+      "requirements": [
+        "REQ-SAFE-CACHING"
+      ],
+      "acceptance_criteria": [
+        "AC-CACHE-SAFETY"
+      ],
+      "allowed_paths": [
+        "tests/components/auth-provider-lazy-init.test.tsx",
+        "tests/lib/firestore-parallel-fetch.test.ts"
+      ],
+      "depends_on": [
+        "PLAN-005"
+      ]
+    },
+    {
+      "id": "PLAN-007",
+      "kind": "proof",
+      "objective": "Capture the contract's Red regression proof",
+      "depends_on": [
+        "PLAN-006"
+      ],
+      "contract_proofs": [
+        "regression"
+      ]
+    },
+    {
+      "id": "PLAN-008",
+      "kind": "implementation",
+      "objective": "Implement REQ-PUBLIC-AUTH-DEFER",
+      "requirements": [
+        "REQ-PUBLIC-AUTH-DEFER"
+      ],
+      "acceptance_criteria": [
+        "AC-LANDING-JS",
+        "AC-AUTH-COMPAT"
+      ],
+      "allowed_paths": [
+        "PERF.md",
+        "app/layout.tsx",
+        "app/dashboard/loading.tsx",
+        "app/dashboard/dashboard-layout-client.tsx",
+        "app/login/page.tsx",
+        "app/signup/page.tsx",
+        "app/update-password/page.tsx",
+        "components/auth/auth-provider.tsx",
+        "components/auth/session-loading.tsx",
+        "hooks/use-auth.ts",
+        "lib/firebase/firestore.ts",
+        "modules/courses/ui/manage/MaterialManagement.tsx",
+        "app/dashboard/materials/[materialId]/page.tsx",
+        "tests/components/auth-provider-lazy-init.test.tsx",
+        "tests/lib/firestore-parallel-fetch.test.ts",
+        ".polis/contracts/performance-first-slice.draft.json",
+        ".polis/contracts/performance-first-slice.locked.json",
+        ".polis/plans/performance-first-slice.json",
+        ".polis/plans/performance-policy-plan.json",
+        ".polis/artifacts/platform-performance/regression.patch",
+        ".polis/artifacts/platform-performance/platform-performance.polis"
+      ],
+      "depends_on": [
+        "PLAN-007"
+      ]
+    },
+    {
+      "id": "PLAN-009",
+      "kind": "implementation",
+      "objective": "Implement REQ-USER-QUERY-PARALLELISM",
+      "requirements": [
+        "REQ-USER-QUERY-PARALLELISM"
+      ],
+      "acceptance_criteria": [
+        "AC-QUERY-PARALLEL"
+      ],
+      "allowed_paths": [
+        "PERF.md",
+        "app/layout.tsx",
+        "app/dashboard/loading.tsx",
+        "app/dashboard/dashboard-layout-client.tsx",
+        "app/login/page.tsx",
+        "app/signup/page.tsx",
+        "app/update-password/page.tsx",
+        "components/auth/auth-provider.tsx",
+        "components/auth/session-loading.tsx",
+        "hooks/use-auth.ts",
+        "lib/firebase/firestore.ts",
+        "modules/courses/ui/manage/MaterialManagement.tsx",
+        "app/dashboard/materials/[materialId]/page.tsx",
+        "tests/components/auth-provider-lazy-init.test.tsx",
+        "tests/lib/firestore-parallel-fetch.test.ts",
+        ".polis/contracts/performance-first-slice.draft.json",
+        ".polis/contracts/performance-first-slice.locked.json",
+        ".polis/plans/performance-first-slice.json",
+        ".polis/plans/performance-policy-plan.json",
+        ".polis/artifacts/platform-performance/regression.patch",
+        ".polis/artifacts/platform-performance/platform-performance.polis"
+      ],
+      "depends_on": [
+        "PLAN-008"
+      ]
+    },
+    {
+      "id": "PLAN-010",
+      "kind": "implementation",
+      "objective": "Implement REQ-ON-DEMAND-STYLES",
+      "requirements": [
+        "REQ-ON-DEMAND-STYLES"
+      ],
+      "acceptance_criteria": [
+        "AC-LOCAL-STYLES"
+      ],
+      "allowed_paths": [
+        "PERF.md",
+        "app/layout.tsx",
+        "app/dashboard/loading.tsx",
+        "app/dashboard/dashboard-layout-client.tsx",
+        "app/login/page.tsx",
+        "app/signup/page.tsx",
+        "app/update-password/page.tsx",
+        "components/auth/auth-provider.tsx",
+        "components/auth/session-loading.tsx",
+        "hooks/use-auth.ts",
+        "lib/firebase/firestore.ts",
+        "modules/courses/ui/manage/MaterialManagement.tsx",
+        "app/dashboard/materials/[materialId]/page.tsx",
+        "tests/components/auth-provider-lazy-init.test.tsx",
+        "tests/lib/firestore-parallel-fetch.test.ts",
+        ".polis/contracts/performance-first-slice.draft.json",
+        ".polis/contracts/performance-first-slice.locked.json",
+        ".polis/plans/performance-first-slice.json",
+        ".polis/plans/performance-policy-plan.json",
+        ".polis/artifacts/platform-performance/regression.patch",
+        ".polis/artifacts/platform-performance/platform-performance.polis"
+      ],
+      "depends_on": [
+        "PLAN-009"
+      ]
+    },
+    {
+      "id": "PLAN-011",
+      "kind": "implementation",
+      "objective": "Implement REQ-LOADING-RENDER",
+      "requirements": [
+        "REQ-LOADING-RENDER"
+      ],
+      "acceptance_criteria": [
+        "AC-LOADING-UI"
+      ],
+      "allowed_paths": [
+        "PERF.md",
+        "app/layout.tsx",
+        "app/dashboard/loading.tsx",
+        "app/dashboard/dashboard-layout-client.tsx",
+        "app/login/page.tsx",
+        "app/signup/page.tsx",
+        "app/update-password/page.tsx",
+        "components/auth/auth-provider.tsx",
+        "components/auth/session-loading.tsx",
+        "hooks/use-auth.ts",
+        "lib/firebase/firestore.ts",
+        "modules/courses/ui/manage/MaterialManagement.tsx",
+        "app/dashboard/materials/[materialId]/page.tsx",
+        "tests/components/auth-provider-lazy-init.test.tsx",
+        "tests/lib/firestore-parallel-fetch.test.ts",
+        ".polis/contracts/performance-first-slice.draft.json",
+        ".polis/contracts/performance-first-slice.locked.json",
+        ".polis/plans/performance-first-slice.json",
+        ".polis/plans/performance-policy-plan.json",
+        ".polis/artifacts/platform-performance/regression.patch",
+        ".polis/artifacts/platform-performance/platform-performance.polis"
+      ],
+      "depends_on": [
+        "PLAN-010"
+      ]
+    },
+    {
+      "id": "PLAN-012",
+      "kind": "implementation",
+      "objective": "Implement REQ-SAFE-CACHING",
+      "requirements": [
+        "REQ-SAFE-CACHING"
+      ],
+      "acceptance_criteria": [
+        "AC-CACHE-SAFETY"
+      ],
+      "allowed_paths": [
+        "PERF.md",
+        "app/layout.tsx",
+        "app/dashboard/loading.tsx",
+        "app/dashboard/dashboard-layout-client.tsx",
+        "app/login/page.tsx",
+        "app/signup/page.tsx",
+        "app/update-password/page.tsx",
+        "components/auth/auth-provider.tsx",
+        "components/auth/session-loading.tsx",
+        "hooks/use-auth.ts",
+        "lib/firebase/firestore.ts",
+        "modules/courses/ui/manage/MaterialManagement.tsx",
+        "app/dashboard/materials/[materialId]/page.tsx",
+        "tests/components/auth-provider-lazy-init.test.tsx",
+        "tests/lib/firestore-parallel-fetch.test.ts",
+        ".polis/contracts/performance-first-slice.draft.json",
+        ".polis/contracts/performance-first-slice.locked.json",
+        ".polis/plans/performance-first-slice.json",
+        ".polis/plans/performance-policy-plan.json",
+        ".polis/artifacts/platform-performance/regression.patch",
+        ".polis/artifacts/platform-performance/platform-performance.polis"
+      ],
+      "depends_on": [
+        "PLAN-011"
+      ]
+    },
+    {
+      "id": "PLAN-013",
+      "kind": "validation",
+      "objective": "Run the locked proof commands and enabled Project Policy gates",
+      "depends_on": [
+        "PLAN-012"
+      ],
+      "contract_proofs": [
+        "regression",
+        "behavior",
+        "affected"
+      ],
+      "project_gates": [
+        "test.complete"
+      ]
+    }
+  ]
+}

@@ -81,6 +81,17 @@ function isFirestorePermissionDenied(error: unknown) {
   return code.toLowerCase().replace("firestore/", "") === "permission-denied"
 }
 
+async function getDocsWithPermissionFallback<T>(load: () => Promise<T>): Promise<T | null> {
+  try {
+    return await load()
+  } catch (error) {
+    if (isFirestorePermissionDenied(error)) {
+      return null
+    }
+    throw error
+  }
+}
+
 function readStringField(value: unknown) {
   return typeof value === "string" ? value : ""
 }
@@ -163,55 +174,50 @@ async function loadTracksVisibleToUserByCourseIds(
   const deduped = new Map<string, Track>()
 
   const loadChunk = async (idsChunk: string[]) => {
-    try {
-      const publicSnapshot = await getDocs(
-        query(
-          collection(firestore, COLLECTIONS.tracks),
-          where("courseId", "in", idsChunk),
-          where("userIds", "==", [])
+    const [publicSnapshot, assignedSnapshot] = await Promise.all([
+      getDocsWithPermissionFallback(() =>
+        getDocs(
+          query(
+            collection(firestore, COLLECTIONS.tracks),
+            where("courseId", "in", idsChunk),
+            where("userIds", "==", [])
+          )
         )
-      )
-      publicSnapshot.docs.forEach((docSnap) => {
-        const data = docSnap.data()
-        deduped.set(docSnap.id, {
-          id: docSnap.id,
-          courseId: data.courseId,
-          title: data.title ?? "",
-          description: data.description ?? "",
-          order: data.order ?? 0,
-          userIds: Array.isArray(data.userIds) ? data.userIds : [],
-        })
-      })
-    } catch (error) {
-      if (!isFirestorePermissionDenied(error)) {
-        throw error
-      }
-    }
+      ),
+      getDocsWithPermissionFallback(() =>
+        getDocs(
+          query(
+            collection(firestore, COLLECTIONS.tracks),
+            where("courseId", "in", idsChunk),
+            where("userIds", "array-contains", uid)
+          )
+        )
+      ),
+    ])
 
-    try {
-      const assignedSnapshot = await getDocs(
-        query(
-          collection(firestore, COLLECTIONS.tracks),
-          where("courseId", "in", idsChunk),
-          where("userIds", "array-contains", uid)
-        )
-      )
-      assignedSnapshot.docs.forEach((docSnap) => {
-        const data = docSnap.data()
-        deduped.set(docSnap.id, {
-          id: docSnap.id,
-          courseId: data.courseId,
-          title: data.title ?? "",
-          description: data.description ?? "",
-          order: data.order ?? 0,
-          userIds: Array.isArray(data.userIds) ? data.userIds : [],
-        })
+    publicSnapshot?.docs.forEach((docSnap) => {
+      const data = docSnap.data()
+      deduped.set(docSnap.id, {
+        id: docSnap.id,
+        courseId: data.courseId,
+        title: data.title ?? "",
+        description: data.description ?? "",
+        order: data.order ?? 0,
+        userIds: Array.isArray(data.userIds) ? data.userIds : [],
       })
-    } catch (error) {
-      if (!isFirestorePermissionDenied(error)) {
-        throw error
-      }
-    }
+    })
+
+    assignedSnapshot?.docs.forEach((docSnap) => {
+      const data = docSnap.data()
+      deduped.set(docSnap.id, {
+        id: docSnap.id,
+        courseId: data.courseId,
+        title: data.title ?? "",
+        description: data.description ?? "",
+        order: data.order ?? 0,
+        userIds: Array.isArray(data.userIds) ? data.userIds : [],
+      })
+    })
   }
 
   await Promise.all(chunks.map((idsChunk) => loadChunk(idsChunk)))
@@ -235,76 +241,71 @@ async function loadActivitiesVisibleToUserByCourseIds(
   const deduped = new Map<string, Activity>()
 
   const loadChunk = async (idsChunk: string[]) => {
-    try {
-      const publicSnapshot = await getDocs(
-        query(
-          collection(firestore, COLLECTIONS.activities),
-          where("courseId", "in", idsChunk),
-          where("visibility", "==", "module")
+    const [publicSnapshot, usersSnapshot] = await Promise.all([
+      getDocsWithPermissionFallback(() =>
+        getDocs(
+          query(
+            collection(firestore, COLLECTIONS.activities),
+            where("courseId", "in", idsChunk),
+            where("visibility", "==", "module")
+          )
         )
-      )
-      publicSnapshot.docs.forEach((docSnap) => {
-        const data = docSnap.data()
-        deduped.set(docSnap.id, {
-          id: docSnap.id,
-          courseId: data.courseId,
-          trackId: data.trackId,
-          title: data.title ?? "",
-          type: data.type ?? "lesson",
-          order: data.order ?? 0,
-          estimatedMinutes: data.estimatedMinutes ?? 0,
-          visibility: data.visibility ?? "module",
-          userIds: Array.isArray(data.userIds) ? data.userIds : [],
-          releaseAt: data.releaseAt?.toDate?.() ?? null,
-          dueAt: data.dueAt?.toDate?.() ?? null,
-          closeAt: data.closeAt?.toDate?.() ?? null,
-          attachments: normalizeCloudinaryUrlItems(
-            Array.isArray(data.attachments) ? data.attachments : []
-          ),
-          questions: Array.isArray(data.questions) ? data.questions : [],
-        })
-      })
-    } catch (error) {
-      if (!isFirestorePermissionDenied(error)) {
-        throw error
-      }
-    }
+      ),
+      getDocsWithPermissionFallback(() =>
+        getDocs(
+          query(
+            collection(firestore, COLLECTIONS.activities),
+            where("courseId", "in", idsChunk),
+            where("visibility", "==", "users"),
+            where("userIds", "array-contains", uid)
+          )
+        )
+      ),
+    ])
 
-    try {
-      const usersSnapshot = await getDocs(
-        query(
-          collection(firestore, COLLECTIONS.activities),
-          where("courseId", "in", idsChunk),
-          where("visibility", "==", "users"),
-          where("userIds", "array-contains", uid)
-        )
-      )
-      usersSnapshot.docs.forEach((docSnap) => {
-        const data = docSnap.data()
-        deduped.set(docSnap.id, {
-          id: docSnap.id,
-          courseId: data.courseId,
-          trackId: data.trackId,
-          title: data.title ?? "",
-          type: data.type ?? "lesson",
-          order: data.order ?? 0,
-          estimatedMinutes: data.estimatedMinutes ?? 0,
-          visibility: data.visibility ?? "module",
-          userIds: Array.isArray(data.userIds) ? data.userIds : [],
-          releaseAt: data.releaseAt?.toDate?.() ?? null,
-          dueAt: data.dueAt?.toDate?.() ?? null,
-          closeAt: data.closeAt?.toDate?.() ?? null,
-          attachments: normalizeCloudinaryUrlItems(
-            Array.isArray(data.attachments) ? data.attachments : []
-          ),
-          questions: Array.isArray(data.questions) ? data.questions : [],
-        })
+    publicSnapshot?.docs.forEach((docSnap) => {
+      const data = docSnap.data()
+      deduped.set(docSnap.id, {
+        id: docSnap.id,
+        courseId: data.courseId,
+        trackId: data.trackId,
+        title: data.title ?? "",
+        type: data.type ?? "lesson",
+        order: data.order ?? 0,
+        estimatedMinutes: data.estimatedMinutes ?? 0,
+        visibility: data.visibility ?? "module",
+        userIds: Array.isArray(data.userIds) ? data.userIds : [],
+        releaseAt: data.releaseAt?.toDate?.() ?? null,
+        dueAt: data.dueAt?.toDate?.() ?? null,
+        closeAt: data.closeAt?.toDate?.() ?? null,
+        attachments: normalizeCloudinaryUrlItems(
+          Array.isArray(data.attachments) ? data.attachments : []
+        ),
+        questions: Array.isArray(data.questions) ? data.questions : [],
       })
-    } catch (error) {
-      if (!isFirestorePermissionDenied(error)) {
-        throw error
-      }
-    }
+    })
+
+    usersSnapshot?.docs.forEach((docSnap) => {
+      const data = docSnap.data()
+      deduped.set(docSnap.id, {
+        id: docSnap.id,
+        courseId: data.courseId,
+        trackId: data.trackId,
+        title: data.title ?? "",
+        type: data.type ?? "lesson",
+        order: data.order ?? 0,
+        estimatedMinutes: data.estimatedMinutes ?? 0,
+        visibility: data.visibility ?? "module",
+        userIds: Array.isArray(data.userIds) ? data.userIds : [],
+        releaseAt: data.releaseAt?.toDate?.() ?? null,
+        dueAt: data.dueAt?.toDate?.() ?? null,
+        closeAt: data.closeAt?.toDate?.() ?? null,
+        attachments: normalizeCloudinaryUrlItems(
+          Array.isArray(data.attachments) ? data.attachments : []
+        ),
+        questions: Array.isArray(data.questions) ? data.questions : [],
+      })
+    })
   }
 
   await Promise.all(chunks.map((idsChunk) => loadChunk(idsChunk)))
@@ -328,72 +329,67 @@ async function loadMaterialsVisibleToUserByCourseIds(
   const deduped = new Map<string, Material>()
 
   const loadChunk = async (idsChunk: string[]) => {
-    try {
-      const publicSnapshot = await getDocs(
-        query(
-          collection(firestore, COLLECTIONS.materials),
-          where("courseId", "in", idsChunk),
-          where("visibility", "==", "module")
+    const [publicSnapshot, usersSnapshot] = await Promise.all([
+      getDocsWithPermissionFallback(() =>
+        getDocs(
+          query(
+            collection(firestore, COLLECTIONS.materials),
+            where("courseId", "in", idsChunk),
+            where("visibility", "==", "module")
+          )
         )
-      )
-      publicSnapshot.docs.forEach((docSnap) => {
-        const data = docSnap.data()
-        deduped.set(docSnap.id, {
-          id: docSnap.id,
-          activityId: data.activityId ?? undefined,
-          courseId: data.courseId ?? undefined,
-          trackId: data.trackId ?? undefined,
-          title: data.title ?? "",
-          type: data.type ?? undefined,
-          url: normalizeCloudinaryUrlValue(data.url ?? null) ?? "",
-          visibility: data.visibility ?? "module",
-          userIds: Array.isArray(data.userIds) ? data.userIds : [],
-          releaseAt: data.releaseAt?.toDate?.() ?? null,
-          markdown: data.markdown ?? "",
-          attachments: normalizeCloudinaryUrlItems(
-            Array.isArray(data.attachments) ? data.attachments : []
-          ),
-        })
-      })
-    } catch (error) {
-      if (!isFirestorePermissionDenied(error)) {
-        throw error
-      }
-    }
+      ),
+      getDocsWithPermissionFallback(() =>
+        getDocs(
+          query(
+            collection(firestore, COLLECTIONS.materials),
+            where("courseId", "in", idsChunk),
+            where("visibility", "==", "users"),
+            where("userIds", "array-contains", uid)
+          )
+        )
+      ),
+    ])
 
-    try {
-      const usersSnapshot = await getDocs(
-        query(
-          collection(firestore, COLLECTIONS.materials),
-          where("courseId", "in", idsChunk),
-          where("visibility", "==", "users"),
-          where("userIds", "array-contains", uid)
-        )
-      )
-      usersSnapshot.docs.forEach((docSnap) => {
-        const data = docSnap.data()
-        deduped.set(docSnap.id, {
-          id: docSnap.id,
-          activityId: data.activityId ?? undefined,
-          courseId: data.courseId ?? undefined,
-          trackId: data.trackId ?? undefined,
-          title: data.title ?? "",
-          type: data.type ?? undefined,
-          url: normalizeCloudinaryUrlValue(data.url ?? null) ?? "",
-          visibility: data.visibility ?? "module",
-          userIds: Array.isArray(data.userIds) ? data.userIds : [],
-          releaseAt: data.releaseAt?.toDate?.() ?? null,
-          markdown: data.markdown ?? "",
-          attachments: normalizeCloudinaryUrlItems(
-            Array.isArray(data.attachments) ? data.attachments : []
-          ),
-        })
+    publicSnapshot?.docs.forEach((docSnap) => {
+      const data = docSnap.data()
+      deduped.set(docSnap.id, {
+        id: docSnap.id,
+        activityId: data.activityId ?? undefined,
+        courseId: data.courseId ?? undefined,
+        trackId: data.trackId ?? undefined,
+        title: data.title ?? "",
+        type: data.type ?? undefined,
+        url: normalizeCloudinaryUrlValue(data.url ?? null) ?? "",
+        visibility: data.visibility ?? "module",
+        userIds: Array.isArray(data.userIds) ? data.userIds : [],
+        releaseAt: data.releaseAt?.toDate?.() ?? null,
+        markdown: data.markdown ?? "",
+        attachments: normalizeCloudinaryUrlItems(
+          Array.isArray(data.attachments) ? data.attachments : []
+        ),
       })
-    } catch (error) {
-      if (!isFirestorePermissionDenied(error)) {
-        throw error
-      }
-    }
+    })
+
+    usersSnapshot?.docs.forEach((docSnap) => {
+      const data = docSnap.data()
+      deduped.set(docSnap.id, {
+        id: docSnap.id,
+        activityId: data.activityId ?? undefined,
+        courseId: data.courseId ?? undefined,
+        trackId: data.trackId ?? undefined,
+        title: data.title ?? "",
+        type: data.type ?? undefined,
+        url: normalizeCloudinaryUrlValue(data.url ?? null) ?? "",
+        visibility: data.visibility ?? "module",
+        userIds: Array.isArray(data.userIds) ? data.userIds : [],
+        releaseAt: data.releaseAt?.toDate?.() ?? null,
+        markdown: data.markdown ?? "",
+        attachments: normalizeCloudinaryUrlItems(
+          Array.isArray(data.attachments) ? data.attachments : []
+        ),
+      })
+    })
   }
 
   await Promise.all(chunks.map((idsChunk) => loadChunk(idsChunk)))
@@ -657,9 +653,11 @@ export async function fetchUserMaterials(uid: string): Promise<Material[]> {
   }
 
   const courseIds = getEnrollmentCourseIds(enrollments)
-  const tracks = await fetchTracksVisibleToUserByCourseIds(courseIds, uid)
+  const [tracks, materials] = await Promise.all([
+    fetchTracksVisibleToUserByCourseIds(courseIds, uid),
+    fetchMaterialsVisibleToUserByCourseIds(courseIds, uid),
+  ])
   const availableTrackIds = new Set(tracks.map((track) => track.id))
-  const materials = await fetchMaterialsVisibleToUserByCourseIds(courseIds, uid)
 
   return materials
     .filter((material) =>
@@ -678,9 +676,11 @@ export async function fetchUserActivities(uid: string): Promise<Activity[]> {
   }
 
   const courseIds = getEnrollmentCourseIds(enrollments)
-  const tracks = await fetchTracksVisibleToUserByCourseIds(courseIds, uid)
+  const [tracks, activities] = await Promise.all([
+    fetchTracksVisibleToUserByCourseIds(courseIds, uid),
+    fetchActivitiesVisibleToUserByCourseIds(courseIds, uid),
+  ])
   const availableTrackIds = new Set(tracks.map((track) => track.id))
-  const activities = await fetchActivitiesVisibleToUserByCourseIds(courseIds, uid)
 
   return activities
     .filter((activity) => availableTrackIds.has(activity.trackId))

@@ -4,6 +4,7 @@ import { AuthLayout } from "@/components/auth/auth-layout"
 import { SignupForm } from "@/components/auth/signup-form"
 import { useRedirectIfAuthenticated } from "@/hooks/use-redirect-if-authenticated"
 import { buildCloudinaryUrl } from "@/lib/cloudinary-url"
+import { SessionLoading } from "@/components/auth/session-loading"
 
 const isSignupDisabled = process.env.NEXT_PUBLIC_SIGNUP_ENABLED === "false"
 const isSignupUnderConstruction = true
@@ -13,7 +14,7 @@ const SIGNUP_HERO_IMAGE = buildCloudinaryUrl(SIGNUP_HERO_PUBLIC_ID)
 
 export default function SignupPage() {
   const { isChecking } = useRedirectIfAuthenticated()
-  if (isChecking) return null
+  if (isChecking) return <SessionLoading label="Verificando sua sessão..." />
 
   return (
     <AuthLayout

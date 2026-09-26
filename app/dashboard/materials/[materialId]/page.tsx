@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import dynamic from "next/dynamic"
+import "@uiw/react-markdown-preview/markdown.css"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Eye, EyeOff, Lock } from "lucide-react"
 
 import { useAuth } from "@/hooks/use-auth"
+import { SessionLoading } from "@/components/auth/session-loading"
 import { updateCurrentUserPassword } from "@/lib/firebase/auth"
 import { Button } from "@/components/ui/button"
 import {
@@ -72,7 +73,7 @@ export default function UpdatePasswordPage() {
   }
 
   if (loading || !user || !profile?.mustChangePassword) {
-    return null
+    return <SessionLoading label="Verificando sua sessão..." />
   }
 
   return (
