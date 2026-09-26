@@ -12,6 +12,7 @@ import { DashboardStatCard } from "@/components/dashboard/dashboard-stat-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/hooks/use-auth"
+import { sortActivitiesAlphabetically } from "@/lib/activities/sorting"
 import { createCourseActivity } from "@/modules/activities"
 import { fetchTeacherCourseWorkspace } from "@/modules/courses"
 import { toCreateCourseActivityPayload } from "@/modules/courses/model/activity-form"
@@ -72,6 +73,7 @@ export default function Page() {
 
   const course = workspace?.course ?? null
   const trackById = new Map((workspace?.tracks ?? []).map((track) => [track.id, track.title]))
+  const activitiesAlphabetically = sortActivitiesAlphabetically(workspace?.activities ?? [])
 
   return (
     <DashboardPage
@@ -138,7 +140,7 @@ export default function Page() {
                 {workspace.activities.length === 0 ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma atividade cadastrada.</p>
                 ) : (
-                  workspace.activities.map((activity) => (
+                  activitiesAlphabetically.map((activity) => (
                     <div key={activity.id} className="ge-inset flex items-start justify-between gap-3 p-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold">{activity.title}</p>

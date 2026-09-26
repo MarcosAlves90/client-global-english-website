@@ -9,7 +9,7 @@ import { DashboardPage } from "@/components/dashboard/dashboard-page"
 import { SearchField } from "@/components/dashboard/search-field"
 import { SegmentedControl } from "@/components/dashboard/segmented-control"
 import { useAuth } from "@/hooks/use-auth"
-import { parseActivityDate } from "@/lib/activities/deadlines"
+import { sortActivitiesAlphabetically } from "@/lib/activities/sorting"
 import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
 import { fetchUserActivities, fetchUserActivityProgressList, fetchUserDashboard } from "@/lib/firebase/firestore"
 import { StudentActivityCard } from "@/modules/activities/ui/student-activity-card"
@@ -49,16 +49,12 @@ export default function Page() {
     completed: activities.filter((item) => item.status === "completed").length,
   }), [activities])
 
-  const filtered = React.useMemo(() => activities.filter((item) => {
+  const filtered = React.useMemo(() => sortActivitiesAlphabetically(activities.filter((item) => {
     const q = query.trim().toLocaleLowerCase("pt-BR")
     const matchesQuery = !q || `${item.title} ${item.courseTitle} ${item.trackTitle}`.toLocaleLowerCase("pt-BR").includes(q)
     const matchesStatus = filter === "revision" ? item.gradingStatus === "revision_requested" : filter === "completed" ? item.status === "completed" : filter === "in_progress" ? item.status === "in_progress" && item.gradingStatus !== "revision_requested" : item.status === "pending"
     return matchesQuery && matchesStatus
-  }).sort((a, b) => {
-    const ad = parseActivityDate(a.dueAt)?.getTime() ?? Number.POSITIVE_INFINITY
-    const bd = parseActivityDate(b.dueAt)?.getTime() ?? Number.POSITIVE_INFINITY
-    return ad - bd || a.title.localeCompare(b.title, "pt-BR")
-  }), [activities, filter, query])
+  })), [activities, filter, query])
 
   return (
     <DashboardPage title="Atividades" description="Encontre rapidamente o que precisa fazer, revisar ou consultar." toolbar={<><SearchField value={query} onChange={setQuery} placeholder="Buscar atividade..." className="relative min-w-0 flex-1 sm:max-w-sm" /><SegmentedControl value={filter} onChange={setFilter} ariaLabel="Filtrar atividades" options={[{ value: "pending", label: "Pendentes", count: counts.pending }, { value: "in_progress", label: "Em andamento", count: counts.in_progress }, { value: "revision", label: "Revisão", count: counts.revision }, { value: "completed", label: "Concluídas", count: counts.completed }]} /></>}>

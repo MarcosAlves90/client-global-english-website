@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/hooks/use-auth"
 import { parseActivityDate } from "@/lib/activities/deadlines"
+import { sortActivitiesAlphabetically } from "@/lib/activities/sorting"
 import { toFriendlyFirestoreLoadError } from "@/lib/firebase/error-message"
 import { fetchUserActivityProgressList, fetchUserDashboard } from "@/lib/firebase/firestore"
 import type { ActivityProgress, DashboardCourse } from "@/lib/firebase/types"
@@ -39,8 +40,10 @@ export default function Page() {
 
   const progressById = React.useMemo(() => new Map(progress.map((item) => [item.activityId, item] as const)), [progress])
   const activities = React.useMemo(() => courses.flatMap((course) => course.activities.map((activity) => ({ ...activity, courseTitle: course.title, trackTitle: course.tracks.find((track) => track.id === activity.trackId)?.title ?? "", progress: progressById.get(activity.id) ?? null }))), [courses, progressById])
-  const pending = React.useMemo(() => activities.filter((item) => item.progress?.status !== "completed" || item.progress?.gradingStatus === "revision_requested").sort((a, b) => { const ad = parseActivityDate(a.dueAt)?.getTime() ?? Number.POSITIVE_INFINITY; const bd = parseActivityDate(b.dueAt)?.getTime() ?? Number.POSITIVE_INFINITY; return ad - bd || a.order - b.order }), [activities])
-  const next = pending[0]
+  const pending = React.useMemo(() => activities.filter((item) => item.progress?.status !== "completed" || item.progress?.gradingStatus === "revision_requested"), [activities])
+  const pendingByDeadline = React.useMemo(() => [...pending].sort((a, b) => { const ad = parseActivityDate(a.dueAt)?.getTime() ?? Number.POSITIVE_INFINITY; const bd = parseActivityDate(b.dueAt)?.getTime() ?? Number.POSITIVE_INFINITY; return ad - bd || a.order - b.order }), [pending])
+  const pendingAlphabetically = React.useMemo(() => sortActivitiesAlphabetically(pending), [pending])
+  const next = pendingByDeadline[0]
   const stats = { progress: calculateDashboardProgressPercent(courses, progress), courses: courses.length, pending: pending.length, revisions: progress.filter((item) => item.gradingStatus === "revision_requested").length }
   const displayName = profile?.name?.split(" ")[0] || user?.displayName?.split(" ")[0] || ""
 
@@ -65,7 +68,7 @@ export default function Page() {
         <DashboardStatCard title="Revisões" value={stats.revisions} icon={RotateCcw} />
       </div>
 
-      <section className="space-y-3"><div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">Próximas atividades</h2><p className="text-sm text-muted-foreground">Ordenadas pelos prazos mais próximos.</p></div><Button asChild variant="ghost" size="sm"><Link href="/dashboard/activities">Ver todas <ArrowRight className="size-3.5" /></Link></Button></div><div className="space-y-2">{pending.slice(0, 4).map((activity) => <StudentActivityCard key={activity.id} variant="compact" activity={{ ...activity, status: activity.progress?.status === "completed" ? "completed" : activity.progress?.status === "in_progress" ? "in_progress" : "pending", gradingStatus: activity.progress?.gradingStatus }} onOpen={(id) => router.push(`/dashboard/activities/${id}`)} />)}{!loading && pending.length === 0 ? <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">Nenhuma atividade pendente.</p> : null}</div></section>
+      <section className="space-y-3"><div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">Atividades pendentes</h2><p className="text-sm text-muted-foreground">Listadas em ordem alfabética.</p></div><Button asChild variant="ghost" size="sm"><Link href="/dashboard/activities">Ver todas <ArrowRight className="size-3.5" /></Link></Button></div><div className="space-y-2">{pendingAlphabetically.slice(0, 4).map((activity) => <StudentActivityCard key={activity.id} variant="compact" activity={{ ...activity, status: activity.progress?.status === "completed" ? "completed" : activity.progress?.status === "in_progress" ? "in_progress" : "pending", gradingStatus: activity.progress?.gradingStatus }} onOpen={(id) => router.push(`/dashboard/activities/${id}`)} />)}{!loading && pending.length === 0 ? <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">Nenhuma atividade pendente.</p> : null}</div></section>
 
       <section className="space-y-3"><div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">Meus cursos</h2><p className="text-sm text-muted-foreground">Acesse o conteúdo organizado por módulos.</p></div><Button asChild variant="ghost" size="sm"><Link href="/dashboard/courses">Ver todos <ArrowRight className="size-3.5" /></Link></Button></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{courses.slice(0, 3).map((course) => <StudentCourseCard key={course.id} course={course} />)}</div></section>
     </DashboardPage>

@@ -1,0 +1,206 @@
+{
+  "schema_version": 6,
+  "kind": "defect",
+  "scope": {
+    "allowed_paths": [
+      "README.md",
+      "app/dashboard/activities/page.tsx",
+      "app/dashboard/agenda/page.tsx",
+      "app/dashboard/courses/[courseId]/page.tsx",
+      "app/dashboard/grades/page.tsx",
+      "app/dashboard/page.tsx",
+      "app/dashboard/teacher/courses/[courseId]/page.tsx",
+      "app/dashboard/teacher/gradebook/page.tsx",
+      "components/dashboard/mobile-navigation.tsx",
+      "docs/POLIS.md",
+      "lib/activities/sorting.ts",
+      "modules/courses/ui/manage/ActivityInsightsPanel.tsx",
+      ".polis/README.md",
+      ".polis/contracts/activity-navigation-sorting.draft.json",
+      ".polis/policy.json",
+      "tests/components/mobile-navigation.test.tsx",
+      "tests/lib/activity-sorting.test.ts"
+    ]
+  },
+  "test_scope": {
+    "allowed_paths": [
+      "tests/components/mobile-navigation.test.tsx",
+      "tests/lib/activity-sorting.test.ts"
+    ]
+  },
+  "development_method": "strict_sdd_tdd_v2",
+  "specification": {
+    "objective": "Corrigir a ordenação das atividades por título e manter os destinos da navegação móvel do aluno acessíveis em telas estreitas.",
+    "requirements": [
+      {
+        "id": "REQ-ACTIVITY-ORDER",
+        "statement": "Ordenar alfabeticamente pelo título as atividades exibidas em cada listagem, respeitando agrupamentos existentes por curso, módulo, prazo ou seção."
+      },
+      {
+        "id": "REQ-STUDENT-NAVIGATION",
+        "statement": "Manter os destinos da navegação móvel do aluno, incluindo Materiais, renderizados e alcançáveis em larguras estreitas por rolagem horizontal quando necessário."
+      }
+    ],
+    "acceptance_criteria": [
+      {
+        "id": "AC-ACTIVITY-ORDER",
+        "statement": "Os títulos de atividades aparecem em ordem alfabética conforme a localidade pt-BR nas listas de aluno e professor, sem alterar a associação entre uma atividade e seus dados.",
+        "requirements": [
+          "REQ-ACTIVITY-ORDER"
+        ],
+        "proof": "regression"
+      },
+      {
+        "id": "AC-STUDENT-NAVIGATION",
+        "statement": "A navegação móvel do aluno contém Início, Cursos, Materiais, Atividades, Agenda e Mais; Materiais direciona para /dashboard/materials e a barra permite alcançar todos os links em telas estreitas.",
+        "requirements": [
+          "REQ-STUDENT-NAVIGATION"
+        ],
+        "proof": "regression"
+      }
+    ],
+    "invariants": [
+      {
+        "id": "INV-ACTIVITY-GROUPING",
+        "statement": "Agrupamentos de atividades já existentes por curso, módulo ou período continuam preservados; a ordenação por título ocorre dentro desses agrupamentos."
+      },
+      {
+        "id": "INV-NAVIGATION-ROUTES",
+        "statement": "As regras de workspace, os destinos das rotas e a indicação da rota ativa continuam consistentes com a navegação existente."
+      }
+    ],
+    "forbidden_states": [
+      {
+        "id": "FORBID-NONALPHABETICAL-ACTIVITIES",
+        "statement": "Uma listagem visível de atividades ordenada por prazo, posição de cadastro ou ordem não alfabética substitui a ordem por título."
+      },
+      {
+        "id": "FORBID-UNREACHABLE-NAVIGATION",
+        "statement": "Um destino da navegação móvel do aluno, inclusive Materiais, deixa de estar no DOM ou fica inacessível por falta de espaço horizontal."
+      }
+    ],
+    "inputs": [
+      {
+        "id": "IN-ACTIVITIES",
+        "statement": "Atividades exibidas nas áreas de aluno e professor, com títulos, estado, curso, módulo e prazo existentes."
+      },
+      {
+        "id": "IN-NAVIGATION",
+        "statement": "Workspace do aluno, rota atual e largura disponível para a navegação móvel."
+      }
+    ],
+    "outputs": [
+      {
+        "id": "OUT-ACTIVITIES",
+        "statement": "Atividades exibidas em ordem alfabética por título dentro de cada agrupamento existente."
+      },
+      {
+        "id": "OUT-NAVIGATION",
+        "statement": "Links móveis de aluno para todos os destinos previstos, com Materiais em /dashboard/materials e opção de rolagem horizontal quando necessário."
+      }
+    ],
+    "failure_semantics": [
+      {
+        "id": "FAIL-ACTIVITY-ORDER",
+        "statement": "A prova de regressão falha se o helper de ordenação não retornar os títulos alfabeticamente ou modificar a coleção recebida."
+      },
+      {
+        "id": "FAIL-NAVIGATION",
+        "statement": "A prova de regressão falha se a navegação do aluno omitir qualquer destino esperado, não incluir o link Materiais ou não permitir rolagem horizontal."
+      }
+    ]
+  },
+  "baseline_lock": {
+    "git_object_format": "sha1",
+    "base_commit": "7a0e8c1dde925d8e129865d6f37198f8b7895b0f",
+    "base_tree": "73038d10029148130d1e8f15fb7a21c595c37730",
+    "policy_sha256": "2b767e3253edf6755af7859911610de48df8ae26ba1080c5a3a95c0e22c6da22",
+    "specification_sha256": "59150ef1063e524043d10b3a9b6d27e6d1009ef31f9e8e0e4df9735f58f66186"
+  },
+  "behavior": {
+    "argv": [
+      "npm",
+      "run",
+      "test"
+    ],
+    "cwd": ".",
+    "timeout_seconds": 1200,
+    "environment": {
+      "mode": "clean",
+      "pass": [
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "SystemRoot",
+        "COMSPEC",
+        "PATHEXT",
+        "USERPROFILE",
+        "LOCALAPPDATA"
+      ]
+    }
+  },
+  "affected": {
+    "argv": [
+      "npm",
+      "run",
+      "test",
+      "--",
+      "tests/lib/activity-sorting.test.ts",
+      "tests/components/mobile-navigation.test.tsx"
+    ],
+    "cwd": ".",
+    "timeout_seconds": 1200,
+    "environment": {
+      "mode": "clean",
+      "pass": [
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "SystemRoot",
+        "COMSPEC",
+        "PATHEXT",
+        "USERPROFILE",
+        "LOCALAPPDATA"
+      ]
+    }
+  },
+  "regression": {
+    "mode": "red_green",
+    "command": {
+      "argv": [
+        "npm",
+        "run",
+        "test",
+        "--",
+        "tests/lib/activity-sorting.test.ts",
+        "tests/components/mobile-navigation.test.tsx"
+      ],
+      "cwd": ".",
+      "timeout_seconds": 1200,
+      "environment": {
+        "mode": "clean",
+        "pass": [
+          "PATH",
+          "HOME",
+          "TMPDIR",
+          "TMP",
+          "TEMP",
+          "SystemRoot",
+          "COMSPEC",
+          "PATHEXT",
+          "USERPROFILE",
+          "LOCALAPPDATA"
+        ]
+      }
+    },
+    "baseline_exit_code": 1,
+    "baseline_output_contains": [
+      "Failed to resolve import",
+      "Materiais"
+    ]
+  }
+}
